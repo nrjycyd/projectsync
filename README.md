@@ -31,3 +31,9 @@ ProjectSync 面向用 WSL 构建、用 Windows Git 仓库发布的项目。EduSp
 预览会提示 Windows 分支是否需要快进。应用同步先完成快进，再写入同步文件。WSL 拉取目录中的暂存改动或与远端及上次同步版本不一致的本地改动会阻止覆盖。
 
 如果提交已创建但推送失败，保持程序打开，重新勾选该项目并点击「提交并推送」可重试原提交。远端已更新时，先检查本地提交和远端差异。
+
+## Windows 发布包
+
+在 PowerShell 7 中运行 `./tools/Publish-Windows.ps1 -OutputDirectory <输出目录>` 生成版本化的 Windows x64 ZIP。GitHub Actions 使用同一个打包脚本。
+
+将 ZIP 解压到新目录，运行 `ProjectSync/ProjectSync.App.exe`。程序需要 .NET 8 Desktop Runtime，随包脚本位于 `scripts`，示例配置位于 `examples`。已保存的项目配置继续存放在 `%LOCALAPPDATA%\ProjectSync`。

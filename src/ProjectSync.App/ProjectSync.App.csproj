@@ -12,7 +12,9 @@
     <ProjectReference Include="../ProjectSync.Core/ProjectSync.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="../ProjectSync.Core/Scripts/BuildSync.ps1" Link="BuildSync.ps1" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../examples/edusprout.build-sync.json" Link="edusprout.build-sync.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../ProjectSync.Core/Scripts/BuildSync.ps1" Link="scripts/BuildSync.ps1"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../examples/edusprout.build-sync.json" Link="examples/edusprout.build-sync.json"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

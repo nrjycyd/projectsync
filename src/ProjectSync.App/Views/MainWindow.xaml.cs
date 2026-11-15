@@ -425,7 +425,7 @@ public partial class MainWindow : Window
                 StandardErrorEncoding = Encoding.UTF8
             };
             foreach (string argument in new[] { "-NoProfile", "-File",
-                Path.Combine(AppContext.BaseDirectory, "BuildSync.ps1"), "-Config", temporary })
+                Path.Combine(AppContext.BaseDirectory, "scripts", "BuildSync.ps1"), "-Config", temporary })
                 start.ArgumentList.Add(argument);
             if (listRemotes)
                 start.ArgumentList.Add("-ListRemotes");
