@@ -9,6 +9,8 @@
   <SolidColorBrush x:Key="Surface" Color="#FFFFFF"/>
   <SolidColorBrush x:Key="AppBackground" Color="#FAFAFA"/>
   <SolidColorBrush x:Key="SurfaceAlt" Color="#F1F3F3"/>
+  <SolidColorBrush x:Key="ButtonHoverSurface" Color="#E4EBE7"/>
+  <SolidColorBrush x:Key="DangerHoverSurface" Color="#F7DADA"/>
   <SolidColorBrush x:Key="Line" Color="#CDD1D4"/>
   <SolidColorBrush x:Key="LineStrong" Color="#A4ADB3"/>
   <SolidColorBrush x:Key="SuccessBackground" Color="#DCEFE0"/>
@@ -39,4 +41,5 @@
   <sys:Double x:Key="ControlRadius">5</sys:Double>
   <sys:Double x:Key="MenuRadius">6</sys:Double>
   <sys:Double x:Key="DialogRadius">8</sys:Double>
+  <CornerRadius x:Key="ButtonCornerRadius">5</CornerRadius>
 </ResourceDictionary>

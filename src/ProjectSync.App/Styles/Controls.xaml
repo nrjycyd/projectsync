@@ -1,6 +1,156 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!-- Buttons -->
+  <ControlTemplate x:Key="ComponentButtonTemplate" TargetType="Button">
+    <Grid x:Name="Chrome" Background="Transparent" SnapsToDevicePixels="True">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource ButtonCornerRadius}"/>
+      <ContentPresenter x:Name="Label" Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        RecognizesAccessKey="True"/>
+      <Border x:Name="FocusRing" BorderBrush="{StaticResource Accent}" BorderThickness="1"
+              CornerRadius="{StaticResource ButtonCornerRadius}" IsHitTestVisible="False" Visibility="Collapsed">
+        <Border BorderBrush="{StaticResource Surface}" BorderThickness="1" CornerRadius="4"/>
+      </Border>
+      <Path x:Name="Spinner" Visibility="Collapsed" IsHitTestVisible="False" HorizontalAlignment="Left"
+            VerticalAlignment="Center" Margin="3,0,0,0" Width="10" Height="10" Stretch="Uniform"
+            Data="M 9,1 A 5,5 0 1 1 4,11" Stroke="{TemplateBinding Foreground}"
+            StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" RenderTransformOrigin="0.5,0.5">
+        <Path.RenderTransform>
+          <RotateTransform/>
+        </Path.RenderTransform>
+      </Path>
+    </Grid>
+    <ControlTemplate.Triggers>
+      <Trigger Property="IsPressed" Value="True">
+        <Setter TargetName="Chrome" Property="RenderTransform">
+          <Setter.Value><TranslateTransform Y="1"/></Setter.Value>
+        </Setter>
+      </Trigger>
+      <Trigger Property="IsKeyboardFocused" Value="True">
+        <Setter TargetName="FocusRing" Property="Visibility" Value="Visible"/>
+      </Trigger>
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="Chrome" Property="Opacity" Value="0.45"/>
+      </Trigger>
+      <MultiTrigger>
+        <MultiTrigger.Conditions>
+          <Condition Property="IsEnabled" Value="False"/>
+          <Condition Property="Tag" Value="Loading"/>
+        </MultiTrigger.Conditions>
+        <Setter TargetName="Spinner" Property="Visibility" Value="Visible"/>
+        <Setter TargetName="Chrome" Property="Opacity" Value="1"/>
+      </MultiTrigger>
+      <!-- The fixed-width icon button has no leading padding to reserve for a spinner. -->
+      <MultiTrigger>
+        <MultiTrigger.Conditions>
+          <Condition Property="IsEnabled" Value="False"/>
+          <Condition Property="Tag" Value="Loading"/>
+          <Condition Property="Width" Value="28"/>
+        </MultiTrigger.Conditions>
+        <Setter TargetName="Label" Property="Opacity" Value="0"/>
+        <Setter TargetName="Spinner" Property="HorizontalAlignment" Value="Center"/>
+        <Setter TargetName="Spinner" Property="Margin" Value="0"/>
+      </MultiTrigger>
+      <MultiDataTrigger>
+        <MultiDataTrigger.Conditions>
+          <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource TemplatedParent}}" Value="False"/>
+          <Condition Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Loading"/>
+          <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True"/>
+        </MultiDataTrigger.Conditions>
+        <MultiDataTrigger.EnterActions>
+          <BeginStoryboard Name="Spin">
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="Spinner" Storyboard.TargetProperty="RenderTransform.Angle"
+                               From="0" To="360" Duration="0:0:0.8" RepeatBehavior="Forever"/>
+            </Storyboard>
+          </BeginStoryboard>
+        </MultiDataTrigger.EnterActions>
+        <MultiDataTrigger.ExitActions>
+          <RemoveStoryboard BeginStoryboardName="Spin"/>
+        </MultiDataTrigger.ExitActions>
+      </MultiDataTrigger>
+    </ControlTemplate.Triggers>
+  </ControlTemplate>
+
+  <Style x:Key="ComponentButtonBase" TargetType="Button">
+    <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSize14}"/>
+    <Setter Property="FontWeight" Value="{StaticResource Semibold}"/>
+    <Setter Property="Height" Value="32"/>
+    <Setter Property="Padding" Value="16,0"/>
+    <Setter Property="Margin" Value="0,0,8,4"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template" Value="{StaticResource ComponentButtonTemplate}"/>
+  </Style>
+
+  <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ComponentButtonBase}">
+    <Setter Property="Height" Value="34"/>
+    <Setter Property="Background" Value="{StaticResource Accent}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+    <Setter Property="Foreground" Value="{StaticResource Surface}"/>
+    <Style.Triggers>
+      <MultiTrigger>
+        <MultiTrigger.Conditions>
+          <Condition Property="IsMouseOver" Value="True"/>
+          <Condition Property="IsEnabled" Value="True"/>
+        </MultiTrigger.Conditions>
+        <Setter Property="Background" Value="{StaticResource AccentHover}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentHover}"/>
+      </MultiTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- MainWindow still has a separate PrimaryButton style for project settings. -->
+  <Style x:Key="ToolbarPrimaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}"/>
+
+  <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ComponentButtonBase}">
+    <Setter Property="Background" Value="{StaticResource SurfaceAlt}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource LineStrong}"/>
+    <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+    <Style.Triggers>
+      <MultiTrigger>
+        <MultiTrigger.Conditions>
+          <Condition Property="IsMouseOver" Value="True"/>
+          <Condition Property="IsEnabled" Value="True"/>
+        </MultiTrigger.Conditions>
+        <Setter Property="Background" Value="{StaticResource ButtonHoverSurface}"/>
+      </MultiTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ComponentButtonBase}">
+    <Setter Property="Background" Value="{StaticResource DangerBackground}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource DangerForeground}"/>
+    <Setter Property="Foreground" Value="{StaticResource DangerForeground}"/>
+    <Style.Triggers>
+      <MultiTrigger>
+        <MultiTrigger.Conditions>
+          <Condition Property="IsMouseOver" Value="True"/>
+          <Condition Property="IsEnabled" Value="True"/>
+        </MultiTrigger.Conditions>
+        <Setter Property="Background" Value="{StaticResource DangerHoverSurface}"/>
+      </MultiTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+    <Setter Property="Width" Value="28"/>
+    <Setter Property="Height" Value="28"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+  </Style>
+
+  <Style x:Key="ToolbarSplitButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+    <Setter Property="Height" Value="32"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Background" Value="Transparent"/>
+  </Style>
+
   <!-- Inputs -->
   <!-- Grid -->
   <!-- Pills -->

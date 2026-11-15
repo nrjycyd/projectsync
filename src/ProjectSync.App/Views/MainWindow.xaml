@@ -68,21 +68,13 @@
   <Style x:Key="HomeDropDownFrame" TargetType="Border">
    <Setter Property="Width" Value="116"/>
    <Setter Property="Height" Value="34"/>
-   <Setter Property="CornerRadius" Value="4"/>
-   <Setter Property="BorderBrush" Value="#A6ADB3"/>
+   <Setter Property="CornerRadius" Value="{StaticResource ButtonCornerRadius}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource LineStrong}"/>
    <Setter Property="BorderThickness" Value="1"/>
-   <Setter Property="Background" Value="#F1F3F3"/>
+   <Setter Property="Background" Value="{StaticResource SurfaceAlt}"/>
    <Style.Triggers>
     <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
-    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55"/></Trigger>
    </Style.Triggers>
-  </Style>
-  <Style x:Key="HomeDropDownSegment" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-   <Setter Property="MinHeight" Value="0"/>
-   <Setter Property="Margin" Value="0"/>
-   <Setter Property="Padding" Value="0"/>
-   <Setter Property="Background" Value="Transparent"/>
-   <Setter Property="BorderBrush" Value="Transparent"/>
   </Style>
   <Style x:Key="HomeDropDownChevron" TargetType="Path">
    <Setter Property="Data" Value="{StaticResource DropDownChevron}"/>
@@ -363,10 +355,20 @@
   </Style>
   <DataTemplate x:Key="ToolbarIconLabel">
    <StackPanel Orientation="Horizontal">
-    <Path Data="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
-          Width="14" Height="14" Stretch="Uniform" StrokeThickness="1.4"
+    <Path Width="14" Height="14" Stretch="Uniform" StrokeThickness="1.4"
           Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-          Margin="0,0,7,0" VerticalAlignment="Center"/>
+          Margin="0,0,7,0" VerticalAlignment="Center">
+     <Path.Style>
+      <Style TargetType="Path">
+       <Setter Property="Data" Value="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"/>
+       <Style.Triggers>
+        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}" Value="Loading">
+         <Setter Property="Data" Value="{x:Null}"/>
+        </DataTrigger>
+       </Style.Triggers>
+      </Style>
+     </Path.Style>
+    </Path>
     <TextBlock Text="{Binding}" VerticalAlignment="Center"/>
    </StackPanel>
   </DataTemplate>
@@ -405,10 +407,10 @@
      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <StackPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
-     <Button MinHeight="34" Padding="16,5" x:Name="PreviewBatchButton" Style="{StaticResource DashboardPrimaryButton}" MinWidth="122" Content="构建并预览" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M2,1 L13,7 L2,13 Z" Click="PreviewSelected" IsEnabled="False"/>
-     <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="16,5" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M12,5 A5,5 0 1 0 12,10 M12,1 V5 H8" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="对预览成功且已勾选的项目应用同步"/>
-     <Button Style="{StaticResource DashboardPrimaryButton}" MinHeight="34" Padding="16,5" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M7,11 V1 M3,5 L7,1 L11,5 M1,13 H13" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="提交并推送已应用同步且已勾选的项目"/>
-     <Button Style="{StaticResource DashboardButton}" x:Name="RetryPushButton" Content="重试推送"
+     <Button x:Name="PreviewBatchButton" Style="{StaticResource ToolbarPrimaryButton}" MinWidth="122" Content="构建并预览" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M2,1 L13,7 L2,13 Z" Click="PreviewSelected" IsEnabled="False"/>
+     <Button Style="{StaticResource SecondaryButton}" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M12,5 A5,5 0 1 0 12,10 M12,1 V5 H8" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="对预览成功且已勾选的项目应用同步"/>
+     <Button Style="{StaticResource SecondaryButton}" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M7,11 V1 M3,5 L7,1 L11,5 M1,13 H13" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="提交并推送已应用同步且已勾选的项目"/>
+     <Button Style="{StaticResource SecondaryButton}" x:Name="RetryPushButton" Content="重试推送"
              Visibility="Collapsed" Click="RetryPushSelected"/>
      <TextBlock x:Name="SelectionSummary" Margin="10,0,0,4" VerticalAlignment="Center" Foreground="#20252A"/>
     </StackPanel>
@@ -416,9 +418,9 @@
       <Border x:Name="NewProjectGroup" Style="{StaticResource HomeDropDownFrame}" Margin="0,0,8,0">
        <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
-        <Button Style="{StaticResource HomeDropDownSegment}" Content="新建项目" Click="NewProject"/>
+        <Button Style="{StaticResource ToolbarSplitButton}" Content="新建项目" Click="NewProject"/>
         <Border Grid.Column="1" BorderBrush="#C8CED1" BorderThickness="1,0,0,0" IsHitTestVisible="False"/>
-        <Button Grid.Column="1" Style="{StaticResource HomeDropDownSegment}"
+        <Button Grid.Column="1" Style="{StaticResource ToolbarSplitButton}"
                 AutomationProperties.Name="更多项目操作" ToolTip="更多项目操作" Click="OpenHomeMenu">
          <Path Style="{StaticResource HomeDropDownChevron}"/>
          <Button.ContextMenu>
@@ -431,7 +433,7 @@
        </Grid>
       </Border>
       <Border Style="{StaticResource HomeDropDownFrame}">
-       <Button Style="{StaticResource HomeDropDownSegment}" AutomationProperties.Name="工具" Click="OpenHomeMenu">
+       <Button Style="{StaticResource ToolbarSplitButton}" AutomationProperties.Name="工具" Click="OpenHomeMenu">
         <DockPanel Width="112">
          <Grid DockPanel.Dock="Right" Width="32"><Path Style="{StaticResource HomeDropDownChevron}"/></Grid>
          <TextBlock Text="工具" HorizontalAlignment="Center" VerticalAlignment="Center"/>
