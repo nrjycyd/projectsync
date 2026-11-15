@@ -434,7 +434,7 @@ public partial class MainWindow
         PublishBatchButton.Content = canPublish > 0 && selected.Any(project =>
             projectRuns.TryGetValue(project.Id, out var state) && state.Progress == "已提交，待推送")
             ? "提交／重试推送" : "提交并推送";
-        EditProjectButton.IsEnabled = RemoveProjectButton.IsEnabled = !running && Projects.SelectedItem is ProjectEntry;
+        RemoveProjectButton.IsEnabled = !running && Projects.SelectedItem is ProjectEntry;
         SelectionSummary.Text = selected.Length == 0 ? "勾选项目后开始" :
             $"已勾选 {selected.Length} 个";
         SelectionSummary.ToolTip = selected.Length == 0 ? null : $"可同步 {canApply} 个 · 可推送 {canPublish} 个";

@@ -350,7 +350,6 @@
       <Button Style="{StaticResource DashboardButton}" Content="WSL 环境" Click="OpenWslManager"/>
       <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="16,5" MinWidth="99" Content="新建项目" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M7,1 V13 M1,7 H13" Click="NewProject"/>
       <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="16,5" MinWidth="107" Content="导入 JSON" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M2,1 H8 L12,5 V13 H2 Z M8,1 V5 H12" Click="ImportProject"/>
-      <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="16,5" x:Name="EditProjectButton" MinWidth="99" Content="项目设置" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M1,4 H13 M1,10 H13 M5,2 V6 M9,8 V12" Click="OpenProject" IsEnabled="False"/>
       <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="16,5" x:Name="RemoveProjectButton" MinWidth="76" Content="移除" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M1,3 H13 M5,1 H9 M3,3 L4,13 H10 L11,3 M6,5 V11 M8,5 V11" Click="RemoveProject" IsEnabled="False"/>
      </StackPanel>
    </Grid>
