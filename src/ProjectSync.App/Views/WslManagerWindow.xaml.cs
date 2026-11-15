@@ -14,10 +14,44 @@ namespace ProjectSync.App.Views;
 
 public partial class WslManagerWindow : Window
 {
-    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, string DiskLimit, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, System.Windows.Media.ImageSource DistributionIcon)
+    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, System.Windows.Media.ImageSource DistributionIcon)
     {
         public string DistributionHint => $"{Distribution} · {State}";
     }
+    private sealed record DiskUsage(string Label, string Hint, double Percent = 0, bool HasMeasurement = false)
+    {
+        public bool IsLow => HasMeasurement && Percent <= 15;
+    }
+
+    private static async Task<DiskUsage?> ReadDiskUsageAsync(string instance)
+    {
+        try
+        {
+            // Read both numbers from the same filesystem so the fraction is comparable.
+            var result = await InvokeAsync(new[] { "-d", instance, "--exec", "env", "LC_ALL=C",
+                "df", "-B1", "--output=size,avail", "/" }, encoding: Encoding.UTF8)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            if (result.Code != 0) return null;
+
+            var match = Regex.Match(result.Output, @"(?m)^[ \t]*([0-9]+)[ \t]+([0-9]+)[ \t\r]*$");
+            if (!match.Success || !ulong.TryParse(match.Groups[1].Value, out ulong total) ||
+                !ulong.TryParse(match.Groups[2].Value, out ulong available) || total == 0 || available > total)
+                return null;
+
+            string totalLabel = VirtualDiskCapacity.Format(total);
+            string availableLabel = VirtualDiskCapacity.Format(available);
+            int separator = availableLabel.LastIndexOf(' ');
+            string compact = totalLabel.EndsWith(availableLabel[separator..], StringComparison.Ordinal)
+                ? availableLabel[..separator] : availableLabel;
+            return new DiskUsage($"{compact} / {totalLabel}",
+                $"根文件系统剩余 {availableLabel} / 总容量 {totalLabel}", 100d * available / total, true);
+        }
+        catch (Exception error) when (error is TimeoutException or IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     private readonly Func<string, IEnumerable<string>> projectsUsing;
     private bool busy;
     private string help = "";
@@ -156,17 +190,23 @@ public partial class WslManagerWindow : Window
             ulong? capacity = wsl2 && location is not null
                 ? await Task.Run(() => VirtualDiskCapacity.Read(location, diskFile))
                 : null;
-            string limit = capacity is ulong bytes ? VirtualDiskCapacity.Format(bytes) : wsl2 ? "无法读取" : "不适用";
+            string? limit = capacity is ulong bytes ? VirtualDiskCapacity.Format(bytes) : null;
+            string unavailable = running ? "未能读取根文件系统剩余空间" : "实例未运行，剩余空间待检测";
+            var disk = wsl2
+                ? new DiskUsage(limit is null ? "—" : $"— / {limit}",
+                    limit is null ? unavailable : $"{unavailable}。虚拟磁盘上限 {limit}。")
+                : new DiskUsage("不适用", "WSL 1 没有独立的虚拟磁盘。");
             string distribution = DistributionLabel(flavor, osVersion);
             rows.Add(new Instance(name, match.Groups[1].Length > 0, state, running,
-                $"WSL {match.Groups[4].Value}", location ?? "—", limit, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution, DistributionLogo(flavor, running)));
+                $"WSL {match.Groups[4].Value}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution, DistributionLogo(flavor, running)));
         }
         Instances.ItemsSource = rows;
         var checkedRows = await Task.WhenAll(rows.Select(async row =>
         {
             if (!row.IsRunning) return row;
+            var diskTask = row.Version == "WSL 2" ? ReadDiskUsageAsync(row.Name) : Task.FromResult<DiskUsage?>(null);
             var (tools, status) = await ReadInstalledToolsAsync(row.Name);
-            return row with { Tools = tools, ToolStatus = status };
+            return row with { Tools = tools, ToolStatus = status, Disk = await diskTask ?? row.Disk };
         }));
         var selected = (Instances.SelectedItem as Instance)?.Name;
         Instances.ItemsSource = checkedRows;

@@ -120,7 +120,35 @@
     </DataGridTemplateColumn>
     <DataGridTextColumn Header="WSL 版本" Binding="{Binding Version}" Width="94"/>
     <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="2*"/>
-    <DataGridTextColumn Header="磁盘上限" Binding="{Binding DiskLimit}" Width="106"/>
+    <DataGridTemplateColumn Header="磁盘容量" Width="106">
+     <DataGridTemplateColumn.CellTemplate><DataTemplate>
+      <StackPanel Background="Transparent" VerticalAlignment="Center" ToolTip="{Binding Disk.Hint}"
+                  AutomationProperties.Name="{Binding Disk.Hint}">
+       <TextBlock Text="{Binding Disk.Label}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+       <ProgressBar Value="{Binding Disk.Percent, Mode=OneWay}" Maximum="100" Height="3" Margin="0,3,8,0"
+                    Background="#E2E9E5" AutomationProperties.Name="剩余空间比例">
+        <ProgressBar.Style>
+         <Style TargetType="ProgressBar">
+          <Setter Property="Foreground" Value="#17744F"/>
+          <Setter Property="Template">
+           <Setter.Value>
+            <ControlTemplate TargetType="ProgressBar">
+             <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="2">
+              <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="2"/>
+             </Border>
+            </ControlTemplate>
+           </Setter.Value>
+          </Setter>
+          <Style.Triggers>
+           <DataTrigger Binding="{Binding Disk.HasMeasurement}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+           <DataTrigger Binding="{Binding Disk.IsLow}" Value="True"><Setter Property="Foreground" Value="#A86427"/></DataTrigger>
+          </Style.Triggers>
+         </Style>
+        </ProgressBar.Style>
+       </ProgressBar>
+      </StackPanel>
+     </DataTemplate></DataGridTemplateColumn.CellTemplate>
+    </DataGridTemplateColumn>
     <DataGridTemplateColumn Header="开发环境" Width="120">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
       <Grid>
