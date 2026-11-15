@@ -64,7 +64,7 @@ public partial class MainWindow
                     ?? throw new JsonException("项目列表必须是 JSON 数组。"));
             else
             {
-                LoadConfig(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "edusprout.build-sync.json")));
+                LoadConfig(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "examples", "edusprout.build-sync.json")));
                 ProjectName.Text = "EduSprout";
                 savedProjects.Add(CreateEntry());
                 PersistProjects();
