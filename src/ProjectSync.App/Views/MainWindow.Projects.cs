@@ -457,8 +457,15 @@ public partial class MainWindow
         string[] targets = projects.Select(project =>
         {
             var branch = JsonNode.Parse(project.Configuration)?["branch"]?.GetValue<string>();
-            return $"{project.Name} → {branch}";
+            return $"{project.Name} → {branch}\n{project.Repository}";
         }).ToArray();
+        var scope = new System.Windows.Controls.TextBlock
+        {
+            Text = "将暂存并提交整个 Windows 工作区的新增、修改和删除。Git 已忽略的未跟踪文件会跳过。",
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+        };
+        System.Windows.Controls.DockPanel.SetDock(scope, System.Windows.Controls.Dock.Top);
+        body.Children.Add(scope);
         var targetsView = new System.Windows.Controls.ScrollViewer
         {
             MaxHeight = 110, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,

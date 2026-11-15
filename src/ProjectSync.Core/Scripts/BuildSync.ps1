@@ -216,9 +216,7 @@ foreach ($suffix in $suffixes) {
 if ($suffixes -ccontains ':Zone.Identifier') {
     $suffixes += "$([char]0xF03A)Zone.Identifier"
 }
-$suffixMatches = @($suffixes | ForEach-Object { ":(glob)**/*$_" })
 $syncPaths += @($suffixes | ForEach-Object { ":(exclude,glob)**/*$_" })
-$outsideSyncPaths = @($sitePaths | ForEach-Object { ":(exclude,literal)$_" })
 $autoCrlf = git -C $repo config --default false --get core.autocrlf
 if ($LASTEXITCODE -ne 0) { throw "Could not read target Git line-ending configuration." }
 if (!$Preview -and !$Publish -and !$ExpectedPlan) { throw "Run a preview before applying." }
@@ -231,16 +229,18 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not read the local branch.' }
 $branch = git -C $repo branch --show-current
 if ($LASTEXITCODE -ne 0 -or $branch -cne $c.branch) { throw 'Check out the configured Windows branch first.' }
 
-function Assert-ReadyIndex {
-    git -C $repo diff --cached --quiet
-    if ($LASTEXITCODE -ne 0) { throw 'The index has staged changes. Review them before continuing.' }
+function Assert-ReadyIndex([switch]$AllowStaged) {
+    if (!$AllowStaged) {
+        git -C $repo diff --cached --quiet
+        if ($LASTEXITCODE -ne 0) { throw 'The index has staged changes. Review them before continuing.' }
+    }
     foreach ($state in @('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply','sequencer')) {
         $statePath = git -C $repo rev-parse --path-format=absolute --git-path $state
         if ($LASTEXITCODE -ne 0 -or (Test-Path -LiteralPath $statePath)) { throw 'Finish the in-progress Git operation first.' }
     }
 }
 
-Assert-ReadyIndex
+Assert-ReadyIndex -AllowStaged:$Publish
 if ($Publish) {
     if ($ExpectedPlan -notmatch '^([0-9a-f]{40}):([0-9a-f]{40})(?::([0-9a-f]{40}))?$') { throw 'Apply a verified sync first.' }
     $base = $Matches[1]
@@ -258,48 +258,22 @@ if ($Publish) {
         }
     } else {
         if ($head -ne $base) { throw 'The local branch changed. Build, preview and apply sync again.' }
-        $paths = @(git -C $repo ls-files -z --cached --others -- @syncPaths)
-        if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate files to stage.' }
-        $pathList = [IO.Path]::GetTempFileName()
-        try {
-            [IO.File]::WriteAllText($pathList, ($paths -join ''), [Text.UTF8Encoding]::new($false))
-            $stageStatus = 0
-            if ((Get-Item -LiteralPath $pathList).Length -gt 0) {
-                git -C $repo --literal-pathspecs add -f -A --pathspec-from-file=$pathList --pathspec-file-nul
-                $stageStatus = $LASTEXITCODE
-            }
-        } finally { Remove-Item -LiteralPath $pathList }
-        $differences = @(git -C $repo -c core.quotepath=false diff --cached --name-status $verified -- @syncPaths)
-        if ($stageStatus -ne 0 -or $LASTEXITCODE -ne 0 -or $differences.Count -gt 0) {
-            git -C $repo restore --staged -- @syncPaths
-            if ($LASTEXITCODE -ne 0) { throw 'Staging verification failed. Review the Git index.' }
-            $differences | ForEach-Object { Write-Host $_ }
-            throw 'Could not stage the verified sources. Review the paths above, then run a new preview and sync.'
-        }
-        git -C $repo diff --cached --quiet
-        if ($LASTEXITCODE -eq 0) { Write-Host 'No changes to publish.'; exit 0 }
-        if ($LASTEXITCODE -ne 1) { throw 'Could not inspect staged changes.' }
+        git -C $repo add -A -- .
+        if ($LASTEXITCODE -ne 0) { throw 'Could not stage the Windows working tree. Review the Git index.' }
+        $changes = @(git -C $repo -c core.quotepath=false diff --cached --name-status)
+        if ($LASTEXITCODE -ne 0) { throw 'Could not inspect staged changes.' }
+        if ($changes.Count -eq 0) { Write-Host 'No changes to publish.'; exit 0 }
+        Write-Host 'Staged Windows working tree changes:'
+        $changes | ForEach-Object { Write-Host $_ }
 
         if ($CommitSummaryFile) {
             git -C $repo -c i18n.commitEncoding=UTF-8 commit -F $CommitSummaryFile
         } else {
-            git -C $repo commit -m 'Update verified project sources'
+            git -C $repo commit -m 'Update project working tree'
         }
         if ($LASTEXITCODE -ne 0) { throw 'Git commit failed. Review the log and staged changes.' }
         $pending = git -C $repo rev-parse HEAD
         if ($LASTEXITCODE -ne 0) { throw 'Could not read the local commit.' }
-    }
-    git -C $repo diff --quiet $pending $verified -- @syncPaths
-    if ($LASTEXITCODE -ne 0) { throw 'The local commit does not match the verified sources.' }
-    git -C $repo diff --quiet $base $pending -- . @outsideSyncPaths
-    if ($LASTEXITCODE -ne 0) { throw 'The local commit contains changes outside the sync scope.' }
-    if ($exclude.Count -gt 0) {
-        git -C $repo diff --quiet $base $pending -- @exclude
-        if ($LASTEXITCODE -ne 0) { throw 'The local commit contains excluded changes.' }
-    }
-    if ($suffixMatches.Count -gt 0) {
-        git -C $repo diff --quiet $base $pending -- @suffixMatches
-        if ($LASTEXITCODE -ne 0) { throw 'The local commit contains files with excluded suffixes.' }
     }
     Write-Host "PENDING=${base}:${verified}:$pending"
     git @gitOptions push -- $remoteTarget "${pending}:refs/heads/$($c.branch)"
