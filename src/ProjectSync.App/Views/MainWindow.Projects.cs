@@ -416,7 +416,7 @@ public partial class MainWindow
             return;
 
         RemoveProjectItem.IsEnabled = Projects.SelectedItem is ProjectEntry;
-        menu.PlacementTarget = button;
+        menu.PlacementTarget = menu.Items.Contains(RemoveProjectItem) ? NewProjectGroup : button;
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         menu.IsOpen = true;
     }

@@ -55,6 +55,45 @@
     </Setter.Value>
    </Setter>
   </Style>
+  <Geometry x:Key="DropDownChevron">M 0 0 L 4.5 4.5 L 9 0</Geometry>
+  <Style x:Key="DropDownPopupBorder" TargetType="Border">
+   <Setter Property="Background" Value="White"/>
+   <Setter Property="BorderBrush" Value="#A4ADB3"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="CornerRadius" Value="{StaticResource PopupRadius}"/>
+   <Setter Property="Padding" Value="0,2"/>
+   <Setter Property="Margin" Value="0,0,6,6"/>
+   <Setter Property="Effect" Value="{StaticResource PopupShadow}"/>
+  </Style>
+  <Style x:Key="HomeDropDownMenu" TargetType="ContextMenu">
+   <Setter Property="VerticalOffset" Value="2"/>
+   <Setter Property="HasDropShadow" Value="False"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ContextMenu">
+      <Border Style="{StaticResource DropDownPopupBorder}" MinWidth="112">
+       <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/>
+      </Border>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="HomeDropDownItem" TargetType="MenuItem">
+   <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="MenuItem">
+      <Border x:Name="Option" Background="Transparent" CornerRadius="{StaticResource ControlRadius}" Padding="{TemplateBinding Padding}">
+       <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Option" Property="Background" Value="#EFF4FA"/></Trigger>
+       <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="#646C75"/></Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
   <Style TargetType="ComboBox">
    <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
    <Setter Property="MinHeight" Value="34"/>
@@ -71,7 +110,7 @@
         <ToggleButton.Template>
          <ControlTemplate TargetType="ToggleButton">
           <Border Background="Transparent" Padding="0,0,9,0">
-           <Path HorizontalAlignment="Right" VerticalAlignment="Center" Data="M 0 0 L 4.5 4.5 L 9 0"
+           <Path HorizontalAlignment="Right" VerticalAlignment="Center" Data="{StaticResource DropDownChevron}"
                  Stroke="#5E6662" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
           </Border>
          </ControlTemplate>
@@ -95,9 +134,7 @@
        </Border>
        <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" VerticalOffset="2"
               IsOpen="{TemplateBinding IsDropDownOpen}">
-        <Border Background="White" BorderBrush="#A4ADB3" BorderThickness="1" CornerRadius="{StaticResource PopupRadius}"
-                MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Padding="0,2" Margin="0,0,6,6">
-         <Border.Effect><StaticResource ResourceKey="PopupShadow"/></Border.Effect>
+        <Border Style="{StaticResource DropDownPopupBorder}" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
           <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
          </ScrollViewer>
@@ -346,24 +383,26 @@
      <TextBlock x:Name="SelectionSummary" Margin="10,0,0,4" VerticalAlignment="Center" Foreground="#20252A"/>
     </StackPanel>
      <StackPanel x:Name="HomeActions" Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal">
-      <StackPanel Orientation="Horizontal" Margin="0,0,10,4">
+      <StackPanel x:Name="NewProjectGroup" Orientation="Horizontal" Margin="0,0,10,4">
        <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="13,5" Margin="0" Content="新建项目" Click="NewProject"/>
        <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="9,5" Margin="-1,0,0,0"
-               Content="▾" AutomationProperties.Name="更多项目操作" ToolTip="更多项目操作" Click="OpenHomeMenu">
+               AutomationProperties.Name="更多项目操作" ToolTip="更多项目操作" Click="OpenHomeMenu">
+        <Path Data="{StaticResource DropDownChevron}" Stroke="#5E6662" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" VerticalAlignment="Center"/>
         <Button.ContextMenu>
-         <ContextMenu Style="{StaticResource CompactPopupMenu}">
-          <MenuItem Header="导入 JSON" Click="ImportProject"/>
-          <MenuItem x:Name="RemoveProjectItem" Header="移除" Click="RemoveProject" IsEnabled="False"/>
+         <ContextMenu Style="{StaticResource HomeDropDownMenu}">
+          <MenuItem Style="{StaticResource HomeDropDownItem}" Header="导入 JSON" Click="ImportProject"/>
+          <MenuItem Style="{StaticResource HomeDropDownItem}" x:Name="RemoveProjectItem" Header="移除" Click="RemoveProject" IsEnabled="False"/>
          </ContextMenu>
         </Button.ContextMenu>
        </Button>
       </StackPanel>
-      <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="12,5" Content="工具 ▾"
+      <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="12,5" MinWidth="108"
               AutomationProperties.Name="工具" Click="OpenHomeMenu">
+       <StackPanel Orientation="Horizontal"><TextBlock Text="工具" Margin="0,0,8,0"/><Path Data="{StaticResource DropDownChevron}" Stroke="#5E6662" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" VerticalAlignment="Center"/></StackPanel>
        <Button.ContextMenu>
-        <ContextMenu Style="{StaticResource CompactPopupMenu}">
-         <MenuItem Header="文件复制" Click="OpenFileCopy"/>
-         <MenuItem Header="WSL 环境" Click="OpenWslManager"/>
+        <ContextMenu Style="{StaticResource HomeDropDownMenu}">
+         <MenuItem Style="{StaticResource HomeDropDownItem}" Header="文件复制" Click="OpenFileCopy"/>
+         <MenuItem Style="{StaticResource HomeDropDownItem}" Header="WSL 环境" Click="OpenWslManager"/>
         </ContextMenu>
        </Button.ContextMenu>
       </Button>
