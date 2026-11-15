@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -105,6 +106,25 @@ public partial class MainWindow : Window
 
     private static bool IsPathList(string key) => key is "include" or "exclude" or "excludeSuffixes" or "pullPaths";
 
+    private bool ConfirmExternalConfiguration(string configuration, bool onlyChanged = false)
+    {
+        var parsed = JsonNode.Parse(configuration) as JsonObject
+            ?? throw new JsonException("配置必须是 JSON 对象。");
+        if (new[] { "git", "source", "build", "sync" }.Any(key => parsed[key] is JsonObject))
+            throw new JsonException("不支持嵌套格式，请使用扁平项目配置。");
+
+        var commands = new[] { "buildCommand", "previewCommand", "reinstallCommand",
+            "themeUpgradeCommand", "gitSshCommand" }
+            .Select(key => (Key: key, Value: parsed[key]?.GetValue<string>()))
+            .Where(command => !string.IsNullOrWhiteSpace(command.Value))
+            .Where(command => !onlyChanged || parsed[command.Key]?.ToJsonString() != current[command.Key]?.ToJsonString())
+            .Select(command => $"{command.Key}\n{command.Value}");
+        string details = string.Join("\n\n", commands);
+        return details.Length == 0 || ConfirmProjectAction("检查配置中的命令",
+            "项目操作可能以你的权限运行以下命令。请逐条核对，并仅在信任来源时继续。\n\n" + details,
+            "接受配置", "取消", canCancel: false) == MessageBoxResult.Yes;
+    }
+
     private void LoadConfig(string text)
     {
         var parsed = JsonNode.Parse(text) as JsonObject ?? throw new JsonException("配置必须是 JSON 对象。");
@@ -193,45 +213,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private string NormalizeSyncPath(string input, string label)
-    {
-        string path = UnquotePath(input).Replace('\\', '/').TrimEnd('/');
-        string? root = null;
-        var comparison = StringComparison.Ordinal;
-        if (TryParseWslNetworkPath(path, out var linuxPath, out var pathDistro))
-        {
-            string configuredDistro = TryParseWslNetworkPath(UnquotePath(wslRepo.Text), out _, out var rootDistro)
-                ? rootDistro : distro.Text.Trim();
-            if (!string.Equals(pathDistro, configuredDistro, StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException($"{label}的 WSL 发行版与当前配置不一致：{input}");
-            path = linuxPath;
-            root = wslRepo.Text;
-        }
-        else if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^[A-Za-z]:/"))
-        {
-            root = windowsRepo.Text;
-            comparison = StringComparison.OrdinalIgnoreCase;
-        }
-        else if (path.StartsWith('/') && !path.StartsWith("//", StringComparison.Ordinal))
-        {
-            root = wslRepo.Text;
-        }
-
-        if (root is not null)
-        {
-            root = UnquotePath(root).Replace('\\', '/');
-            if (TryParseWslNetworkPath(root, out var rootPath, out _)) root = rootPath;
-            string prefix = root.TrimEnd('/') + "/";
-            if (root.Length == 0 || !path.StartsWith(prefix, comparison))
-                throw new ArgumentException($"{label}必须位于当前项目目录内：{input}");
-            path = path[prefix.Length..];
-        }
-
-        if (path.Length == 0 || System.Text.RegularExpressions.Regex.IsMatch(path,
-            @"(^/|//|[""<>|:*?\[\]\x00-\x1f]|(^|/)(\.{1,2}|(?i:\.git))(/|$))"))
-            throw new ArgumentException($"{label}包含无效路径：{input}");
-        return path;
-    }
+    private string NormalizeSyncPath(string input, string label) =>
+        ProjectSync.Core.SyncPath.Normalize(input, label, windowsRepo.Text, wslRepo.Text, distro.Text.Trim());
 
     private static string UnquotePath(string value)
     {
@@ -256,7 +239,7 @@ public partial class MainWindow : Window
 
     private void ApplyJson(object sender, RoutedEventArgs e)
     {
-        try { LoadConfig(Config.Text); Status.Text = "已应用 JSON 配置。"; }
+        try { if (ConfirmExternalConfiguration(Config.Text, onlyChanged: true)) { LoadConfig(Config.Text); Status.Text = "已应用 JSON 配置。"; } }
         catch (Exception error) { Status.Text = $"配置无效：{error.Message}"; }
     }
 
@@ -270,7 +253,13 @@ public partial class MainWindow : Window
         var dialog = new OpenFileDialog { Title = "导入项目配置", Filter = "项目配置 (*.json)|*.json" };
         if (dialog.ShowDialog(this) != true)
             return;
-        try { LoadConfig(File.ReadAllText(dialog.FileName)); Status.Text = "已导入项目配置。"; }
+        try
+        {
+            string configuration = File.ReadAllText(dialog.FileName);
+            if (!ConfirmExternalConfiguration(configuration)) return;
+            LoadConfig(configuration);
+            Status.Text = "已导入项目配置。";
+        }
         catch (IOException error) { Status.Text = error.Message; }
         catch (UnauthorizedAccessException error) { Status.Text = error.Message; }
         catch (JsonException error) { Status.Text = error.Message; }
@@ -405,15 +394,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private static async Task<(string? Plan, string? Synced)> RunProjectAsync(
-        string configuration, bool preview, bool publish, string? expected, Action<string> writeLog, bool testConnection = false, bool listRemotes = false, Func<string>? failureMessage = null, Action<string>? savePending = null, string? commitSummary = null, string? initializeRepository = null)
+    private static async Task<(string? Plan, string? Synced, bool Pushed)> RunProjectAsync(
+        string configuration, bool preview, bool publish, string? expected, Action<string> writeLog, bool testConnection = false, bool listRemotes = false, Func<string>? failureMessage = null, Action<string>? savePending = null, string? commitSummary = null, string? initializeRepository = null, bool allowCleanup = false, CancellationToken cancellation = default)
     {
         string? temporary = null;
         string? summaryFile = null;
+        string? buildLease = null;
+        string? resultFile = null;
         try
         {
             temporary = Path.GetTempFileName();
             await File.WriteAllTextAsync(temporary, configuration);
+            resultFile = Path.GetTempFileName();
             var start = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
@@ -425,7 +417,8 @@ public partial class MainWindow : Window
                 StandardErrorEncoding = Encoding.UTF8
             };
             foreach (string argument in new[] { "-NoProfile", "-File",
-                Path.Combine(AppContext.BaseDirectory, "scripts", "BuildSync.ps1"), "-Config", temporary })
+                Path.Combine(AppContext.BaseDirectory, "scripts", "BuildSync.ps1"), "-Config", temporary,
+                "-ResultFile", resultFile })
                 start.ArgumentList.Add(argument);
             if (listRemotes)
                 start.ArgumentList.Add("-ListRemotes");
@@ -452,31 +445,62 @@ public partial class MainWindow : Window
                 start.ArgumentList.Add(preview ? "-Preview" : "-ExpectedPlan");
                 if (!preview)
                     start.ArgumentList.Add(expected!);
+                if (allowCleanup)
+                    start.ArgumentList.Add("-AllowCleanup");
             }
 
-            using var process = Process.Start(start) ?? throw new InvalidOperationException("无法启动同步进程。");
-            string? result = null;
-            string? verified = null;
-            string? errorCode = null;
-            await Task.WhenAll(ReadLog(process.StandardOutput, line =>
+            if (cancellation.CanBeCanceled)
             {
-                if (line.StartsWith("PLAN=", StringComparison.Ordinal))
-                    result = line.Substring(5);
-                else if (line.StartsWith("PROJECTSYNC_ERROR=", StringComparison.Ordinal))
-                    errorCode = line.Substring("PROJECTSYNC_ERROR=".Length);
-                else if (line.StartsWith("PENDING=", StringComparison.Ordinal))
+                buildLease = Path.GetTempFileName();
+                start.ArgumentList.Add("-BuildLease");
+                start.ArgumentList.Add(buildLease);
+            }
+
+            cancellation.ThrowIfCancellationRequested();
+            using var process = Process.Start(start) ?? throw new InvalidOperationException("无法启动同步进程。");
+            using var logCancellation = new CancellationTokenSource();
+            Task execution = Task.WhenAll(ReadLog(process.StandardOutput, line =>
+            {
+                if (publish && System.Text.RegularExpressions.Regex.IsMatch(line, @"\APENDING=[0-9a-f]{40}(?::[0-9a-f]{40}){2}\z"))
                     savePending?.Invoke(line.Substring(8));
-                else if (line.StartsWith("SYNCED=", StringComparison.Ordinal))
-                    verified = line.Substring(7);
                 else
-                {
                     writeLog(line);
+            }, logCancellation.Token), ReadLog(process.StandardError, writeLog, logCancellation.Token),
+                process.WaitForExitAsync());
+            try
+            {
+                await execution.WaitAsync(cancellation);
+                cancellation.ThrowIfCancellationRequested();
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                File.Delete(buildLease!);
+                if (await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(4))) != execution)
+                {
+                    if (!process.HasExited)
+                    {
+                        try { process.Kill(entireProcessTree: true); }
+                        catch (InvalidOperationException) when (process.HasExited) { }
+                    }
+                    logCancellation.Cancel();
                 }
-            }), ReadLog(process.StandardError, writeLog), process.WaitForExitAsync());
+                try { await execution; }
+                catch (OperationCanceledException) when (logCancellation.IsCancellationRequested) { }
+                throw;
+            }
+            string payload = await File.ReadAllTextAsync(resultFile);
+            var response = payload.Length == 0 ? null : JsonNode.Parse(payload);
+            string? kind = response?["kind"]?.GetValue<string>();
+            string? value = response?["value"]?.GetValue<string>();
+            string? result = kind == "PLAN" ? value : null;
+            string? verified = kind == "SYNCED" ? value : null;
+            string? errorCode = kind == "PROJECTSYNC_ERROR" ? value : null;
             if (process.ExitCode != 0 || (preview && result is null) ||
+                (publish && (kind != "PUBLISHED" || value is not ("pushed" or "no_changes"))) ||
                 (!listRemotes && !testConnection && !preview && !publish && initializeRepository is null && verified is null))
                 throw new InvalidOperationException(failureMessage?.Invoke() is { Length: > 0 } message ? message : errorCode switch
                 {
+                    "REPOSITORY_BUSY" => "此 Windows 仓库正在执行另一项 ProjectSync 操作。",
                     "CONFIG" => "项目配置缺少必填项。请打开项目设置，按日志列出的字段补齐。",
                     "WINDOWS_REPO" => "Windows Git 仓库不可用。请在「Git 本地仓库」选择正确目录，或点击「初始化 Git…」。",
                     "WSL_DIRECTORY" => "无法进入 WSL 源目录。请在项目设置中重新检测环境。",
@@ -488,11 +512,11 @@ public partial class MainWindow : Window
                     "PUSH" => "本地提交已生成。请查看推送错误，然后重试推送。",
                     _ => "操作失败，详情见日志。"
                 });
-            return (result, verified);
+            return (result, verified, value == "pushed");
         }
         finally
         {
-            foreach (string? file in new[] { temporary, summaryFile })
+            foreach (string? file in new[] { temporary, summaryFile, buildLease, resultFile })
             {
                 if (file is null) continue;
                 try { File.Delete(file); }
@@ -506,14 +530,21 @@ public partial class MainWindow : Window
     {
         base.OnClosing(e);
         if (running || detectingWsl || !CanLeaveProject())
+        {
             e.Cancel = true;
+            if (batchCancellation is not null)
+            {
+                closeAfterBatch = true;
+                StopBatch(this, new RoutedEventArgs());
+            }
+        }
         if (!e.Cancel)
             foreach (var server in previewServers.Values) server.StandardInput.Close();
     }
 
-    private static async Task ReadLog(StreamReader reader, Action<string> handle)
+    private static async Task ReadLog(StreamReader reader, Action<string> handle, CancellationToken cancellation = default)
     {
-        while (await reader.ReadLineAsync() is { } line)
+        while (await reader.ReadLineAsync(cancellation) is { } line)
             handle(line);
     }
 

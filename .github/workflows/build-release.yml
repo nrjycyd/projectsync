@@ -20,14 +20,11 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Build solution
         run: dotnet build ProjectSync.sln --configuration Release
-      - name: Validate PowerShell syntax
+      - name: Test FileCopy and .NET path normalization
+        run: dotnet run --project tests/ProjectSync.Tests --configuration Release
+      - name: Test Windows PowerShell path normalization and syntax
         shell: powershell
-        run: |
-          $tokens = $null
-          $errors = $null
-          $script = (Resolve-Path src/ProjectSync.Core/Scripts/BuildSync.ps1).Path
-          [void][System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors)
-          if ($errors.Count) { throw ($errors -join [Environment]::NewLine) }
+        run: ./tests/Test-SyncPath.ps1
       - name: Package and verify Windows release
         shell: pwsh
         run: |
@@ -36,7 +33,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ProjectSync-win-x64
-          path: dist/ProjectSync-v*-win-x64.zip
+          path: |
+            dist/ProjectSync-v*-win-x64.zip
+            dist/SHA256SUMS
           if-no-files-found: error
 
   release:
@@ -55,6 +54,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           asset="ProjectSync-$RELEASE_TAG-win-x64.zip"
-          gh release create "$RELEASE_TAG" "$asset" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$RELEASE_TAG" --generate-notes
+          sha256sum -c SHA256SUMS
+          gh release create "$RELEASE_TAG" "$asset" SHA256SUMS --repo "$GITHUB_REPOSITORY" --verify-tag --title "$RELEASE_TAG" --generate-notes
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets,isDraft,url |
-            jq -er --arg asset "$asset" 'select(.isDraft == false and any(.assets[]; .name == $asset)) | .url' >> "$GITHUB_STEP_SUMMARY"
+            jq -er --arg asset "$asset" 'select(.isDraft == false and any(.assets[]; .name == $asset) and any(.assets[]; .name == "SHA256SUMS")) | .url' >> "$GITHUB_STEP_SUMMARY"

@@ -408,6 +408,8 @@
      <Button MinHeight="34" Padding="16,5" x:Name="PreviewBatchButton" Style="{StaticResource DashboardPrimaryButton}" MinWidth="122" Content="构建并预览" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M2,1 L13,7 L2,13 Z" Click="PreviewSelected" IsEnabled="False"/>
      <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="16,5" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M12,5 A5,5 0 1 0 12,10 M12,1 V5 H8" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="对预览成功且已勾选的项目应用同步"/>
      <Button Style="{StaticResource DashboardPrimaryButton}" MinHeight="34" Padding="16,5" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M7,11 V1 M3,5 L7,1 L11,5 M1,13 H13" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="提交并推送已应用同步且已勾选的项目"/>
+     <Button Style="{StaticResource DashboardButton}" x:Name="RetryPushButton" Content="重试推送"
+             Visibility="Collapsed" Click="RetryPushSelected"/>
      <TextBlock x:Name="SelectionSummary" Margin="10,0,0,4" VerticalAlignment="Center" Foreground="#20252A"/>
     </StackPanel>
      <StackPanel x:Name="HomeActions" Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Top">
@@ -447,6 +449,10 @@
    <Border DockPanel.Dock="Bottom" Margin="0,6,0,0" Padding="0,1,0,0" MinHeight="20">
     <DockPanel>
      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+      <Button x:Name="StopBatchButton" Content="停止" Click="StopBatch" Visibility="Collapsed"
+              Style="{StaticResource DashboardButton}" ToolTip="取消构建和预览，或在当前同步或推送结束后停止批量操作"/>
+      <Button Content="导出诊断" Click="ExportDiagnostics" Style="{StaticResource DashboardButton}"
+              MinHeight="25" Padding="9,2" FontSize="13"/>
       <TextBlock x:Name="AppVersionText" FontSize="13" Foreground="#535F58" VerticalAlignment="Center" Margin="0,0,9,0"/>
       <Button x:Name="CheckUpdatesButton" Content="检查更新" Click="CheckUpdates" Style="{StaticResource DashboardButton}" MinHeight="25" Padding="9,2"
               Margin="0" FontSize="13"/>
@@ -571,6 +577,25 @@
        <TextBlock x:Name="HomeChangesSummary" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建并预览后显示待同步变更。"/>
        <Border Style="{StaticResource TableSurface}">
        <DataGrid x:Name="HomeChanges" SizeChanged="DashboardTableSizeChanged" Style="{StaticResource DashboardTable}" ColumnHeaderStyle="{StaticResource DashboardHeader}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36">
+        <DataGrid.GroupStyle>
+         <GroupStyle>
+          <GroupStyle.HeaderTemplate>
+           <DataTemplate>
+            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Padding="8,4">
+             <TextBlock.Style>
+              <Style TargetType="TextBlock">
+               <Style.Triggers>
+                <DataTrigger Binding="{Binding Name}" Value="目标清理（永久删除）">
+                 <Setter Property="Foreground" Value="#A51E21"/>
+                </DataTrigger>
+               </Style.Triggers>
+              </Style>
+             </TextBlock.Style>
+            </TextBlock>
+           </DataTemplate>
+          </GroupStyle.HeaderTemplate>
+         </GroupStyle>
+        </DataGrid.GroupStyle>
         <DataGrid.Columns>
          <DataGridTextColumn Header="项目" Width="1.15*" MinWidth="100" Binding="{Binding Project}" ElementStyle="{StaticResource DashboardCellText}"/>
          <DataGridTextColumn Header="操作" Width="0.6*" MinWidth="85" Binding="{Binding Action}" ElementStyle="{StaticResource DashboardCellText}"/>
@@ -689,7 +714,7 @@
         <Label Padding="0,8,0,5" Target="{Binding ElementName=excludeSuffixes}" Content="排除文件名后缀（每行一项，可留空）"/>
         <TextBox x:Name="excludeSuffixes" AcceptsReturn="True" Height="98" VerticalScrollBarVisibility="Visible"
                  ToolTip="填写文件名结尾，例如 Zone.Identifier 或 .map。"/>
-        <CheckBox x:Name="CleanUntracked" Margin="0,16,0,0" Content="同步前清理目标仓库中未跟踪且未忽略的文件"/>
+        <CheckBox x:Name="CleanUntracked" Margin="0,16,0,0" Content="同步前永久清理整个目标仓库中未跟踪且未忽略的文件"/>
       </StackPanel>
      </ScrollViewer>
     </TabItem>

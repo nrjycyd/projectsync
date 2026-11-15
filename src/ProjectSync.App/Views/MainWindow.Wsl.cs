@@ -223,15 +223,8 @@ public partial class MainWindow
         return false;
     }
 
-    private static bool TryParseWslNetworkPath(string value, out string path, out string distribution)
-    {
-        var match = System.Text.RegularExpressions.Regex.Match(value.Replace('\\', '/'),
-            @"^/{2,}(?:wsl\.localhost|wsl\$)/([^/]+)(/.+)$",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        distribution = match.Groups[1].Value;
-        path = match.Groups[2].Value;
-        return match.Success;
-    }
+    private static bool TryParseWslNetworkPath(string value, out string path, out string distribution) =>
+        ProjectSync.Core.SyncPath.TryParseWslNetworkPath(value, out path, out distribution);
 
     private static string[] Lines(string text) =>
         text.TrimStart('\uFEFF').Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
