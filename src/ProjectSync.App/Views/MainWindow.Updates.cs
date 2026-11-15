@@ -16,7 +16,7 @@ public partial class MainWindow
     private async void CheckUpdates(object sender, RoutedEventArgs e)
     {
         CheckUpdatesButton.IsEnabled = false;
-        CheckUpdatesButton.Content = "检查中…";
+        UpdateActionText.Text = "检查中…";
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApi);
@@ -52,7 +52,7 @@ public partial class MainWindow
         }
         finally
         {
-            CheckUpdatesButton.Content = "检查更新";
+            UpdateActionText.Text = "检查更新";
             CheckUpdatesButton.IsEnabled = true;
         }
     }

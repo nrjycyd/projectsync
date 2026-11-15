@@ -77,9 +77,24 @@
        <ComboBoxItem Content="深色" Tag="Dark"/>
        <ComboBoxItem Content="跟随系统" Tag="System"/>
       </ComboBox>
-      <TextBlock x:Name="AppVersionText" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                 VerticalAlignment="Center" Margin="0,0,12,0"/>
-      <ui:Button Appearance="Secondary" x:Name="CheckUpdatesButton" Width="88" Height="34" Padding="12,0" FontSize="13" Content="检查更新" Click="CheckUpdates" Margin="0"/>
+      <ui:Button Appearance="Secondary" x:Name="CheckUpdatesButton" MinWidth="112" Height="34" Padding="8,0"
+                 FontSize="13" Click="CheckUpdates" AutomationProperties.Name="{Binding Text, ElementName=UpdateActionText}">
+       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock x:Name="UpdateActionText" Text="检查更新" MinWidth="52" VerticalAlignment="Center"/>
+        <TextBlock x:Name="AppVersionText" Margin="6,0,0,0" VerticalAlignment="Center">
+         <TextBlock.Style>
+          <Style TargetType="TextBlock">
+           <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+           <Style.Triggers>
+            <DataTrigger Binding="{Binding IsEnabled, RelativeSource={RelativeSource AncestorType=ui:Button}}" Value="False">
+             <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}"/>
+            </DataTrigger>
+           </Style.Triggers>
+          </Style>
+         </TextBlock.Style>
+        </TextBlock>
+       </StackPanel>
+      </ui:Button>
      </StackPanel>
      <TextBlock x:Name="HomeStatus" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
     </DockPanel>
