@@ -92,25 +92,18 @@ public partial class MainWindow
     private bool ConfirmMaintenanceCommand(string project, string distribution, string user, string directory, string command, string operation, string confirmLabel)
     {
         var panel = new StackPanel { Margin = new Thickness(20) };
-        var dialog = new Window
-        {
-            Title = operation, Owner = this, Icon = Icon, FontFamily = FontFamily, FontSize = 14,
-            Width = 510, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
-            Background = System.Windows.Media.Brushes.White, Content = panel
-        };
+        var dialog = FluentDialog.Create(this, operation, panel, 510);
         panel.Children.Add(new TextBlock
         {
             Text = $"{project}\n{distribution} · {user}\n{directory}",
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
         });
-        panel.Children.Add(new TextBox
+        panel.Children.Add(new Wpf.Ui.Controls.TextBox
         {
             Text = command, IsReadOnly = true, AcceptsReturn = true, MaxHeight = 220,
             FontFamily = new System.Windows.Media.FontFamily("Consolas, Microsoft YaHei UI"),
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Style = (Style)FindResource(typeof(TextBox))
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
         });
         panel.Children.Add(new TextBlock
         {
@@ -123,8 +116,8 @@ public partial class MainWindow
             Margin = new Thickness(0, 16, 0, 0)
         };
         panel.Children.Add(actions);
-        var cancel = new Button { Content = "取消", IsCancel = true, Style = (Style)FindResource("DashboardButton") };
-        var accept = new Button { Content = confirmLabel, Style = (Style)FindResource("DashboardPrimaryButton") };
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Margin = new Thickness(0, 0, 8, 0) };
+        var accept = new Wpf.Ui.Controls.Button { Content = confirmLabel, Appearance = Wpf.Ui.Controls.ControlAppearance.Primary };
         actions.Children.Add(cancel);
         actions.Children.Add(accept);
         accept.Click += (_, _) => dialog.DialogResult = true;

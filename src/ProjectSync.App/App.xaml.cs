@@ -32,21 +32,25 @@ public partial class App : Application
         instance = new Mutex(false, $@"Local\{DataDirectoryName}-{identity.User}", out bool firstInstance);
         if (!firstInstance)
         {
-            MessageBox.Show("ProjectSync 已在运行。请切换到现有窗口。", "ProjectSync");
+            Views.FluentDialog.Ask(null, "ProjectSync", "ProjectSync 已在运行。请切换到现有窗口。", "关闭");
             Shutdown();
             return;
         }
-        DispatcherUnhandledException += (_, args) =>
-        {
-            AppendDiagnostic(args.Exception.ToString());
-            args.Handled = true;
-            MessageBox.Show("ProjectSync 遇到意外错误并将退出。诊断日志位于项目配置目录的 logs 文件夹。",
-                "ProjectSync", MessageBoxButton.OK, MessageBoxImage.Error);
-            Shutdown(1);
-        };
-        var accent = (System.Windows.Media.SolidColorBrush)FindResource("Accent");
-        Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(accent.Color);
+        DispatcherUnhandledException += ShowFatalError;
         base.OnStartup(e);
+    }
+
+    private void ShowFatalError(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs args)
+    {
+        AppendDiagnostic(args.Exception.ToString());
+        args.Handled = true;
+        DispatcherUnhandledException -= ShowFatalError;
+        try
+        {
+            Views.FluentDialog.Ask(null, "ProjectSync",
+                "ProjectSync 遇到意外错误并将退出。诊断日志位于项目配置目录的 logs 文件夹。", "关闭");
+        }
+        finally { Shutdown(1); }
     }
 
     protected override void OnExit(ExitEventArgs e)

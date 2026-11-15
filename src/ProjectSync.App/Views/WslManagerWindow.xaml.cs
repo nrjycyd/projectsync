@@ -12,9 +12,9 @@ using System.Windows.Controls;
 
 namespace ProjectSync.App.Views;
 
-public partial class WslManagerWindow : Window
+public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 {
-    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, System.Windows.Media.ImageSource DistributionIcon)
+    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution)
     {
         public string DistributionHint => $"{Distribution} · {State}";
     }
@@ -198,7 +198,7 @@ public partial class WslManagerWindow : Window
                 : new DiskUsage("不适用", "WSL 1 没有独立的虚拟磁盘。");
             string distribution = DistributionLabel(flavor, osVersion);
             rows.Add(new Instance(name, match.Groups[1].Length > 0, state, running,
-                $"WSL {match.Groups[4].Value}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution, DistributionLogo(flavor, running)));
+                $"WSL {match.Groups[4].Value}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution));
         }
         Instances.ItemsSource = rows;
         var checkedRows = await Task.WhenAll(rows.Select(async row =>
@@ -326,9 +326,9 @@ public partial class WslManagerWindow : Window
             }
             if (!Confirm(dialog, form, "停止 WSL 并调整", ValidCapacity,
                 $"请输入与当前上限不同的正整数 GiB 值，最大 64 TiB。")) return;
-            if (requested < current && MessageBox.Show(this,
+            if (requested < current && FluentDialog.Ask(this, "确认缩小磁盘上限",
                 $"将「{instance.Name}」从 {VirtualDiskCapacity.Format(current)} 缩小到 {VirtualDiskCapacity.Format(requested)}。WSL 会检查文件系统能否缩到目标容量。继续吗？",
-                "确认缩小磁盘上限", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                "缩小", "取消", destructive: true) != MessageBoxResult.Yes)
                 return;
 
             var stopped = await InvokeAsync(new[] { "--shutdown" });
@@ -372,9 +372,9 @@ public partial class WslManagerWindow : Window
         var name = AddInput(form, "实例名称（可选）");
         name.IsEnabled = SupportsInstall("--name");
         var place = new DockPanel();
-        var browse = new Button { Content = "浏览…", Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0) };
+        var browse = new Wpf.Ui.Controls.Button { Content = "浏览…", Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0) };
         DockPanel.SetDock(browse, Dock.Right);
-        var location = new TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
+        var location = new Wpf.Ui.Controls.TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
         place.Children.Add(browse);
         place.Children.Add(location);
         AddField(form, "安装位置（可选）", place);
@@ -386,7 +386,7 @@ public partial class WslManagerWindow : Window
         };
         var size = AddInput(form, "虚拟磁盘上限（GB，可选，按使用量增长）");
         size.IsEnabled = SupportsInstall("--vhd-size");
-        var web = new CheckBox { Content = "从网络下载", IsChecked = SupportsInstall("--web-download"),
+        var web = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "从网络下载", OffContent = "从网络下载", IsChecked = SupportsInstall("--web-download"),
             IsEnabled = SupportsInstall("--web-download"), Margin = new Thickness(0, 12, 0, 0) };
         form.Children.Add(web);
         bool Valid() =>
@@ -431,19 +431,13 @@ public partial class WslManagerWindow : Window
     private (Window Dialog, StackPanel Form) CreateDialog(string title)
     {
         var form = new StackPanel { Margin = new Thickness(20) };
-        var dialog = new Window
-        {
-            Owner = this, Title = title, Icon = Icon, FontFamily = FontFamily, FontSize = FontSize, Width = 510,
-            SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Content = form,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
-            Background = System.Windows.Media.Brushes.White, UseLayoutRounding = true
-        };
+        var dialog = FluentDialog.Create(this, title, form, 510);
         return (dialog, form);
     }
 
     private static TextBox AddInput(StackPanel form, string label)
     {
-        var input = new TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
+        var input = new Wpf.Ui.Controls.TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
         AddField(form, label, input);
         return input;
     }
@@ -457,14 +451,15 @@ public partial class WslManagerWindow : Window
     private bool Confirm(Window dialog, StackPanel form, string action, Func<bool> validate,
         string invalidMessage, bool destructive = false)
     {
-        var message = new TextBlock { Foreground = System.Windows.Media.Brushes.DarkRed, TextWrapping = TextWrapping.Wrap };
+        var message = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        message.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
         form.Children.Add(message);
         var footer = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 14, 0, 0) };
         form.Children.Add(footer);
-        var cancel = new Button { Content = "取消", IsCancel = true, Style = (Style)FindResource(typeof(Button)), MinWidth = 84, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0) };
-        var confirm = new Button { Content = action, Style = (Style)FindResource("WslPrimary"), MinWidth = 100, Padding = new Thickness(14, 5, 14, 5) };
-        if (destructive) confirm.Background = confirm.BorderBrush = System.Windows.Media.Brushes.DarkRed;
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0) };
+        var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 100, Padding = new Thickness(14, 5, 14, 5) };
+        confirm.Appearance = destructive ? Wpf.Ui.Controls.ControlAppearance.Danger : Wpf.Ui.Controls.ControlAppearance.Primary;
         footer.Children.Add(cancel);
         footer.Children.Add(confirm);
         confirm.Click += (_, _) =>

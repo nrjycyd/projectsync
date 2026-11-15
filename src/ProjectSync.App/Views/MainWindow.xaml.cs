@@ -35,9 +35,39 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         table.Clip = new System.Windows.Media.RectangleGeometry(new Rect(e.NewSize), radius, radius);
     }
 
+    private bool followingSystemTheme;
+
+    private void ChooseTheme(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ComboBox { SelectedItem: ComboBoxItem item } || item.Tag is not string theme) return;
+        if (followingSystemTheme)
+        {
+            Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(this);
+            followingSystemTheme = false;
+        }
+        if (theme == "System")
+        {
+            if (IsLoaded)
+            {
+                Wpf.Ui.Appearance.SystemThemeWatcher.Watch(this, Wpf.Ui.Controls.WindowBackdropType.Mica);
+                followingSystemTheme = true;
+            }
+            Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
+            return;
+        }
+
+        Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
+            theme == "Dark" ? Wpf.Ui.Appearance.ApplicationTheme.Dark : Wpf.Ui.Appearance.ApplicationTheme.Light,
+            Wpf.Ui.Controls.WindowBackdropType.Mica);
+    }
+
     public MainWindow()
     {
         InitializeComponent();
+        Closed += (_, _) =>
+        {
+            if (followingSystemTheme) Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(this);
+        };
         AppVersionText.Text = $"v{CurrentVersion.ToString(3)}";
         fields = new()
         {

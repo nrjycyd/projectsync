@@ -50,8 +50,8 @@ public partial class MainWindow
         string confirmation = hasFiles
             ? "接入所选远端分支的历史，保留现有文件。完成后将显示本地差异。"
             : "将所选远端分支克隆到此空目录。";
-        if (MessageBox.Show(this, $"{confirmation}\n\n本地目录：{path}\n远端：{address}\n目标分支：{targetBranch}",
-            "初始化 Git", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel) != MessageBoxResult.OK)
+        if (FluentDialog.Ask(this, "初始化 Git", $"{confirmation}\n\n本地目录：{path}\n远端：{address}\n目标分支：{targetBranch}",
+            "确定", "取消") != MessageBoxResult.Yes)
             return;
 
         running = true;
@@ -98,11 +98,11 @@ public partial class MainWindow
 
     private void ShowInitializedChanges(IReadOnlyList<string> changes)
     {
-        var close = new Button { Content = "关闭", IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right };
+        var close = new Wpf.Ui.Controls.Button { Content = "关闭", IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right };
         var panel = new DockPanel { Margin = new Thickness(16) };
         DockPanel.SetDock(close, Dock.Bottom);
         panel.Children.Add(close);
-        panel.Children.Add(new TextBox
+        panel.Children.Add(new Wpf.Ui.Controls.TextBox
         {
             IsReadOnly = true,
             Text = changes.Count == 0 ? "当前文件与远端基线一致。" : string.Join(Environment.NewLine, changes),
@@ -110,12 +110,7 @@ public partial class MainWindow
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             Margin = new Thickness(0, 0, 0, 10)
         });
-        var dialog = new Window
-        {
-            Owner = this, Title = "初始化完成 · 本地差异", Width = 680, Height = 350, Icon = Icon,
-            FontFamily = FontFamily, FontSize = 14, ShowInTaskbar = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel
-        };
+        var dialog = FluentDialog.Create(this, "初始化完成 · 本地差异", panel, 680, 350);
         dialog.ShowDialog();
     }
 }

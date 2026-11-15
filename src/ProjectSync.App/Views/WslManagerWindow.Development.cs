@@ -26,19 +26,21 @@ public partial class WslManagerWindow
         var user = AddInput(form, "Linux 用户（留空使用默认用户）");
         var git = ComponentInput(form, "Git", "latest", "latest");
         var python = ComponentInput(form, "Python 3", "latest", "latest");
-        var alias = new CheckBox { Content = "提供 python 命令（python-is-python3）", Margin = new Thickness(0, 8, 0, 0) };
+        var alias = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "提供 python 命令（python-is-python3）", OffContent = "提供 python 命令（python-is-python3）", Margin = new Thickness(0, 8, 0, 0) };
         form.Children.Add(alias);
         var node = ComponentInput(form, "Node.js（nvm）", "lts/*", "latest", "lts/*");
         var downloadHint = new TextBlock
         {
-            TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.SaddleBrown
+            TextWrapping = TextWrapping.Wrap
         };
         var downloadNotice = new Border
         {
-            Child = downloadHint, Background = System.Windows.Media.Brushes.FloralWhite,
+            Child = downloadHint,
             CornerRadius = new CornerRadius(4), Padding = new Thickness(10, 6, 10, 6),
             Margin = new Thickness(0, 6, 0, 0)
         };
+        downloadHint.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
+        downloadNotice.SetResourceReference(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
         form.Children.Add(downloadNotice);
         bool closed = false;
         int probeVersion = 0;
@@ -132,7 +134,7 @@ public partial class WslManagerWindow
         catch (Exception error) { Status.Text = error.Message; }
     }
 
-    private sealed record Component(CheckBox Check, ComboBox Input)
+    private sealed record Component(Wpf.Ui.Controls.ToggleSwitch Check, ComboBox Input)
     {
         internal bool Selected => Check.IsChecked == true;
         internal string Version => (string?)Input.SelectedItem ?? "";
@@ -140,7 +142,7 @@ public partial class WslManagerWindow
 
     private static Component ComponentInput(StackPanel form, string label, string version, params string[] choices)
     {
-        var check = new CheckBox { Content = label, IsChecked = true, Margin = new Thickness(0, 10, 0, 4) };
+        var check = new Wpf.Ui.Controls.ToggleSwitch { OnContent = label, OffContent = label, IsChecked = true, Margin = new Thickness(0, 10, 0, 4) };
         var input = new ComboBox { ItemsSource = choices, SelectedItem = version, MinHeight = 30, MaxDropDownHeight = 250 };
         System.Windows.Automation.AutomationProperties.SetName(input, label + "版本");
         check.Checked += (_, _) => input.IsEnabled = true;

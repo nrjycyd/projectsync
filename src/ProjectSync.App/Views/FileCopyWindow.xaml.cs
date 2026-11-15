@@ -12,7 +12,7 @@ using ProjectSync.Core;
 
 namespace ProjectSync.App.Views;
 
-public partial class FileCopyWindow : Window
+public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
 {
     private sealed record Location(string Label, string? Distribution)
     {
@@ -171,8 +171,8 @@ public partial class FileCopyWindow : Window
                 CopyStatus.Text = $"没有需要复制的项目，跳过 {skips} 个。";
                 return;
             }
-            if (replacements > 0 && MessageBox.Show(this, $"将覆盖目标中的 {replacements} 个同名文件。继续复制？",
-                "确认覆盖", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            if (replacements > 0 && FluentDialog.Ask(this, "确认覆盖", $"将覆盖目标中的 {replacements} 个同名文件。继续复制？",
+                "覆盖", "取消", destructive: true) != MessageBoxResult.Yes)
                 return;
 
             CopyStatus.Text = "正在复制…";

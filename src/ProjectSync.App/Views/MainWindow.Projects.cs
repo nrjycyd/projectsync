@@ -316,7 +316,7 @@ public partial class MainWindow
     private void RemoveProject(object sender, RoutedEventArgs e)
     {
         if (Projects.SelectedItem is not ProjectEntry entry ||
-            ConfirmProjectAction("移除项目", $"从列表移除「{entry.Name}」？仓库文件会保留。", "移除", "取消", canCancel: false) != MessageBoxResult.Yes)
+            ConfirmProjectAction("移除项目", $"从列表移除「{entry.Name}」？仓库文件会保留。", "移除", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
             return;
 
         int index = savedProjects.IndexOf(entry);
@@ -545,13 +545,7 @@ public partial class MainWindow
     private string? RequestCommitSummary(ProjectEntry project, string[] changes)
     {
         var body = new System.Windows.Controls.DockPanel { Margin = new Thickness(20) };
-        var dialog = new Window
-        {
-            Title = "提交并推送", Owner = this, Icon = Icon, FontFamily = FontFamily, FontSize = 14,
-            Width = 480, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
-            Background = System.Windows.Media.Brushes.White, Content = body
-        };
+        var dialog = FluentDialog.Create(this, "提交并推送", body, 480);
         var branch = JsonNode.Parse(project.Configuration)?["branch"]?.GetValue<string>();
         string target = $"{project.Name} → {branch}\n{project.Repository}\n\n当前工作区有 {changes.Length} 项变更。";
         var scope = new System.Windows.Controls.TextBlock
@@ -581,17 +575,17 @@ public partial class MainWindow
         };
         System.Windows.Controls.DockPanel.SetDock(actions, System.Windows.Controls.Dock.Bottom);
         body.Children.Add(actions);
-        var cancel = new System.Windows.Controls.Button { Content = "取消", IsCancel = true, Style = (Style)FindResource("DashboardButton") };
-        var accept = new System.Windows.Controls.Button
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary, Margin = new Thickness(0, 0, 8, 0) };
+        var accept = new Wpf.Ui.Controls.Button
         {
             Content = "提交并推送", IsDefault = true, IsEnabled = false,
-            Style = (Style)FindResource("DashboardPrimaryButton")
+            Appearance = Wpf.Ui.Controls.ControlAppearance.Primary
         };
         actions.Children.Add(cancel);
         actions.Children.Add(accept);
 
         var row = new System.Windows.Controls.DockPanel();
-        var input = new System.Windows.Controls.TextBox { Style = (Style)FindResource(typeof(System.Windows.Controls.TextBox)) };
+        var input = new Wpf.Ui.Controls.TextBox();
         var label = new System.Windows.Controls.Label
         {
             Content = "提交摘要", Target = input,
@@ -639,7 +633,7 @@ public partial class MainWindow
         if (cleanupProjects.Length > 0 && ConfirmProjectAction("确认永久清理",
             "以下项目将永久删除预览列出的目标清理项。清理覆盖整个 Windows 工作区，文件不会进入回收站。\n\n" +
             string.Join("\n", cleanupProjects.Select(project => project.Name + " · " + project.Repository)),
-            "确认清理并同步", "取消", canCancel: false) != MessageBoxResult.Yes)
+            "确认清理并同步", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
             return;
 
         using var cancellation = new CancellationTokenSource();
@@ -862,62 +856,7 @@ public partial class MainWindow
         }
     }
 
-    private MessageBoxResult ConfirmProjectAction(string title, string message, string accept, string decline, bool canCancel)
-    {
-        var dialog = new Window
-        {
-            Title = title, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Width = 420, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false, Background = System.Windows.Media.Brushes.White, FontFamily = FontFamily,
-            Icon = Icon, FontSize = 14, UseLayoutRounding = true
-        };
-        var body = new System.Windows.Controls.StackPanel { Margin = new Thickness(20) };
-        var prompt = new System.Windows.Controls.DockPanel { Margin = new Thickness(0, 0, 0, 20) };
-        var icon = new System.Windows.Controls.Border
-        {
-            Width = 30, Height = 30, CornerRadius = new CornerRadius(15),
-            Background = System.Windows.Media.Brushes.RoyalBlue, Margin = new Thickness(0, 0, 14, 0),
-            VerticalAlignment = VerticalAlignment.Top,
-            Child = new System.Windows.Controls.TextBlock
-            {
-                Text = "?", FontSize = 20, Foreground = System.Windows.Media.Brushes.White,
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-            }
-        };
-        System.Windows.Controls.DockPanel.SetDock(icon, System.Windows.Controls.Dock.Left);
-        prompt.Children.Add(icon);
-        prompt.Children.Add(new System.Windows.Controls.TextBlock
-        {
-            Text = message, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center
-        });
-        body.Children.Add(new System.Windows.Controls.ScrollViewer
-        {
-            Content = prompt, MaxHeight = 380,
-            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto
-        });
-        var buttons = new System.Windows.Controls.WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        body.Children.Add(buttons);
-        dialog.Content = body;
-        var result = MessageBoxResult.Cancel;
-
-        void AddButton(string text, MessageBoxResult choice, bool primary, bool cancel)
-        {
-            var button = new System.Windows.Controls.Button
-            {
-                Content = text, MinWidth = 84, IsCancel = cancel, IsDefault = canCancel && primary,
-                Style = (Style)FindResource(primary ? "PrimaryButton" : typeof(System.Windows.Controls.Button))
-            };
-            button.Click += (_, _) => { result = choice; dialog.Close(); };
-            buttons.Children.Add(button);
-            if ((!canCancel && cancel) || (canCancel && primary))
-                dialog.Loaded += (_, _) => button.Focus();
-        }
-
-        AddButton(accept, MessageBoxResult.Yes, canCancel, false);
-        AddButton(decline, MessageBoxResult.No, false, !canCancel);
-        if (canCancel) AddButton("取消", MessageBoxResult.Cancel, false, true);
-        dialog.ShowDialog();
-        return result;
-    }
-
+    private MessageBoxResult ConfirmProjectAction(string title, string message, string accept, string decline,
+        bool canCancel, bool destructive = false) =>
+        FluentDialog.Ask(this, title, message, accept, decline, canCancel, destructive);
 }

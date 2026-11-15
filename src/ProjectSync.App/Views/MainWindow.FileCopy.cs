@@ -1,7 +1,6 @@
 using System.Linq;
 using System.Text;
 using System.Windows;
-using System.Windows.Controls;
 
 namespace ProjectSync.App.Views;
 
@@ -15,8 +14,6 @@ public partial class MainWindow
         {
             Owner = this, Icon = Icon, FontFamily = FontFamily
         };
-        dialog.Resources[typeof(ComboBox)] = FindResource(typeof(ComboBox));
-        dialog.Resources[typeof(TextBox)] = FindResource(typeof(TextBox));
         dialog.ShowDialog();
     }
 }

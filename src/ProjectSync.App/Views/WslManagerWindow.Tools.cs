@@ -5,14 +5,13 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Media;
+using Wpf.Ui.Controls;
 
 namespace ProjectSync.App.Views;
 
 public partial class WslManagerWindow
 {
-    private sealed record DevelopmentTool(string Caption, ImageSource Icon);
+    private sealed record DevelopmentTool(string Caption, SymbolRegular Icon);
 
     private static async Task<(DevelopmentTool[] Tools, string Status)> ReadInstalledToolsAsync(string instance)
     {
@@ -42,43 +41,11 @@ public partial class WslManagerWindow
         }
     }
 
-    private static ImageSource ToolIcon(string tool)
+    private static SymbolRegular ToolIcon(string tool) => tool switch
     {
-        var drawing = new DrawingGroup();
-        using (var context = drawing.Open())
-        {
-            context.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, 24, 24));
-            void Shape(string geometry, Brush? fill, Pen? pen = null) =>
-                context.DrawGeometry(fill, pen, Geometry.Parse(geometry));
-
-            switch (tool)
-            {
-                case "git":
-                    Shape("M12,1 L23,12 12,23 1,12 Z", Brushes.OrangeRed);
-                    Shape("M8,7 L15,14 M11,10 V17", null, new Pen(Brushes.White, 1.6));
-                    foreach (var point in new[] { new Point(8, 7), new Point(15, 14), new Point(11, 17) })
-                        context.DrawEllipse(Brushes.White, null, point, 1.5, 1.5);
-                    break;
-                case "python3":
-                    Shape("M10,2 H16 Q20,2 20,6 V11 H9 V14 H4 Q1,14 1,11 V8 Q1,5 4,5 H10 Z", Brushes.SteelBlue);
-                    Shape("M14,22 H8 Q4,22 4,18 V13 H15 V10 H20 Q23,10 23,13 V16 Q23,19 20,19 H14 Z", Brushes.Gold);
-                    context.DrawEllipse(Brushes.White, null, new Point(14, 4.5), 1.2, 1.2);
-                    context.DrawEllipse(Brushes.White, null, new Point(10, 19.5), 1.2, 1.2);
-                    break;
-                case "node":
-                    var green = new Pen(Brushes.ForestGreen, 1.8);
-                    Shape("M12,1 L22,6 V18 L12,23 2,18 V6 Z M10,8 V15 Q9,18 6,16 M18,9 Q16,7 14,9 Q12,11 16,12 Q20,13 17,16 Q15,18 12,16", null, green);
-                    break;
-                default:
-                    for (int row = 0; row < 3; row++)
-                        for (int column = 0; column < 3; column++)
-                            context.DrawRectangle(row == 0 || column == 2 ? Brushes.Goldenrod : Brushes.DimGray,
-                                null, new Rect(1 + column * 8, 1 + row * 8, 6, 6));
-                    break;
-            }
-        }
-        var image = new DrawingImage(drawing);
-        image.Freeze();
-        return image;
-    }
+        "git" => SymbolRegular.Branch24,
+        "python3" => SymbolRegular.Code24,
+        "node" => SymbolRegular.WindowConsole20,
+        _ => SymbolRegular.Box24
+    };
 }
