@@ -1,0 +1,73 @@
+<Window x:Class="ProjectSync.App.Views.FileCopyWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="文件复制" Width="680" Height="626" MinWidth="490" MinHeight="515"
+ WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="#FAFAFA"
+ Foreground="#171A1D" FontSize="14" UseLayoutRounding="True">
+ <Window.Resources>
+  <ResourceDictionary>
+   <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="CompactDesktopStyles.xaml"/>
+   </ResourceDictionary.MergedDictionaries>
+   <Style TargetType="Button">
+    <Setter Property="Template" Value="{StaticResource CompactButtonTemplate}"/>
+    <Setter Property="Background" Value="#F1F3F3"/>
+    <Setter Property="BorderBrush" Value="#AEB6BF"/>
+    <Setter Property="Padding" Value="12,5"/>
+    <Setter Property="MinHeight" Value="34"/>
+    <Style.Triggers>
+     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55"/></Trigger>
+    </Style.Triggers>
+   </Style>
+   <Style x:Key="CopyPrimary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Setter Property="Background" Value="#106849"/>
+    <Setter Property="BorderBrush" Value="#106849"/>
+    <Setter Property="Foreground" Value="White"/>
+   </Style>
+  </ResourceDictionary>
+ </Window.Resources>
+ <DockPanel Margin="20">
+  <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+    <Button x:Name="CancelCopy" Content="取消" Click="CancelClick" Visibility="Collapsed" Margin="0,0,8,0"/>
+    <Button x:Name="PreviewCopy" Content="预览复制" Click="PreviewClick" Margin="0,0,8,0"/>
+    <Button x:Name="StartCopy" Content="开始复制" Click="CopyClick" Style="{StaticResource CopyPrimary}"/>
+   </StackPanel>
+   <TextBlock x:Name="CopyStatus" Margin="0,10,0,0" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+  </StackPanel>
+  <StackPanel DockPanel.Dock="Top" x:Name="CopyOptions">
+   <Label Content="来源文件或目录" Target="{Binding ElementName=SourcePath}" Padding="0,0,0,4"/>
+   <ComboBox x:Name="SourceLocation" SelectionChanged="EndpointChanged" Margin="0,0,0,6" AutomationProperties.Name="来源位置"/>
+   <DockPanel Margin="0,0,0,10">
+    <Button DockPanel.Dock="Right" Content="选目录…" Click="BrowseSourceFolder" Margin="8,0,0,0"/>
+    <Button DockPanel.Dock="Right" Content="选文件…" Click="BrowseSourceFile" Margin="8,0,0,0"/>
+    <TextBox x:Name="SourcePath" TextChanged="OptionsChanged"/>
+   </DockPanel>
+   <Label Content="目标目录" Target="{Binding ElementName=TargetPath}" Padding="0,0,0,4"/>
+   <ComboBox x:Name="TargetLocation" SelectionChanged="EndpointChanged" Margin="0,0,0,6" AutomationProperties.Name="目标位置"/>
+   <DockPanel>
+    <Button DockPanel.Dock="Right" Content="浏览…" Click="BrowseTargetFolder" Margin="8,0,0,0"/>
+    <TextBox x:Name="TargetPath" TextChanged="OptionsChanged"/>
+   </DockPanel>
+   <Button Content="⇄ 交换来源和目标" Click="SwapClick" HorizontalAlignment="Right" Margin="0,8,0,0"/>
+   <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+    <Label Content="同名文件" Target="{Binding ElementName=Conflict}" VerticalAlignment="Center" Padding="0,0,8,0"/>
+    <ComboBox x:Name="Conflict" Width="109" SelectedIndex="0" SelectionChanged="OptionsChanged">
+     <ComboBoxItem Content="跳过"/>
+     <ComboBoxItem Content="覆盖"/>
+    </ComboBox>
+    <CheckBox x:Name="SkipMarks" Content="跳过 Zone.Identifier 下载标记" IsChecked="True"
+              Checked="OptionsChanged" Unchecked="OptionsChanged" VerticalAlignment="Center" Margin="14,0,0,0"/>
+   </StackPanel>
+   <TextBlock Margin="0,8,0,10" Foreground="#475569" Text="复制目录时，会在目标目录下保留来源目录名。"/>
+  </StackPanel>
+  <DataGrid x:Name="Changes" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
+            HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#E1E6E3"
+            BorderBrush="#AEB6BF" BorderThickness="1" Background="White" RowHeight="29">
+   <DataGrid.Columns>
+    <DataGridTextColumn Header="操作" Width="120" Binding="{Binding Action}"/>
+    <DataGridTextColumn Header="目标相对路径" Width="*" Binding="{Binding Path}"/>
+   </DataGrid.Columns>
+  </DataGrid>
+ </DockPanel>
+</Window>

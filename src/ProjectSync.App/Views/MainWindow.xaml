@@ -346,6 +346,7 @@
      <TextBlock x:Name="SelectionSummary" Margin="10,0,0,4" VerticalAlignment="Center" Foreground="#20252A"/>
     </StackPanel>
      <StackPanel x:Name="HomeActions" Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal">
+      <Button Style="{StaticResource DashboardButton}" Content="文件复制" Click="OpenFileCopy"/>
       <Button Style="{StaticResource DashboardButton}" Content="WSL 环境" Click="OpenWslManager"/>
       <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="16,5" MinWidth="99" Content="新建项目" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M7,1 V13 M1,7 H13" Click="NewProject"/>
       <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="16,5" MinWidth="107" Content="导入 JSON" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M2,1 H8 L12,5 V13 H2 Z M8,1 V5 H12" Click="ImportProject"/>
