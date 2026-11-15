@@ -1,9 +1,11 @@
-param(
+﻿param(
     [string]$Config = (Join-Path $PSScriptRoot 'build-sync.json'),
     [switch]$Preview,
     [switch]$Publish,
     [switch]$TestConnection,
     [switch]$ListRemotes,
+    [ValidateSet('empty', 'existing')]
+    [string]$InitializeRepository,
     [string]$ExpectedPlan,
     [string]$CommitSummaryFile
 )
@@ -15,21 +17,45 @@ function Stop-Sync([string]$Code, [string]$Detail) {
     exit 1
 }
 $c = Get-Content -LiteralPath $Config -Raw -Encoding UTF8 | ConvertFrom-Json
-if (!$ListRemotes -and !$TestConnection) {
+if (!$ListRemotes -and !$TestConnection -and !$InitializeRepository) {
     $missing = @('windowsRepo', 'wslRepo', 'distro', 'wslUser', 'buildCommand', 'branch', 'include' |
         Where-Object { !$c.$_ })
     if ($missing.Count -gt 0) { Stop-Sync 'CONFIG' "Missing fields: $($missing -join ', ')" }
 }
-$repo = (Resolve-Path -LiteralPath $c.windowsRepo).Path
-$root = git -C $repo rev-parse --show-prefix
-if ($LASTEXITCODE -ne 0 -or $root) { throw 'windowsRepo must point to the root of a Git working tree.' }
+$remoteUrl = ([string]$c.remoteUrl).Trim()
+$gitOptions = @()
+if ($InitializeRepository -or ($TestConnection -and !$ListRemotes -and $remoteUrl)) {
+    # An explicit URL can be queried before the local repository is initialized.
+    $gitOptions = @('-C', [IO.Path]::GetTempPath())
+} else {
+    if (![IO.Directory]::Exists([string]$c.windowsRepo)) {
+        if ($TestConnection) {
+            Stop-Sync 'CONFIG' 'Enter a remote repository URL to test a connection without a local Git repository.'
+        }
+        Stop-Sync 'WINDOWS_REPO' 'Windows 项目目录不存在或不可访问，请在「Git 本地仓库」选择目录。'
+    }
+    $repo = (Resolve-Path -LiteralPath $c.windowsRepo).Path
+    $savedErrorPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $root = git -C $repo rev-parse --show-prefix 2>$null
+    } finally {
+        $ErrorActionPreference = $savedErrorPreference
+    }
+    if ($LASTEXITCODE -ne 0 -or $root) {
+        if ($TestConnection) {
+            Stop-Sync 'CONFIG' 'Enter a remote repository URL to test a connection without a local Git repository.'
+        }
+        Stop-Sync 'WINDOWS_REPO' '请打开项目设置 → Git 本地仓库，选择仓库根目录，或点击「初始化 Git…」。'
+    }
+    $gitOptions = @('-C', $repo)
+}
 if ($ListRemotes) {
     $names = git -C $repo remote
     if ($LASTEXITCODE -ne 0) { throw 'Could not list local Git remotes.' }
     foreach ($name in $names) { Write-Host "LOCAL_REMOTE=$name" }
     exit 0
 }
-$remoteUrl = ([string]$c.remoteUrl).Trim()
 if ($remoteUrl -and $remoteUrl -notmatch '^(?:(?:https|ssh)://[^\s/]+/[^\s]+|(?:[^\s@/:]+@)?[^\s@/:]+:(?!:)[^\s]+)$') {
     throw 'Enter an SSH or HTTPS repository URL.'
 }
@@ -42,7 +68,6 @@ if ($githubUsername -and $githubUsername -notmatch '^[a-z0-9](?:[a-z0-9-]{0,37}[
 if ($githubUsername -and $remoteUrl -notmatch '^https://github\.com/') {
     throw 'A GitHub login name requires an explicit https://github.com repository URL.'
 }
-$gitOptions = @('-C', $repo)
 $env:GIT_TERMINAL_PROMPT = '0'
 if ($remoteUrl -match '^https://') {
     $uri = [uri]$remoteUrl
@@ -64,6 +89,73 @@ if ($remoteUrl -match '^https://') {
     }
 } elseif ($c.gitSshCommand) {
     $env:GIT_SSH_COMMAND = $c.gitSshCommand
+}
+if ($InitializeRepository) {
+    if (!$remoteUrl -or !$c.branch -or ![IO.Directory]::Exists([string]$c.windowsRepo)) {
+        Stop-Sync 'CONFIG' '请选择现有的 Windows 目录，并填写远端仓库地址与目标分支。'
+    }
+    $directory = Get-Item -LiteralPath $c.windowsRepo -Force
+    $repo = $directory.FullName
+    if ($repo -notmatch '^[A-Za-z]:\\' -or !$directory.Parent) {
+        Stop-Sync 'CONFIG' '请选择 Windows 磁盘上的项目目录。'
+    }
+    $metadata = Join-Path $repo '.git'
+    $savedErrorPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        git -C $repo rev-parse --git-dir 2>$null | Out-Null
+        $existingRepo = $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $savedErrorPreference
+    }
+    if ($existingRepo -or (Get-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue)) {
+        Stop-Sync 'WINDOWS_REPO' '此目录已有 Git 元数据，或位于其他 Git 仓库内。请选择仓库根目录或修复现有仓库。'
+    }
+    $hasFiles = [bool](Get-ChildItem -LiteralPath $repo -Force | Select-Object -First 1)
+    if ($hasFiles -ne ($InitializeRepository -eq 'existing')) {
+        Stop-Sync 'WINDOWS_REPO' '目录内容已变化，请重新确认初始化方式。'
+    }
+    $remoteName = ([string]$c.remote).Trim()
+    if (!$remoteName) { $remoteName = 'origin' }
+    git check-ref-format "refs/heads/$($c.branch)" | Out-Null
+    if ($LASTEXITCODE -ne 0) { Stop-Sync 'CONFIG' '目标分支名称无效。' }
+    git @gitOptions ls-remote --exit-code --heads -- $remoteTarget "refs/heads/$($c.branch)" | Out-Null
+    if ($LASTEXITCODE -ne 0) { Stop-Sync 'CONFIG' '无法读取指定远端分支。请检查地址、分支和访问权限。' }
+    $clone = @('clone', '--branch', [string]$c.branch, '--origin', $remoteName)
+    $destination = $repo
+    $staging = $null
+    $owned = $null
+    try {
+        if ($hasFiles) {
+            $staging = Join-Path $directory.Parent.FullName ('.projectsync-init-' + [Guid]::NewGuid().ToString('N'))
+            $owned = New-Item -ItemType Directory -Path $staging
+            $destination = $owned.FullName
+            $clone += '--no-checkout'
+        }
+        git @gitOptions @clone -- $remoteTarget $destination
+        if ($LASTEXITCODE -ne 0) { throw '无法克隆远端分支。请检查远端地址、分支和访问权限。' }
+        if ($remoteTarget -ne $remoteUrl) {
+            git -C $destination remote set-url -- $remoteName $remoteUrl
+            if ($LASTEXITCODE -ne 0) { throw '无法保存远端地址。' }
+        }
+        if ($hasFiles) {
+            git -C $destination read-tree HEAD
+            if ($LASTEXITCODE -ne 0) { throw '无法建立远端分支的暂存区基线。' }
+            [IO.Directory]::Move((Join-Path $destination '.git'), $metadata)
+        }
+    } finally {
+        if ($staging -and $owned -and $owned.FullName -eq $staging -and
+            $owned.Parent.FullName -eq $directory.Parent.FullName) {
+            Remove-Item -LiteralPath $owned.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Write-Host 'LOCAL_INIT=complete'
+    if ($hasFiles) {
+        git --no-optional-locks -C $repo -c core.quotepath=false status --short --untracked-files=normal |
+            ForEach-Object { Write-Host "LOCAL_CHANGE=$_" }
+        if ($LASTEXITCODE -ne 0) { Write-Host 'LOCAL_STATUS=unavailable' }
+    }
+    exit 0
 }
 if ($TestConnection) {
     $refs = git @gitOptions ls-remote --heads -- $remoteTarget
@@ -124,9 +216,7 @@ foreach ($suffix in $suffixes) {
 if ($suffixes -ccontains ':Zone.Identifier') {
     $suffixes += "$([char]0xF03A)Zone.Identifier"
 }
-$suffixMatches = @($suffixes | ForEach-Object { ":(glob)**/*$_" })
 $syncPaths += @($suffixes | ForEach-Object { ":(exclude,glob)**/*$_" })
-$outsideSyncPaths = @($sitePaths | ForEach-Object { ":(exclude,literal)$_" })
 $autoCrlf = git -C $repo config --default false --get core.autocrlf
 if ($LASTEXITCODE -ne 0) { throw "Could not read target Git line-ending configuration." }
 if (!$Preview -and !$Publish -and !$ExpectedPlan) { throw "Run a preview before applying." }
@@ -139,16 +229,18 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not read the local branch.' }
 $branch = git -C $repo branch --show-current
 if ($LASTEXITCODE -ne 0 -or $branch -cne $c.branch) { throw 'Check out the configured Windows branch first.' }
 
-function Assert-ReadyIndex {
-    git -C $repo diff --cached --quiet
-    if ($LASTEXITCODE -ne 0) { throw 'The index has staged changes. Review them before continuing.' }
+function Assert-ReadyIndex([switch]$AllowStaged) {
+    if (!$AllowStaged) {
+        git -C $repo diff --cached --quiet
+        if ($LASTEXITCODE -ne 0) { throw 'The index has staged changes. Review them before continuing.' }
+    }
     foreach ($state in @('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply','sequencer')) {
         $statePath = git -C $repo rev-parse --path-format=absolute --git-path $state
         if ($LASTEXITCODE -ne 0 -or (Test-Path -LiteralPath $statePath)) { throw 'Finish the in-progress Git operation first.' }
     }
 }
 
-Assert-ReadyIndex
+Assert-ReadyIndex -AllowStaged:$Publish
 if ($Publish) {
     if ($ExpectedPlan -notmatch '^([0-9a-f]{40}):([0-9a-f]{40})(?::([0-9a-f]{40}))?$') { throw 'Apply a verified sync first.' }
     $base = $Matches[1]
@@ -166,48 +258,22 @@ if ($Publish) {
         }
     } else {
         if ($head -ne $base) { throw 'The local branch changed. Build, preview and apply sync again.' }
-        $paths = @(git -C $repo ls-files -z --cached --others -- @syncPaths)
-        if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate files to stage.' }
-        $pathList = [IO.Path]::GetTempFileName()
-        try {
-            [IO.File]::WriteAllText($pathList, ($paths -join ''), [Text.UTF8Encoding]::new($false))
-            $stageStatus = 0
-            if ((Get-Item -LiteralPath $pathList).Length -gt 0) {
-                git -C $repo --literal-pathspecs add -f -A --pathspec-from-file=$pathList --pathspec-file-nul
-                $stageStatus = $LASTEXITCODE
-            }
-        } finally { Remove-Item -LiteralPath $pathList }
-        $differences = @(git -C $repo -c core.quotepath=false diff --cached --name-status $verified -- @syncPaths)
-        if ($stageStatus -ne 0 -or $LASTEXITCODE -ne 0 -or $differences.Count -gt 0) {
-            git -C $repo restore --staged -- @syncPaths
-            if ($LASTEXITCODE -ne 0) { throw 'Staging verification failed. Review the Git index.' }
-            $differences | ForEach-Object { Write-Host $_ }
-            throw 'Could not stage the verified sources. Review the paths above, then run a new preview and sync.'
-        }
-        git -C $repo diff --cached --quiet
-        if ($LASTEXITCODE -eq 0) { Write-Host 'No changes to publish.'; exit 0 }
-        if ($LASTEXITCODE -ne 1) { throw 'Could not inspect staged changes.' }
+        git -C $repo add -A -- .
+        if ($LASTEXITCODE -ne 0) { throw 'Could not stage the Windows working tree. Review the Git index.' }
+        $changes = @(git -C $repo -c core.quotepath=false diff --cached --name-status)
+        if ($LASTEXITCODE -ne 0) { throw 'Could not inspect staged changes.' }
+        if ($changes.Count -eq 0) { Write-Host 'No changes to publish.'; exit 0 }
+        Write-Host 'Staged Windows working tree changes:'
+        $changes | ForEach-Object { Write-Host $_ }
 
         if ($CommitSummaryFile) {
             git -C $repo -c i18n.commitEncoding=UTF-8 commit -F $CommitSummaryFile
         } else {
-            git -C $repo commit -m 'Update verified project sources'
+            git -C $repo commit -m 'Update project working tree'
         }
         if ($LASTEXITCODE -ne 0) { throw 'Git commit failed. Review the log and staged changes.' }
         $pending = git -C $repo rev-parse HEAD
         if ($LASTEXITCODE -ne 0) { throw 'Could not read the local commit.' }
-    }
-    git -C $repo diff --quiet $pending $verified -- @syncPaths
-    if ($LASTEXITCODE -ne 0) { throw 'The local commit does not match the verified sources.' }
-    git -C $repo diff --quiet $base $pending -- . @outsideSyncPaths
-    if ($LASTEXITCODE -ne 0) { throw 'The local commit contains changes outside the sync scope.' }
-    if ($exclude.Count -gt 0) {
-        git -C $repo diff --quiet $base $pending -- @exclude
-        if ($LASTEXITCODE -ne 0) { throw 'The local commit contains excluded changes.' }
-    }
-    if ($suffixMatches.Count -gt 0) {
-        git -C $repo diff --quiet $base $pending -- @suffixMatches
-        if ($LASTEXITCODE -ne 0) { throw 'The local commit contains files with excluded suffixes.' }
     }
     Write-Host "PENDING=${base}:${verified}:$pending"
     git @gitOptions push -- $remoteTarget "${pending}:refs/heads/$($c.branch)"
@@ -286,35 +352,43 @@ if [[ -z $verified_snapshot ]]; then
         if ! (
             export GIT_INDEX_FILE="$tmp/initial-index"
             git read-tree "$staged_tree" &&
-            git add -u -- . &&
+            git add -u &&
             git -c core.quotepath=false diff --cached --name-status "$staged_tree" &&
             git diff --cached --quiet "$staged_tree"
         ); then
             echo 'PROJECTSYNC_ERROR=WSL_INDEX'
             exit 1
         fi
-        git reset --mixed "$remote_commit"
+        git reset --mixed --quiet "$remote_commit"
         echo 'Initialized WSL Git history from the configured remote branch.'
     fi
     if (( pull_count > 0 )); then
         git --literal-pathspecs diff --cached --quiet HEAD -- "${pull_paths[@]}" || {
+            echo 'PROJECTSYNC_ERROR=WSL_PULL_CHANGES'
             echo 'WSL pull directories contain staged edits.' >&2
             exit 1
         }
         pull_state=$(printf '%s\0' "${pull_paths[@]}" | git hash-object --stdin)
         pull_ref="refs/projectsync/pulled/$pull_state"
-        if [[ -n $(git --literal-pathspecs status --porcelain --untracked-files=all -- "${pull_paths[@]}") ]]; then
+        pull_status=$(git --literal-pathspecs status --porcelain --untracked-files=all -- "${pull_paths[@]}") || exit 1
+        if [[ -n $pull_status ]]; then
             (
                 export GIT_INDEX_FILE="$tmp/pull-index"
-                git read-tree HEAD
-                git --literal-pathspecs add -A -- "${pull_paths[@]}"
+                git read-tree HEAD || exit 1
+                git --literal-pathspecs add -A -- "${pull_paths[@]}" || exit 1
                 previous=$(git rev-parse -q --verify "$pull_ref" || true)
-                if git --literal-pathspecs diff --cached --quiet "$remote_commit" -- "${pull_paths[@]}"; then exit 0; fi
-                if [[ -n $previous ]] && git --literal-pathspecs diff --cached --quiet "$previous" -- "${pull_paths[@]}"; then exit 0; fi
+                matches_pull_base() {
+                    git --literal-pathspecs diff --cached --exit-code --ignore-cr-at-eol \
+                        --no-ext-diff --no-textconv --no-renames "$1" -- "${pull_paths[@]}" >/dev/null
+                }
+                if matches_pull_base "$remote_commit"; then exit 0; fi
+                if [[ -n $previous ]] && matches_pull_base "$previous"; then exit 0; fi
+                echo 'PROJECTSYNC_ERROR=WSL_PULL_CHANGES'
                 echo 'WSL pull directories contain local changes. Review them before fetching:' >&2
-                git --literal-pathspecs diff --cached --name-status "${previous:-HEAD}" -- "${pull_paths[@]}" >&2
+                git --literal-pathspecs -c core.quotepath=false diff --cached --name-status \
+                    --ignore-cr-at-eol --no-ext-diff --no-textconv --no-renames "${previous:-HEAD}" -- "${pull_paths[@]}" >&2
                 exit 1
-            )
+            ) || exit 1
         fi
         git --literal-pathspecs restore --source="$remote_commit" --worktree -- "${pull_paths[@]}"
         git update-ref "$pull_ref" "$remote_commit"

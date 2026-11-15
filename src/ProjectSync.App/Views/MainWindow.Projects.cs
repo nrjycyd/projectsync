@@ -17,6 +17,7 @@ public partial class MainWindow
         "ProjectSync", "projects.json");
     private readonly List<ProjectEntry> savedProjects = new();
     private ProjectEntry? activeProject;
+    private int settingsOpenSequence;
     private string? originalConfig;
 
     private sealed record ProjectEntry(Guid Id, string Name, string Repository, string Branch, string Configuration)
@@ -127,29 +128,59 @@ public partial class MainWindow
         UpdateHomeActions();
     }
 
-    private void ShowProject(string configuration, ProjectEntry? entry)
+    private async Task ShowProjectAsync(string configuration, ProjectEntry? entry)
     {
+        int openSequence = ++settingsOpenSequence;
         LoadConfig(configuration);
         activeProject = entry;
         originalConfig = entry is null ? null : SerializeConfig();
-        SettingsTabs.SelectedIndex = 0;
+        var selectedTab = RemoteSettingsTab;
+        if (!string.IsNullOrWhiteSpace(branch.Text))
+        {
+            if (!string.IsNullOrWhiteSpace(remoteUrl.Text))
+            {
+                selectedTab = LocalSettingsTab;
+            }
+            else
+            {
+                string localPath = windowsRepo.Text.Trim();
+                string remoteName = remote.Text.Trim();
+                if (remoteName.Length > 0 && Directory.Exists(localPath))
+                {
+                    try
+                    {
+                        if ((Directory.Exists(Path.Combine(localPath, ".git")) || File.Exists(Path.Combine(localPath, ".git"))) &&
+                            (await ReadShortcutRemoteAsync(localPath, remoteName)).Length > 0)
+                            selectedTab = LocalSettingsTab;
+                    }
+                    catch (System.ComponentModel.Win32Exception)
+                    {
+                        // Git is unavailable. Keep the remote settings visible.
+                    }
+                }
+            }
+        }
+        if (openSequence != settingsOpenSequence)
+            return;
+
+        SettingsTabs.SelectedItem = selectedTab;
         HomePage.Visibility = Visibility.Collapsed;
         ProjectPage.Visibility = Visibility.Visible;
     }
 
-    private void NewProject(object sender, RoutedEventArgs e)
+    private async void NewProject(object sender, RoutedEventArgs e)
     {
-        ShowProject("""{"name":"","remote":"origin","branch":"main","cleanUntracked":false}""", null);
+        await ShowProjectAsync("""{"name":"","remote":"origin","branch":"main","cleanUntracked":false}""", null);
     }
 
-    private void ImportProject(object sender, RoutedEventArgs e)
+    private async void ImportProject(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Title = "导入项目配置", Filter = "项目配置 (*.json)|*.json" };
         if (dialog.ShowDialog(this) != true)
             return;
         try
         {
-            ShowProject(File.ReadAllText(dialog.FileName), null);
+            await ShowProjectAsync(File.ReadAllText(dialog.FileName), null);
             if (string.IsNullOrWhiteSpace(ProjectName.Text))
                 ProjectName.Text = Path.GetFileNameWithoutExtension(dialog.FileName);
             Status.Text = "已导入配置。点击「保存项目」加入列表。";
@@ -160,11 +191,11 @@ public partial class MainWindow
         }
     }
 
-    private void OpenProject(object sender, RoutedEventArgs e)
+    private async void OpenProject(object sender, RoutedEventArgs e)
     {
         if (Projects.SelectedItem is not ProjectEntry entry)
             return;
-        try { ShowProject(entry.Configuration, entry); }
+        try { await ShowProjectAsync(entry.Configuration, entry); }
         catch (Exception error) { HomeStatus.Text = $"无法打开项目：{error.Message}"; }
     }
 
@@ -426,8 +457,15 @@ public partial class MainWindow
         string[] targets = projects.Select(project =>
         {
             var branch = JsonNode.Parse(project.Configuration)?["branch"]?.GetValue<string>();
-            return $"{project.Name} → {branch}";
+            return $"{project.Name} → {branch}\n{project.Repository}";
         }).ToArray();
+        var scope = new System.Windows.Controls.TextBlock
+        {
+            Text = "将暂存并提交整个 Windows 工作区的新增、修改和删除。Git 已忽略的未跟踪文件会跳过。",
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+        };
+        System.Windows.Controls.DockPanel.SetDock(scope, System.Windows.Controls.Dock.Top);
+        body.Children.Add(scope);
         var targetsView = new System.Windows.Controls.ScrollViewer
         {
             MaxHeight = 110, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
