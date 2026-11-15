@@ -65,6 +65,34 @@
    <Setter Property="Margin" Value="0,0,6,6"/>
    <Setter Property="Effect" Value="{StaticResource PopupShadow}"/>
   </Style>
+  <Style x:Key="HomeDropDownFrame" TargetType="Border">
+   <Setter Property="Width" Value="116"/>
+   <Setter Property="Height" Value="34"/>
+   <Setter Property="CornerRadius" Value="4"/>
+   <Setter Property="BorderBrush" Value="#A6ADB3"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Background" Value="#F1F3F3"/>
+   <Style.Triggers>
+    <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55"/></Trigger>
+   </Style.Triggers>
+  </Style>
+  <Style x:Key="HomeDropDownSegment" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="MinHeight" Value="0"/>
+   <Setter Property="Margin" Value="0"/>
+   <Setter Property="Padding" Value="0"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="BorderBrush" Value="Transparent"/>
+  </Style>
+  <Style x:Key="HomeDropDownChevron" TargetType="Path">
+   <Setter Property="Data" Value="{StaticResource DropDownChevron}"/>
+   <Setter Property="Stroke" Value="#5E6662"/>
+   <Setter Property="StrokeThickness" Value="1.5"/>
+   <Setter Property="StrokeStartLineCap" Value="Round"/>
+   <Setter Property="StrokeEndLineCap" Value="Round"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
+   <Setter Property="HorizontalAlignment" Value="Center"/>
+  </Style>
   <Style x:Key="HomeDropDownMenu" TargetType="ContextMenu">
    <Setter Property="VerticalOffset" Value="2"/>
    <Setter Property="HasDropShadow" Value="False"/>
@@ -382,30 +410,38 @@
      <Button Style="{StaticResource DashboardPrimaryButton}" MinHeight="34" Padding="16,5" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" ContentTemplate="{StaticResource ToolbarIconLabel}" Tag="M7,11 V1 M3,5 L7,1 L11,5 M1,13 H13" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="提交并推送已应用同步且已勾选的项目"/>
      <TextBlock x:Name="SelectionSummary" Margin="10,0,0,4" VerticalAlignment="Center" Foreground="#20252A"/>
     </StackPanel>
-     <StackPanel x:Name="HomeActions" Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal">
-      <StackPanel x:Name="NewProjectGroup" Orientation="Horizontal" Margin="0,0,10,4">
-       <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="13,5" Margin="0" Content="新建项目" Click="NewProject"/>
-       <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="9,5" Margin="-1,0,0,0"
-               AutomationProperties.Name="更多项目操作" ToolTip="更多项目操作" Click="OpenHomeMenu">
-        <Path Data="{StaticResource DropDownChevron}" Stroke="#5E6662" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" VerticalAlignment="Center"/>
+     <StackPanel x:Name="HomeActions" Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Top">
+      <Border x:Name="NewProjectGroup" Style="{StaticResource HomeDropDownFrame}" Margin="0,0,8,0">
+       <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
+        <Button Style="{StaticResource HomeDropDownSegment}" Content="新建项目" Click="NewProject"/>
+        <Border Grid.Column="1" BorderBrush="#C8CED1" BorderThickness="1,0,0,0" IsHitTestVisible="False"/>
+        <Button Grid.Column="1" Style="{StaticResource HomeDropDownSegment}"
+                AutomationProperties.Name="更多项目操作" ToolTip="更多项目操作" Click="OpenHomeMenu">
+         <Path Style="{StaticResource HomeDropDownChevron}"/>
+         <Button.ContextMenu>
+          <ContextMenu Style="{StaticResource HomeDropDownMenu}">
+           <MenuItem Style="{StaticResource HomeDropDownItem}" Header="导入 JSON" Click="ImportProject"/>
+           <MenuItem Style="{StaticResource HomeDropDownItem}" x:Name="RemoveProjectItem" Header="移除" Click="RemoveProject" IsEnabled="False"/>
+          </ContextMenu>
+         </Button.ContextMenu>
+        </Button>
+       </Grid>
+      </Border>
+      <Border Style="{StaticResource HomeDropDownFrame}">
+       <Button Style="{StaticResource HomeDropDownSegment}" AutomationProperties.Name="工具" Click="OpenHomeMenu">
+        <DockPanel Width="112">
+         <Grid DockPanel.Dock="Right" Width="32"><Path Style="{StaticResource HomeDropDownChevron}"/></Grid>
+         <TextBlock Text="工具" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </DockPanel>
         <Button.ContextMenu>
          <ContextMenu Style="{StaticResource HomeDropDownMenu}">
-          <MenuItem Style="{StaticResource HomeDropDownItem}" Header="导入 JSON" Click="ImportProject"/>
-          <MenuItem Style="{StaticResource HomeDropDownItem}" x:Name="RemoveProjectItem" Header="移除" Click="RemoveProject" IsEnabled="False"/>
+          <MenuItem Style="{StaticResource HomeDropDownItem}" Header="文件复制" Click="OpenFileCopy"/>
+          <MenuItem Style="{StaticResource HomeDropDownItem}" Header="WSL 环境" Click="OpenWslManager"/>
          </ContextMenu>
         </Button.ContextMenu>
        </Button>
-      </StackPanel>
-      <Button Style="{StaticResource DashboardButton}" MinHeight="34" Padding="12,5" MinWidth="108"
-              AutomationProperties.Name="工具" Click="OpenHomeMenu">
-       <StackPanel Orientation="Horizontal"><TextBlock Text="工具" Margin="0,0,8,0"/><Path Data="{StaticResource DropDownChevron}" Stroke="#5E6662" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" VerticalAlignment="Center"/></StackPanel>
-       <Button.ContextMenu>
-        <ContextMenu Style="{StaticResource HomeDropDownMenu}">
-         <MenuItem Style="{StaticResource HomeDropDownItem}" Header="文件复制" Click="OpenFileCopy"/>
-         <MenuItem Style="{StaticResource HomeDropDownItem}" Header="WSL 环境" Click="OpenWslManager"/>
-        </ContextMenu>
-       </Button.ContextMenu>
-      </Button>
+      </Border>
      </StackPanel>
    </Grid>
    <Border DockPanel.Dock="Bottom" Margin="0,6,0,0" Padding="0,1,0,0" MinHeight="20">
