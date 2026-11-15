@@ -64,22 +64,21 @@
       </ui:DropDownButton>
      </StackPanel>
    </Grid>
-   <Border DockPanel.Dock="Bottom" Margin="0,6,0,0" Padding="0,1,0,0" MinHeight="20">
+   <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="0,4">
     <DockPanel>
-     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-      <ui:Button Appearance="Secondary" x:Name="StopBatchButton" Content="停止" Click="StopBatch" Visibility="Collapsed"
+     <StackPanel x:Name="FooterActions" DockPanel.Dock="Right" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+      <ui:Button Appearance="Secondary" x:Name="StopBatchButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="停止" Click="StopBatch" Visibility="Collapsed"
               ToolTip="取消构建和预览，或在当前同步或推送结束后停止批量操作"/>
-      <ui:Button Appearance="Secondary" Content="导出诊断" Click="ExportDiagnostics"
-              MinHeight="25" Padding="9,2" FontSize="13"/>
-      <ComboBox x:Name="ThemeChoice" Width="112" Margin="0,0,8,0" SelectedIndex="0"
+      <ui:Button Appearance="Secondary" x:Name="ExportDiagnosticsButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="导出诊断" Click="ExportDiagnostics"/>
+      <ComboBox x:Name="ThemeChoice" Width="112" Height="34" Margin="0,0,12,0" FontSize="13" SelectedIndex="0"
                 SelectionChanged="ChooseTheme" AutomationProperties.Name="应用主题">
        <ComboBoxItem Content="浅色" Tag="Light"/>
        <ComboBoxItem Content="深色" Tag="Dark"/>
        <ComboBoxItem Content="跟随系统" Tag="System"/>
       </ComboBox>
-      <TextBlock x:Name="AppVersionText" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,9,0"/>
-      <ui:Button Appearance="Secondary" x:Name="CheckUpdatesButton" Content="检查更新" Click="CheckUpdates" MinHeight="25" Padding="9,2"
-              Margin="0" FontSize="13"/>
+      <TextBlock x:Name="AppVersionText" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                 VerticalAlignment="Center" Margin="0,0,12,0"/>
+      <ui:Button Appearance="Secondary" x:Name="CheckUpdatesButton" Width="88" Height="34" Padding="12,0" FontSize="13" Content="检查更新" Click="CheckUpdates" Margin="0"/>
      </StackPanel>
      <TextBlock x:Name="HomeStatus" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
     </DockPanel>
