@@ -64,7 +64,7 @@ public partial class MainWindow
                 savedProjects.AddRange(JsonSerializer.Deserialize<List<ProjectEntry>>(File.ReadAllText(projectFile))
                     ?? throw new JsonException("项目列表必须是 JSON 数组。"));
             if (savedProjects.Count == 0)
-                HomeStatus.Text = "点击「新建项目」创建第一个项目，或导入现有配置。";
+                HomeStatus.Text = "新建项目，或导入 JSON。";
         }
         catch (Exception error)
         {
@@ -478,16 +478,6 @@ public partial class MainWindow
 
     private void ProjectMenuOpened(object sender, RoutedEventArgs e) =>
         RemoveProjectItem.IsEnabled = Projects.SelectedItem is ProjectEntry;
-
-    private void HomeToolbarSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (HomeActions is null || BatchActions is null) return;
-        bool wrap = e.NewSize.Width < BatchActions.DesiredSize.Width + HomeActions.DesiredSize.Width + 16;
-        System.Windows.Controls.Grid.SetRow(HomeActions, wrap ? 1 : 0);
-        System.Windows.Controls.Grid.SetColumn(HomeActions, wrap ? 0 : 2);
-        System.Windows.Controls.Grid.SetColumnSpan(HomeActions, wrap ? 3 : 1);
-        HomeActions.Margin = new Thickness(0, wrap ? 6 : 0, 0, 0);
-    }
 
     private void UpdateHomeActions()
     {
