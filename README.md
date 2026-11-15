@@ -1,39 +1,66 @@
 # ProjectSync
 
-ProjectSync 面向用 WSL 构建、用 Windows Git 仓库发布的项目。EduSprout 是首个验收项目。
+ProjectSync 是一款 Windows 桌面应用。它在 WSL 中构建项目，在 Windows 中预览并应用文件变更，再由 Windows Git 仓库提交和推送。适合源码在 WSL、发布仓库在 Windows 的工作流。
 
-## 第一阶段
+## 下载与运行
 
-先实现共享执行引擎，再接入 WPF 界面和命令行。启动骨架使用 .NET 8 SDK。执行 `dotnet build ProjectSync.sln` 检查工程，执行 `dotnet run --project src/ProjectSync.App` 打开启动界面。
+1. 从 [GitHub Releases](https://github.com/nrjycyd/projectsync/releases/latest) 下载 `ProjectSync-v*-win-x64.zip`。
+2. 将 ZIP 解压到新目录，双击 `ProjectSync/ProjectSync.App.exe`。如系统提示缺少运行时，安装 [.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/8.0)。
+3. 准备 Windows Git 和用于构建的 WSL 发行版。在对应的 WSL 实例内安装 Git，以及项目需要的 Node.js、包管理器和其他依赖。
 
-## 项目结构
+解压目录中的 `scripts/` 存放执行脚本，`examples/` 提供示例配置。应用保存的项目位于 `%LOCALAPPDATA%\ProjectSync`。
 
-| 路径 | 职责 |
+## 首次配置项目
+
+在首页点击「新建项目」，也可以从旁边的下拉菜单导入 JSON。双击项目行可以重新打开设置。
+
+| 设置页 | 填写内容 |
 | --- | --- |
-| src/ProjectSync.App | WPF 项目设置、变更预览和运行日志 |
-| src/ProjectSync.Core | 项目配置、Git 与 WSL 进程、同步计划和执行流程 |
-| src/ProjectSync.Cli | 调试和无人值守入口 |
-| examples/edusprout.project.json | EduSprout 项目配置示例 |
-| docs/立项说明.md | 范围、开发顺序和验收场景 |
+| Git 远端仓库 | 填写 HTTPS 或 SSH 地址和目标分支，点击「测试远端连接」。已有 Windows Git 仓库时，也可以使用其中配置的远端名称，例如 `origin`。 |
+| Git 本地仓库 | 选择 Windows 发布仓库的根目录。如果目录还没有 Git 仓库，先填好远端地址和分支，再使用「初始化 Git…」。空目录可克隆远端，有文件的目录可在保留文件的情况下初始化，并查看本地差异。 |
+| 本地构建环境 | 填写 WSL 项目目录，例如 `/home/blog/site`，或粘贴 WSL 网络路径后点击「检测环境」。选择发行版、用户和 Node.js 版本，填写构建命令，例如 `pnpm docs:build`。 |
+| 同步与清理 | 按行填写需要同步的文件或目录，例如 `docs` 和 `package.json`。可单独填写排除路径和文件名后缀，例如 `docs/.vitepress/dist` 和 `:Zone.Identifier`。 |
+| 快速配置（JSON） | 可导入文件或粘贴 JSON，再应用到当前表单。配置完成后点击「保存项目」，也可以用「导出 JSON」备份配置。 |
 
-## 桌面原型
+如果需要在构建前将远端内容拉入 WSL，在「本地构建环境」逐行填写拉取目录。ProjectSync 会从同一个远端提交更新这些目录。目录内的本地改动有覆盖风险时，操作会停下并在日志中列出相关路径。
 
-启动时打开项目首页，首次运行提供 EduSprout 示例。可新建项目或导入 JSON，打开项目后点击「保存项目」加入列表。「项目设置」分为「Git 本地仓库」「Git 远端仓库」「本地构建环境」和「同步与清理」。项目操作栏的「导出 JSON」将当前表单写入文件。「快速配置（JSON）」支持导入或粘贴后应用。项目列表保存在当前 Windows 用户的本地应用数据中。远端拉取目录每行填写一项。JSON 使用 `pullPaths` 数组，也支持导入旧配置的单项 `pullPath`。所有目录从同一个远端提交恢复后才开始构建。
+GitHub HTTPS 登录可在项目中指定账号，首次授权由 Git Credential Manager 打开浏览器。提交作者使用 Windows 仓库的 Git 配置，推送账号需有目标分支的写权限。
 
-在首页勾选一个或多个项目，再点击「构建并预览」，查看「变更清单」中的新增、修改、源端删除和目标清理项。预览会更新 WSL 的拉取目录并执行构建，Windows 工作区在应用前保持原样。「应用同步」会重新构建并复核计划，发现源码、远端或目标状态改变时需要重新预览。示例启用目标端清理，新项目应按需设置 `cleanUntracked`。
+## 构建、同步和推送
 
-在「本地构建环境」填写 Linux 绝对路径或 WSL 网络路径，再点「检测环境」。匹配一个发行版时自动选中，匹配多个时可从下拉框选择。WSL 用户可从检测出的账号中选择。检测后可从下拉框选择默认 PATH 或已安装的 nvm Node.js 版本。唯一匹配的 .nvmrc 版本可自动选中，已填写的额外 PATH 优先保留。构建命令和额外 PATH 也可手动填写。
+1. **构建并预览**。在首页勾选项目。ProjectSync 在 WSL 执行构建并生成变更清单，这一步可能更新配置的 WSL 拉取目录，Windows 工作区不写入同步文件。需要看站点效果时，可填入预览命令并勾选「构建成功后在浏览器打开预览」。
+2. **应用同步**。核对新增、修改、删除和清理项后应用。ProjectSync 复用已验证的构建快照，复核来源、目标和远端状态，再把同步范围内的文件写入 Windows。计划失效时，从「构建并预览」重新开始。
+3. **提交并推送**。填写提交摘要并确认。提交暂存整个 Windows 工作区的新增、修改和删除，遵循 Git 的忽略规则。推送前可在 VS Code 或 `git status` 中检查 Windows 工作区，尤其是同步范围外的本地改动。
 
-「Git 远端仓库」可填写远端仓库地址（JSON 字段 `remoteUrl`）。填入 SSH 或 HTTPS 地址后，拉取和推送均使用该地址。留空时使用本地 Git 配置中的远端名称。点击「检测远端名称」，可从下拉框选择本地仓库已配置的远端。可以直接粘贴 GitHub 仓库页面的 HTTPS 地址。点击「测试远端连接」读取可用分支，然后从「目标分支」下拉选择，需要授权时由 Git Credential Manager 打开浏览器。在每个项目填写「GitHub 登录用户名」（JSON 字段 `githubUsername`），即可为 GitHub HTTPS 操作指定账号。用户名可以与仓库所有者不同。指定账号后，凭据按账号存入独立的 Windows 凭据命名空间。首次登录请在浏览器选中对应账号。留空时沿用 Git Credential Manager 的默认选账号流程。Git 提交作者由本地仓库 Git 配置决定。推送需要写权限。
+**排除路径与清理的作用不同。** 排除项控制从 WSL 同步的内容。若文件已被 Windows Git 跟踪，后来加入排除列表不会把它从仓库移除。启用「同步前清理目标仓库中未跟踪且未忽略的文件」时，清理范围是整个 Windows 工作区，受当前排除项保护的路径会跳过。应用前请先核对预览中的删除项。
 
-同步成功后，在首页勾选要发布的项目，再点击「提交并推送」。各项目按列表顺序执行，分别记录预览和同步状态。提交使用整个 Windows 工作区的新增、修改和删除，遵循 Git 自身的忽略规则。同步范围和排除项用于控制从 WSL 写入 Windows 的文件。远端更新时重新预览和同步。暂存清单和 GitHub 推送结果在日志中显示。
+如果提交已创建、推送失败，保持程序打开并重新勾选项目，可重试原提交。若远端已更新，先检查本地提交与远端的差异。
 
-预览会提示 Windows 分支是否需要快进。应用同步先完成快进，再写入同步文件。WSL 拉取目录中的暂存改动或与远端及上次同步版本不一致的本地改动会阻止覆盖。
+## 首页工具
 
-如果提交已创建但推送失败，保持程序打开，重新勾选该项目并点击「提交并推送」可重试原提交。远端已更新时，先检查本地提交和远端差异。
+- **文件复制**。在「工具」菜单打开。来源和目标各自选择 Windows 或 WSL，可在 Windows 和 WSL 的四种来源与目标组合中复制文件或目录。可预览复制清单，同名文件默认跳过，默认跳过 `Zone.Identifier` 下载标记。
+- **WSL 环境**。查看发行版版本、安装位置和开发工具。支持安装发行版、更新 WSL、启动终端、配置开发环境，以及在支持的 WSL 2 实例上调整虚拟磁盘上限。磁盘容量显示根文件系统的剩余空间和总容量。实例停止时只显示可读取的虚拟磁盘上限。
+- **项目快捷访问**。项目行可打开 Windows 仓库、WSL 项目目录、WSL 项目终端及远端仓库，也可以运行在项目设置中配置的重装依赖和升级主题命令。
 
-## Windows 发布包
+## 从源码构建
 
-在 PowerShell 7 中运行 `./tools/Publish-Windows.ps1 -OutputDirectory <输出目录>` 生成版本化的 Windows x64 ZIP。GitHub Actions 使用同一个打包脚本。
+在 Windows 安装 .NET 8 SDK，然后从仓库根目录运行：
 
-将 ZIP 解压到新目录，运行 `ProjectSync/ProjectSync.App.exe`。程序需要 .NET 8 Desktop Runtime，随包脚本位于 `scripts`，示例配置位于 `examples`。已保存的项目配置继续存放在 `%LOCALAPPDATA%\ProjectSync`。
+```powershell
+dotnet build ProjectSync.sln --configuration Release
+dotnet run --project src/ProjectSync.App
+```
+
+使用 PowerShell 7 生成 Windows x64 ZIP。GitHub Actions 也使用同一个脚本。
+
+```powershell
+./tools/Publish-Windows.ps1 -OutputDirectory dist
+```
+
+| 路径 | 内容 |
+| --- | --- |
+| [src/ProjectSync.App](src/ProjectSync.App) | WPF 桌面应用 |
+| [src/ProjectSync.Core](src/ProjectSync.Core) | 同步脚本和共享代码 |
+| [src/ProjectSync.Cli](src/ProjectSync.Cli) | 命令行入口 |
+| [examples](examples) | EduSprout 配置示例 |
+| [立项说明](docs/立项说明.md) | 项目最初的范围和验收场景 |
