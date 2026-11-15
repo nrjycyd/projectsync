@@ -248,15 +248,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     private async void RefreshClick(object sender, RoutedEventArgs e) => await RunAsync(RefreshAsync);
     private async void UpdateClick(object sender, RoutedEventArgs e) => await RunAsync(() => ExecuteAsync("--update"));
 
-    private void MoreClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { ContextMenu: { } menu } button)
-        {
-            menu.PlacementTarget = button;
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            menu.IsOpen = true;
-        }
-    }
+    private void MenuKeyDown(object sender, System.Windows.Input.KeyEventArgs e) =>
+        FlyoutKeyboard.Handle(sender, e);
 
     private static Instance? Row(object sender) => (sender as FrameworkElement)?.DataContext as Instance;
 

@@ -18,7 +18,8 @@ internal static class FluentDialog
         panel.Children.Add(content);
         var window = new FluentWindow
         {
-            Title = title, Width = width, SizeToContent = height.HasValue ? SizeToContent.Manual : SizeToContent.Height,
+            Title = title, Width = width, MinHeight = 0,
+            SizeToContent = height.HasValue ? SizeToContent.Manual : SizeToContent.Height,
             ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Content = panel,
             ExtendsContentIntoTitleBar = true, WindowBackdropType = WindowBackdropType.Mica,
             WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner,

@@ -473,16 +473,11 @@ public partial class MainWindow
         OpenProject(sender, e);
     }
 
-    private void OpenHomeMenu(object sender, RoutedEventArgs e)
-    {
-        if (running || sender is not System.Windows.Controls.Button { ContextMenu: { } menu } button)
-            return;
+    private void MenuKeyDown(object sender, System.Windows.Input.KeyEventArgs e) =>
+        FlyoutKeyboard.Handle(sender, e);
 
+    private void ProjectMenuOpened(object sender, RoutedEventArgs e) =>
         RemoveProjectItem.IsEnabled = Projects.SelectedItem is ProjectEntry;
-        menu.PlacementTarget = menu.Items.Contains(RemoveProjectItem) ? NewProjectGroup : button;
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-        menu.IsOpen = true;
-    }
 
     private void HomeToolbarSizeChanged(object sender, SizeChangedEventArgs e)
     {
