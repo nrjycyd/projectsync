@@ -29,9 +29,9 @@ internal static class FluentDialog
         {
             window.Owner = owner;
             window.Icon = owner.Icon;
-            window.FontFamily = owner.FontFamily;
         }
         if (height.HasValue) window.Height = height.Value;
+        window.SetResourceReference(Window.FontFamilyProperty, "WorkspaceTypeface");
         window.SetResourceReference(Window.BackgroundProperty, "ApplicationBackgroundBrush");
         window.SetResourceReference(Window.ForegroundProperty, "TextFillColorPrimaryBrush");
         return window;

@@ -4,7 +4,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="WSL 环境管理" Width="1120" Height="540" MinWidth="740" MinHeight="420"
  ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica"
- WindowStartupLocation="CenterOwner" Background="{DynamicResource ApplicationBackgroundBrush}" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}" UseLayoutRounding="True">
+ WindowStartupLocation="CenterOwner" Background="{DynamicResource ApplicationBackgroundBrush}" FontSize="14" FontFamily="{StaticResource WorkspaceTypeface}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" UseLayoutRounding="True">
 
  <DockPanel>
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="WSL 环境管理"/>
@@ -16,16 +16,18 @@
     <ui:Button Content="更新 WSL" Icon="{ui:SymbolIcon ArrowUpload24}" Click="UpdateClick"/>
    </StackPanel>
    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-    <TextBlock Text="WSL 环境管理" FontSize="23" FontWeight="SemiBold"/>
+    <TextBlock Text="WSL 环境管理" FontSize="20" FontWeight="SemiBold"/>
     <TextBlock x:Name="VersionText" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="12,0,0,0" VerticalAlignment="Center"/>
    </StackPanel>
   </DockPanel>
   <TextBlock x:Name="Status" DockPanel.Dock="Bottom" Margin="0,10,0,0" TextWrapping="Wrap"/>
   <Expander x:Name="LogArea" DockPanel.Dock="Bottom" Header="运行日志" Margin="0,10,0,0">
-   <ui:TextBox x:Name="Log" Height="105" Margin="0,6,0,0" Padding="8" FontSize="13"
+   <ui:TextBox x:Name="Log" Style="{StaticResource WorkspaceLog}" Height="105" Margin="0,6,0,0" Padding="8"
             IsReadOnly="True" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
   </Expander>
-  <Border x:Name="InstanceFrame" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="5" SnapsToDevicePixels="True">
+  <Grid>
+   <Border Style="{StaticResource WorkspaceRaisedPanel}" IsHitTestVisible="False"/>
+   <Border x:Name="InstanceFrame" SnapsToDevicePixels="True" Style="{StaticResource WorkspaceRaisedContent}">
   <ui:DataGrid x:Name="Instances" SizeChanged="InstanceGridSizeChanged" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
             HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
             RowHeight="36" ColumnHeaderHeight="36" BorderThickness="0" Background="Transparent">
@@ -124,7 +126,8 @@
     </DataGridTemplateColumn>
    </DataGrid.Columns>
   </ui:DataGrid>
-  </Border>
+   </Border>
+  </Grid>
   </DockPanel>
  </DockPanel>
 </ui:FluentWindow>

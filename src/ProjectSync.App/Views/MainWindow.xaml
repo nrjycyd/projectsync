@@ -4,7 +4,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:local="clr-namespace:ProjectSync.App.Views"
  Title="ProjectSync" ExtendsContentIntoTitleBar="True" WindowCornerPreference="Round" WindowBackdropType="Mica" Width="1228" Height="816" MinWidth="780" MinHeight="530"
- Background="{DynamicResource ApplicationBackgroundBrush}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" UseLayoutRounding="True" FontFamily="Segoe UI, Microsoft YaHei UI" Icon="/ProjectSync.App;component/Assets/ProjectSync.ico">
+ Background="{DynamicResource ApplicationBackgroundBrush}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" UseLayoutRounding="True" FontFamily="{StaticResource WorkspaceTypeface}" Icon="/ProjectSync.App;component/Assets/ProjectSync.ico">
 
  <ui:FluentWindow.Resources>
   <Style x:Key="ProjectCellText" TargetType="TextBlock">
@@ -20,7 +20,7 @@
      <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
     <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0"
-            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" Padding="8,8,8,0">
+            Background="{DynamicResource LayerOnMicaBaseAltFillColorSecondaryBrush}" Padding="8,8,8,0">
      <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="0"/>
     </Border>
     <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent"/>
@@ -30,7 +30,7 @@
  <DockPanel Background="Transparent">
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="ProjectSync"/>
   <Grid>
-  <DockPanel x:Name="HomePage" Margin="26,20,26,16" Background="Transparent" TextElement.FontSize="15">
+  <DockPanel x:Name="HomePage" Margin="26,20,26,16" Background="Transparent" TextElement.FontSize="14">
    <local:HomeToolbarPanel DockPanel.Dock="Top" Margin="0,0,0,12">
     <StackPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
      <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False"/>
@@ -61,11 +61,12 @@
        </ui:DropDownButton.Flyout>
       </ui:DropDownButton>
      </StackPanel>
-    <TextBlock x:Name="SelectionSummary" TextTrimming="CharacterEllipsis"
+    <TextBlock x:Name="SelectionSummary" Style="{StaticResource WorkspaceSecondaryText}" TextTrimming="CharacterEllipsis"
                ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
-               VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+               VerticalAlignment="Center"/>
    </local:HomeToolbarPanel>
-   <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="0,4">
+   <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="0,6,0,2"
+           BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
     <DockPanel>
      <StackPanel x:Name="FooterActions" DockPanel.Dock="Right" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
       <ui:Button Appearance="Secondary" x:Name="StopBatchButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="停止" Click="StopBatch" Visibility="Collapsed"
@@ -96,7 +97,7 @@
        </StackPanel>
       </ui:Button>
      </StackPanel>
-     <TextBlock x:Name="HomeStatus" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+     <TextBlock x:Name="HomeStatus" Style="{StaticResource WorkspaceSecondaryText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" VerticalAlignment="Center"/>
     </DockPanel>
    </Border>
    <Grid>
@@ -105,7 +106,9 @@
      <RowDefinition Height="28"/>
      <RowDefinition Height="62*" MinHeight="120"/>
     </Grid.RowDefinitions>
-    <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+    <Grid>
+     <Border Style="{StaticResource WorkspaceRaisedPanel}" IsHitTestVisible="False"/>
+     <Border Style="{StaticResource WorkspaceRaisedContent}">
     <ui:DataGrid x:Name="Projects" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
               HeadersVisibility="Column" SelectionMode="Single" ColumnHeaderHeight="36"
 
@@ -173,15 +176,15 @@
             <DataTrigger Binding="{Binding Progress}" Value="无需推送">
              <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
             </DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="可同步"><Setter Property="Appearance" Value="Success"/></DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="可推送"><Setter Property="Appearance" Value="Info"/></DataTrigger>
+            <DataTrigger Binding="{Binding Progress}" Value="可同步"><Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding Progress}" Value="可推送"><Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/></DataTrigger>
             <DataTrigger Binding="{Binding Progress}" Value="已提交，待推送">
-             <Setter Property="Appearance" Value="Caution"/>
+             <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}"/>
              <Setter Property="Content" Value="待推送"/>
              <Setter Property="ToolTip" Value="{Binding Progress}"/>
             </DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="已推送"><Setter Property="Appearance" Value="Success"/></DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="操作失败"><Setter Property="Appearance" Value="Danger"/></DataTrigger>
+            <DataTrigger Binding="{Binding Progress}" Value="已推送"><Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding Progress}" Value="操作失败"><Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/></DataTrigger>
            </Style.Triggers>
           </Style>
          </ui:Badge.Style>
@@ -190,7 +193,8 @@
       </DataGridTemplateColumn>
      </DataGrid.Columns>
     </ui:DataGrid>
-    </Border>
+     </Border>
+    </Grid>
     <GridSplitter Grid.Row="1" Height="14" HorizontalAlignment="Stretch" VerticalAlignment="Center"
                   ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
                   AutomationProperties.Name="调整项目列表和结果区高度">
@@ -211,8 +215,8 @@
     <TabControl Grid.Row="2" x:Name="HomeResults" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
      <TabItem Header="变更清单" x:Name="HomeChangesTab">
       <DockPanel Margin="10,12,10,10" TextElement.FontWeight="Normal">
-       <TextBlock x:Name="HomeChangesSummary" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建并预览后显示待同步变更。"/>
-       <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+       <TextBlock x:Name="HomeChangesSummary" Style="{StaticResource WorkspaceSecondaryText}" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建并预览后显示待同步变更。"/>
+       <Border Style="{StaticResource WorkspacePanel}">
        <ui:DataGrid x:Name="HomeChanges" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36">
         <DataGrid.GroupStyle>
          <GroupStyle>
@@ -243,8 +247,8 @@
       </DockPanel>
      </TabItem>
      <TabItem Header="运行日志" x:Name="HomeLogTab">
-      <ui:TextBox x:Name="HomeLog" FontSize="13" FontWeight="Normal" Margin="10" Padding="14,10" IsReadOnly="True" FontFamily="Consolas, Microsoft YaHei UI"
-               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" BorderThickness="0" Background="{DynamicResource ControlFillColorDefaultBrush}" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+      <ui:TextBox x:Name="HomeLog" Style="{StaticResource WorkspaceLog}" FontWeight="Normal" Margin="10" Padding="14,10" IsReadOnly="True"
+               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" BorderThickness="1" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
      </TabItem>
     </TabControl>
    </Grid>
@@ -365,7 +369,7 @@
        </WrapPanel>
        <TextBlock Text="粘贴或修改 JSON 后，点击「应用 JSON」更新项目设置。" TextWrapping="Wrap" Margin="0,4,0,8"/>
       </StackPanel>
-      <ui:TextBox x:Name="Config" AcceptsReturn="True" AcceptsTab="True" FontFamily="Consolas" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto"/>
+      <ui:TextBox x:Name="Config" Style="{StaticResource WorkspaceLog}" AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto"/>
      </DockPanel>
     </TabItem>
    </TabControl>

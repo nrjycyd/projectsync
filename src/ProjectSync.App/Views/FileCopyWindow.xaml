@@ -5,7 +5,7 @@
  Title="文件复制" Width="680" Height="626" MinWidth="490" MinHeight="515"
  ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica"
  WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource ApplicationBackgroundBrush}"
- Foreground="{DynamicResource TextFillColorPrimaryBrush}" FontSize="14" UseLayoutRounding="True">
+ Foreground="{DynamicResource TextFillColorPrimaryBrush}" FontSize="14" FontFamily="{StaticResource WorkspaceTypeface}" UseLayoutRounding="True">
 
  <DockPanel>
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="文件复制"/>
@@ -16,7 +16,7 @@
     <ui:Button x:Name="PreviewCopy" Content="预览复制" Click="PreviewClick" Margin="0,0,8,0"/>
     <ui:Button x:Name="StartCopy" Content="开始复制" Appearance="Primary" Icon="{ui:SymbolIcon Copy24}" Click="CopyClick"/>
    </StackPanel>
-   <TextBlock x:Name="CopyStatus" Margin="0,10,0,0" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+   <TextBlock x:Name="CopyStatus" Style="{StaticResource WorkspaceSecondaryText}" Margin="0,10,0,0" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
   </StackPanel>
   <StackPanel DockPanel.Dock="Top" x:Name="CopyOptions">
    <Label Content="来源文件或目录" Target="{Binding ElementName=SourcePath}" Padding="0,0,0,4"/>
@@ -44,14 +44,16 @@
    </StackPanel>
    <TextBlock Margin="0,8,0,10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="复制目录时，会在目标目录下保留来源目录名。"/>
   </StackPanel>
+  <Border Style="{StaticResource WorkspaceRaisedPanel}">
   <ui:DataGrid x:Name="Changes" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
             HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" RowHeight="29">
+            BorderThickness="0" Background="Transparent" RowHeight="29">
    <DataGrid.Columns>
     <DataGridTextColumn Header="操作" Width="120" Binding="{Binding Action}"/>
     <DataGridTextColumn Header="目标相对路径" Width="*" Binding="{Binding Path}"/>
    </DataGrid.Columns>
   </ui:DataGrid>
+  </Border>
   </DockPanel>
  </DockPanel>
 </ui:FluentWindow>
