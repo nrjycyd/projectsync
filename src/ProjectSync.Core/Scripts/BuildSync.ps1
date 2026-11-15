@@ -385,28 +385,36 @@ if [[ -z $verified_snapshot ]]; then
             echo 'PROJECTSYNC_ERROR=WSL_INDEX'
             exit 1
         fi
-        git reset --mixed "$remote_commit"
+        git reset --mixed --quiet "$remote_commit"
         echo 'Initialized WSL Git history from the configured remote branch.'
     fi
     if (( pull_count > 0 )); then
         git --literal-pathspecs diff --cached --quiet HEAD -- "${pull_paths[@]}" || {
+            echo 'PROJECTSYNC_ERROR=WSL_PULL_CHANGES'
             echo 'WSL pull directories contain staged edits.' >&2
             exit 1
         }
         pull_state=$(printf '%s\0' "${pull_paths[@]}" | git hash-object --stdin)
         pull_ref="refs/projectsync/pulled/$pull_state"
-        if [[ -n $(git --literal-pathspecs status --porcelain --untracked-files=all -- "${pull_paths[@]}") ]]; then
+        pull_status=$(git --literal-pathspecs status --porcelain --untracked-files=all -- "${pull_paths[@]}") || exit 1
+        if [[ -n $pull_status ]]; then
             (
                 export GIT_INDEX_FILE="$tmp/pull-index"
-                git read-tree HEAD
-                git --literal-pathspecs add -A -- "${pull_paths[@]}"
+                git read-tree HEAD || exit 1
+                git --literal-pathspecs add -A -- "${pull_paths[@]}" || exit 1
                 previous=$(git rev-parse -q --verify "$pull_ref" || true)
-                if git --literal-pathspecs diff --cached --quiet "$remote_commit" -- "${pull_paths[@]}"; then exit 0; fi
-                if [[ -n $previous ]] && git --literal-pathspecs diff --cached --quiet "$previous" -- "${pull_paths[@]}"; then exit 0; fi
+                matches_pull_base() {
+                    git --literal-pathspecs diff --cached --exit-code --ignore-cr-at-eol \
+                        --no-ext-diff --no-textconv --no-renames "$1" -- "${pull_paths[@]}" >/dev/null
+                }
+                if matches_pull_base "$remote_commit"; then exit 0; fi
+                if [[ -n $previous ]] && matches_pull_base "$previous"; then exit 0; fi
+                echo 'PROJECTSYNC_ERROR=WSL_PULL_CHANGES'
                 echo 'WSL pull directories contain local changes. Review them before fetching:' >&2
-                git --literal-pathspecs diff --cached --name-status "${previous:-HEAD}" -- "${pull_paths[@]}" >&2
+                git --literal-pathspecs -c core.quotepath=false diff --cached --name-status \
+                    --ignore-cr-at-eol --no-ext-diff --no-textconv --no-renames "${previous:-HEAD}" -- "${pull_paths[@]}" >&2
                 exit 1
-            )
+            ) || exit 1
         fi
         git --literal-pathspecs restore --source="$remote_commit" --worktree -- "${pull_paths[@]}"
         git update-ref "$pull_ref" "$remote_commit"
