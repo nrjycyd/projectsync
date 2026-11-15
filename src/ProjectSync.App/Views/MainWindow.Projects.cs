@@ -410,6 +410,17 @@ public partial class MainWindow
         OpenProject(sender, e);
     }
 
+    private void OpenHomeMenu(object sender, RoutedEventArgs e)
+    {
+        if (running || sender is not System.Windows.Controls.Button { ContextMenu: { } menu } button)
+            return;
+
+        RemoveProjectItem.IsEnabled = Projects.SelectedItem is ProjectEntry;
+        menu.PlacementTarget = button;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
     private void HomeToolbarSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (HomeActions is null || BatchActions is null) return;
@@ -434,7 +445,7 @@ public partial class MainWindow
         PublishBatchButton.Content = canPublish > 0 && selected.Any(project =>
             projectRuns.TryGetValue(project.Id, out var state) && state.Progress == "已提交，待推送")
             ? "提交／重试推送" : "提交并推送";
-        RemoveProjectButton.IsEnabled = !running && Projects.SelectedItem is ProjectEntry;
+
         SelectionSummary.Text = selected.Length == 0 ? "勾选项目后开始" :
             $"已勾选 {selected.Length} 个";
         SelectionSummary.ToolTip = selected.Length == 0 ? null : $"可同步 {canApply} 个 · 可推送 {canPublish} 个";
