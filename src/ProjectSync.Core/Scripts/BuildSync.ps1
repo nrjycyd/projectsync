@@ -378,7 +378,7 @@ if [[ -z $verified_snapshot ]]; then
         if ! (
             export GIT_INDEX_FILE="$tmp/initial-index"
             git read-tree "$staged_tree" &&
-            git add -u -- . &&
+            git add -u &&
             git -c core.quotepath=false diff --cached --name-status "$staged_tree" &&
             git diff --cached --quiet "$staged_tree"
         ); then
