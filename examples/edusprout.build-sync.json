@@ -1,0 +1,29 @@
+{
+  "branch": "main",
+  "wslUser": "ub001",
+  "remote": "origin",
+  "exclude": [
+    "docs/.vitepress/dist",
+    "docs/.vitepress/cache"
+  ],
+  "distro": "Ubuntu1",
+  "windowsRepo": "D:\\文档\\github_code\\wilson1202\\edusprout",
+  "include": [
+    "README.md",
+    "docs",
+    "scripts",
+    ".github",
+    ".gitignore",
+    ".pages.yml",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.json"
+  ],
+  "nodeBin": "/home/ub001/.nvm/versions/node/v24.21.0/bin",
+  "cleanUntracked": true,
+  "wslRepo": "/home/ub001/edusprout",
+  "buildCommand": "pnpm docs:build",
+  "gitSshCommand": "C:/Windows/System32/OpenSSH/ssh.exe -o BatchMode=yes",
+  "pullPaths": ["docs/notices"]
+}
