@@ -175,10 +175,13 @@ public partial class MainWindow
         UpdateHomeActions();
     }
 
-    private async Task ShowProjectAsync(string configuration, ProjectEntry? entry)
+    private async Task ShowProjectAsync(string configuration, ProjectEntry? entry, bool useSavedOptions = true)
     {
         int openSequence = ++settingsOpenSequence;
+        restoreDetectedOptions = useSavedOptions;
         LoadConfig(configuration);
+        LocalGitStatus.Text = "";
+        Status.Text = "";
         activeProject = entry;
         originalConfig = entry is null ? null : SerializeConfig();
         var selectedTab = RemoteSettingsTab;
@@ -217,7 +220,7 @@ public partial class MainWindow
 
     private async void NewProject(object sender, RoutedEventArgs e)
     {
-        await ShowProjectAsync("""{"name":"","remote":"origin","branch":"main","cleanUntracked":false}""", null);
+        await ShowProjectAsync("{}", null, useSavedOptions: false);
     }
 
     private async void ImportProject(object sender, RoutedEventArgs e)

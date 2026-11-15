@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private JsonObject current = new();
     private bool loading;
     private bool jsonDraft;
+    private bool restoreDetectedOptions = true;
 
     private void DashboardTableSizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -155,7 +156,13 @@ public partial class MainWindow : Window
         RestoreChoices(branch, configuredBranch, ReadChoices<string[]>(displayedBranchKey));
         RestoreChoices(WslDistribution, distro.Text, ReadChoices<string[]>(DistributionChoiceKey()));
         RestoreChoices(WslUserChoice, wslUser.Text, ReadChoices<string[]>(UserChoiceKey(distro.Text)));
-        RestoreSavedNodeOption();
+        if (restoreDetectedOptions || nodeBin.Text.Length > 0)
+            RestoreSavedNodeOption();
+        else
+        {
+            NodeVersion.ItemsSource = null;
+            NodeHint.Text = "";
+        }
         CleanUntracked.IsChecked = clean;
         PreviewAfterBuild.IsChecked = parsed["previewAfterBuild"]?.GetValue<bool>() ?? false;
         ProjectName.Text = name;
