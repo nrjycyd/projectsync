@@ -1,9 +1,11 @@
-param(
+﻿param(
     [string]$Config = (Join-Path $PSScriptRoot 'build-sync.json'),
     [switch]$Preview,
     [switch]$Publish,
     [switch]$TestConnection,
     [switch]$ListRemotes,
+    [ValidateSet('empty', 'existing')]
+    [string]$InitializeRepository,
     [string]$ExpectedPlan,
     [string]$CommitSummaryFile
 )
@@ -15,19 +17,22 @@ function Stop-Sync([string]$Code, [string]$Detail) {
     exit 1
 }
 $c = Get-Content -LiteralPath $Config -Raw -Encoding UTF8 | ConvertFrom-Json
-if (!$ListRemotes -and !$TestConnection) {
+if (!$ListRemotes -and !$TestConnection -and !$InitializeRepository) {
     $missing = @('windowsRepo', 'wslRepo', 'distro', 'wslUser', 'buildCommand', 'branch', 'include' |
         Where-Object { !$c.$_ })
     if ($missing.Count -gt 0) { Stop-Sync 'CONFIG' "Missing fields: $($missing -join ', ')" }
 }
 $remoteUrl = ([string]$c.remoteUrl).Trim()
 $gitOptions = @()
-if ($TestConnection -and !$ListRemotes -and $remoteUrl) {
+if ($InitializeRepository -or ($TestConnection -and !$ListRemotes -and $remoteUrl)) {
     # An explicit URL can be queried before the local repository is initialized.
     $gitOptions = @('-C', [IO.Path]::GetTempPath())
 } else {
-    if ($TestConnection -and ![IO.Directory]::Exists([string]$c.windowsRepo)) {
-        Stop-Sync 'CONFIG' 'Enter a remote repository URL to test a connection without a local Git repository.'
+    if (![IO.Directory]::Exists([string]$c.windowsRepo)) {
+        if ($TestConnection) {
+            Stop-Sync 'CONFIG' 'Enter a remote repository URL to test a connection without a local Git repository.'
+        }
+        Stop-Sync 'WINDOWS_REPO' 'Windows 项目目录不存在或不可访问，请在「Git 本地仓库」选择目录。'
     }
     $repo = (Resolve-Path -LiteralPath $c.windowsRepo).Path
     $savedErrorPreference = $ErrorActionPreference
@@ -41,7 +46,7 @@ if ($TestConnection -and !$ListRemotes -and $remoteUrl) {
         if ($TestConnection) {
             Stop-Sync 'CONFIG' 'Enter a remote repository URL to test a connection without a local Git repository.'
         }
-        throw 'windowsRepo must point to the root of a Git working tree.'
+        Stop-Sync 'WINDOWS_REPO' '请打开项目设置 → Git 本地仓库，选择仓库根目录，或点击「初始化 Git…」。'
     }
     $gitOptions = @('-C', $repo)
 }
@@ -84,6 +89,73 @@ if ($remoteUrl -match '^https://') {
     }
 } elseif ($c.gitSshCommand) {
     $env:GIT_SSH_COMMAND = $c.gitSshCommand
+}
+if ($InitializeRepository) {
+    if (!$remoteUrl -or !$c.branch -or ![IO.Directory]::Exists([string]$c.windowsRepo)) {
+        Stop-Sync 'CONFIG' '请选择现有的 Windows 目录，并填写远端仓库地址与目标分支。'
+    }
+    $directory = Get-Item -LiteralPath $c.windowsRepo -Force
+    $repo = $directory.FullName
+    if ($repo -notmatch '^[A-Za-z]:\\' -or !$directory.Parent) {
+        Stop-Sync 'CONFIG' '请选择 Windows 磁盘上的项目目录。'
+    }
+    $metadata = Join-Path $repo '.git'
+    $savedErrorPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        git -C $repo rev-parse --git-dir 2>$null | Out-Null
+        $existingRepo = $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $savedErrorPreference
+    }
+    if ($existingRepo -or (Get-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue)) {
+        Stop-Sync 'WINDOWS_REPO' '此目录已有 Git 元数据，或位于其他 Git 仓库内。请选择仓库根目录或修复现有仓库。'
+    }
+    $hasFiles = [bool](Get-ChildItem -LiteralPath $repo -Force | Select-Object -First 1)
+    if ($hasFiles -ne ($InitializeRepository -eq 'existing')) {
+        Stop-Sync 'WINDOWS_REPO' '目录内容已变化，请重新确认初始化方式。'
+    }
+    $remoteName = ([string]$c.remote).Trim()
+    if (!$remoteName) { $remoteName = 'origin' }
+    git check-ref-format "refs/heads/$($c.branch)" | Out-Null
+    if ($LASTEXITCODE -ne 0) { Stop-Sync 'CONFIG' '目标分支名称无效。' }
+    git @gitOptions ls-remote --exit-code --heads -- $remoteTarget "refs/heads/$($c.branch)" | Out-Null
+    if ($LASTEXITCODE -ne 0) { Stop-Sync 'CONFIG' '无法读取指定远端分支。请检查地址、分支和访问权限。' }
+    $clone = @('clone', '--branch', [string]$c.branch, '--origin', $remoteName)
+    $destination = $repo
+    $staging = $null
+    $owned = $null
+    try {
+        if ($hasFiles) {
+            $staging = Join-Path $directory.Parent.FullName ('.projectsync-init-' + [Guid]::NewGuid().ToString('N'))
+            $owned = New-Item -ItemType Directory -Path $staging
+            $destination = $owned.FullName
+            $clone += '--no-checkout'
+        }
+        git @gitOptions @clone -- $remoteTarget $destination
+        if ($LASTEXITCODE -ne 0) { throw '无法克隆远端分支。请检查远端地址、分支和访问权限。' }
+        if ($remoteTarget -ne $remoteUrl) {
+            git -C $destination remote set-url -- $remoteName $remoteUrl
+            if ($LASTEXITCODE -ne 0) { throw '无法保存远端地址。' }
+        }
+        if ($hasFiles) {
+            git -C $destination read-tree HEAD
+            if ($LASTEXITCODE -ne 0) { throw '无法建立远端分支的暂存区基线。' }
+            [IO.Directory]::Move((Join-Path $destination '.git'), $metadata)
+        }
+    } finally {
+        if ($staging -and $owned -and $owned.FullName -eq $staging -and
+            $owned.Parent.FullName -eq $directory.Parent.FullName) {
+            Remove-Item -LiteralPath $owned.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Write-Host 'LOCAL_INIT=complete'
+    if ($hasFiles) {
+        git --no-optional-locks -C $repo -c core.quotepath=false status --short --untracked-files=normal |
+            ForEach-Object { Write-Host "LOCAL_CHANGE=$_" }
+        if ($LASTEXITCODE -ne 0) { Write-Host 'LOCAL_STATUS=unavailable' }
+    }
+    exit 0
 }
 if ($TestConnection) {
     $refs = git @gitOptions ls-remote --heads -- $remoteTarget

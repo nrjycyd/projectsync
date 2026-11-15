@@ -543,7 +543,12 @@
        <Label Padding="0,8,0,5" Target="{Binding ElementName=ProjectName}" Content="项目名称"/>
        <TextBox x:Name="ProjectName" Margin="0,0,0,10"/>
         <Label Padding="0,8,0,5" Target="{Binding ElementName=windowsRepo}" Content="仓库路径"/>
-        <DockPanel><Button DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0"/><TextBox x:Name="windowsRepo"/></DockPanel>
+        <DockPanel>
+         <Button DockPanel.Dock="Right" Content="初始化 Git…" Click="InitializeLocalGit" Margin="8,0,0,0"/>
+         <Button DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0"/>
+         <TextBox x:Name="windowsRepo"/>
+        </DockPanel>
+        <TextBlock x:Name="LocalGitStatus" Margin="0,8,0,0" Foreground="#475569" FontSize="13" TextWrapping="Wrap"/>
       </StackPanel>
      </ScrollViewer>
     </TabItem>
