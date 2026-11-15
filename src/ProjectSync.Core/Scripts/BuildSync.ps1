@@ -20,16 +20,37 @@ if (!$ListRemotes -and !$TestConnection) {
         Where-Object { !$c.$_ })
     if ($missing.Count -gt 0) { Stop-Sync 'CONFIG' "Missing fields: $($missing -join ', ')" }
 }
-$repo = (Resolve-Path -LiteralPath $c.windowsRepo).Path
-$root = git -C $repo rev-parse --show-prefix
-if ($LASTEXITCODE -ne 0 -or $root) { throw 'windowsRepo must point to the root of a Git working tree.' }
+$remoteUrl = ([string]$c.remoteUrl).Trim()
+$gitOptions = @()
+if ($TestConnection -and !$ListRemotes -and $remoteUrl) {
+    # An explicit URL can be queried before the local repository is initialized.
+    $gitOptions = @('-C', [IO.Path]::GetTempPath())
+} else {
+    if ($TestConnection -and ![IO.Directory]::Exists([string]$c.windowsRepo)) {
+        Stop-Sync 'CONFIG' 'Enter a remote repository URL to test a connection without a local Git repository.'
+    }
+    $repo = (Resolve-Path -LiteralPath $c.windowsRepo).Path
+    $savedErrorPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $root = git -C $repo rev-parse --show-prefix 2>$null
+    } finally {
+        $ErrorActionPreference = $savedErrorPreference
+    }
+    if ($LASTEXITCODE -ne 0 -or $root) {
+        if ($TestConnection) {
+            Stop-Sync 'CONFIG' 'Enter a remote repository URL to test a connection without a local Git repository.'
+        }
+        throw 'windowsRepo must point to the root of a Git working tree.'
+    }
+    $gitOptions = @('-C', $repo)
+}
 if ($ListRemotes) {
     $names = git -C $repo remote
     if ($LASTEXITCODE -ne 0) { throw 'Could not list local Git remotes.' }
     foreach ($name in $names) { Write-Host "LOCAL_REMOTE=$name" }
     exit 0
 }
-$remoteUrl = ([string]$c.remoteUrl).Trim()
 if ($remoteUrl -and $remoteUrl -notmatch '^(?:(?:https|ssh)://[^\s/]+/[^\s]+|(?:[^\s@/:]+@)?[^\s@/:]+:(?!:)[^\s]+)$') {
     throw 'Enter an SSH or HTTPS repository URL.'
 }
@@ -42,7 +63,6 @@ if ($githubUsername -and $githubUsername -notmatch '^[a-z0-9](?:[a-z0-9-]{0,37}[
 if ($githubUsername -and $remoteUrl -notmatch '^https://github\.com/') {
     throw 'A GitHub login name requires an explicit https://github.com repository URL.'
 }
-$gitOptions = @('-C', $repo)
 $env:GIT_TERMINAL_PROMPT = '0'
 if ($remoteUrl -match '^https://') {
     $uri = [uri]$remoteUrl

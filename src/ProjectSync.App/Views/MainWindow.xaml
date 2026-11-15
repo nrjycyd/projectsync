@@ -391,8 +391,8 @@
        </DataTemplate></DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
       <DataGridTextColumn Header="项目名称" Width="1.5*" MinWidth="115" Binding="{Binding Name}" ElementStyle="{StaticResource DashboardCellText}"/>
-      <DataGridTextColumn Header="Git 本地仓库" Width="2.8*" MinWidth="170" Binding="{Binding Repository}" ElementStyle="{StaticResource DashboardCellText}"/>
       <DataGridTextColumn Header="Git 远端仓库" Width="2.65*" MinWidth="150" Binding="{Binding RemoteRepository}" ElementStyle="{StaticResource DashboardCellText}"/>
+      <DataGridTextColumn Header="Git 本地仓库" Width="2.8*" MinWidth="170" Binding="{Binding Repository}" ElementStyle="{StaticResource DashboardCellText}"/>
       <DataGridTemplateColumn Header="快捷访问" Width="198" CanUserSort="False">
        <DataGridTemplateColumn.CellTemplate><DataTemplate>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -516,17 +516,7 @@
    </StackPanel>
   </Border>
    <TabControl x:Name="SettingsTabs" Template="{StaticResource SettingsLayout}" ItemContainerStyle="{StaticResource NavigationTab}" TabStripPlacement="Left" BorderBrush="{StaticResource Line}" Background="White">
-    <TabItem Header="Git 本地仓库">
-     <ScrollViewer VerticalScrollBarVisibility="Auto">
-      <StackPanel Margin="24,14,24,24">
-       <Label Padding="0,8,0,5" Target="{Binding ElementName=ProjectName}" Content="项目名称"/>
-       <TextBox x:Name="ProjectName" Margin="0,0,0,10"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=windowsRepo}" Content="仓库路径"/>
-        <DockPanel><Button DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0"/><TextBox x:Name="windowsRepo"/></DockPanel>
-      </StackPanel>
-     </ScrollViewer>
-    </TabItem>
-    <TabItem Header="Git 远端仓库">
+    <TabItem x:Name="RemoteSettingsTab" Header="Git 远端仓库">
      <ScrollViewer VerticalScrollBarVisibility="Auto">
       <StackPanel Margin="24,14,24,24">
         <Label Padding="0,8,0,5" Target="{Binding ElementName=remote}" Content="Git 远端名称（如 origin）"/>
@@ -544,6 +534,16 @@
         <TextBox x:Name="gitSshCommand"/>
         <Button HorizontalAlignment="Left" Margin="0,6,0,4" Content="测试远端连接" Click="TestRemote" Style="{StaticResource PrimaryButton}"/>
 
+      </StackPanel>
+     </ScrollViewer>
+    </TabItem>
+    <TabItem x:Name="LocalSettingsTab" Header="Git 本地仓库">
+     <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="24,14,24,24">
+       <Label Padding="0,8,0,5" Target="{Binding ElementName=ProjectName}" Content="项目名称"/>
+       <TextBox x:Name="ProjectName" Margin="0,0,0,10"/>
+        <Label Padding="0,8,0,5" Target="{Binding ElementName=windowsRepo}" Content="仓库路径"/>
+        <DockPanel><Button DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0"/><TextBox x:Name="windowsRepo"/></DockPanel>
       </StackPanel>
      </ScrollViewer>
     </TabItem>
