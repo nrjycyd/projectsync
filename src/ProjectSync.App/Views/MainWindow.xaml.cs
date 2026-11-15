@@ -15,7 +15,7 @@ using System.Windows.Controls;
 
 namespace ProjectSync.App.Views;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 {
     private bool running;
     private string? displayedBranchKey;

@@ -8,9 +8,10 @@ namespace ProjectSync.App;
 
 public partial class App : Application
 {
+    internal const string DataDirectoryName = "ProjectSync-WpfUiTrial";
     private Mutex? instance;
     internal static string DiagnosticsDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ProjectSync", "logs");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DataDirectoryName, "logs");
 
     internal static void AppendDiagnostic(string message)
     {
@@ -28,7 +29,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         using var identity = WindowsIdentity.GetCurrent();
-        instance = new Mutex(false, $@"Local\ProjectSync-{identity.User}", out bool firstInstance);
+        instance = new Mutex(false, $@"Local\{DataDirectoryName}-{identity.User}", out bool firstInstance);
         if (!firstInstance)
         {
             MessageBox.Show("ProjectSync 已在运行。请切换到现有窗口。", "ProjectSync");
@@ -43,6 +44,8 @@ public partial class App : Application
                 "ProjectSync", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         };
+        var accent = (System.Windows.Media.SolidColorBrush)FindResource("Accent");
+        Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(accent.Color);
         base.OnStartup(e);
     }
 

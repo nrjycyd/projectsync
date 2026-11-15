@@ -15,7 +15,7 @@ public partial class MainWindow
 {
     private readonly string projectFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ProjectSync", "projects.json");
+        ProjectSync.App.App.DataDirectoryName, "projects.json");
     private readonly List<ProjectEntry> savedProjects = new();
     private ProjectEntry? activeProject;
     private int settingsOpenSequence;
