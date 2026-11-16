@@ -21,7 +21,17 @@ public partial class MainWindow
     private readonly List<ProjectEntry> savedProjects = new();
     private ProjectEntry? activeProject;
     private int settingsOpenSequence;
-    private string? originalConfig;
+    private JsonObject? originalConfig;
+
+    private bool HasConfigChanges => !JsonNode.DeepEquals(current, originalConfig);
+
+    private void UpdateSaveProjectAction()
+    {
+        bool canSave = !jsonDraft && HasConfigChanges;
+        SaveProjectButton.Appearance = canSave ? ControlAppearance.Primary : ControlAppearance.Secondary;
+        SaveProjectButton.IsEnabled = canSave;
+        ApplyJsonButton.Appearance = jsonDraft ? ControlAppearance.Primary : ControlAppearance.Secondary;
+    }
 
     private sealed record ProjectEntry(Guid Id, string Name, string Repository, string Branch, string Configuration)
     {
@@ -181,15 +191,16 @@ public partial class MainWindow
         UpdateHomeActions();
     }
 
-    private async Task ShowProjectAsync(string configuration, ProjectEntry? entry, bool useSavedOptions = true)
+    private async Task ShowProjectAsync(string configuration, ProjectEntry? entry, bool isBlankProject = false)
     {
         int openSequence = ++settingsOpenSequence;
-        restoreDetectedOptions = useSavedOptions;
+        restoreDetectedOptions = !isBlankProject;
         LoadConfig(configuration);
         LocalGitStatus.IsOpen = false;
         Status.IsOpen = false;
         activeProject = entry;
-        originalConfig = entry is null ? null : SerializeConfig();
+        originalConfig = entry is not null || isBlankProject ? (JsonObject)current.DeepClone() : null;
+        UpdateSaveProjectAction();
         var selectedTab = RemoteSettingsTab;
         if (!string.IsNullOrWhiteSpace(branch.Text))
         {
@@ -234,7 +245,7 @@ public partial class MainWindow
             return;
         }
 
-        await ShowProjectAsync("{}", null, useSavedOptions: false);
+        await ShowProjectAsync("{}", null, isBlankProject: true);
     }
 
     private async void ImportProject(object sender, RoutedEventArgs e)
@@ -274,6 +285,8 @@ public partial class MainWindow
             ShowPendingJson("请先应用到表单，再保存项目。");
             return false;
         }
+        if (!HasConfigChanges) return true;
+
         if (string.IsNullOrWhiteSpace(ProjectName.Text))
         {
             SettingsTabs.SelectedItem = LocalSettingsTab;
@@ -283,6 +296,7 @@ public partial class MainWindow
         }
 
         if (!TryNormalizeSyncPaths(include, exclude)) return false;
+        if (!HasConfigChanges) return true;
 
         ProjectEntry entry = CreateEntry();
         int index = savedProjects.FindIndex(item => item.Id == entry.Id);
@@ -308,14 +322,16 @@ public partial class MainWindow
             DeletePreview(entry);
             ShowSavedChanges();
         }
-        originalConfig = entry.Configuration;
-        Status.ShowFeedback($"已保存项目「{entry.Name}」。", InfoBarSeverity.Success);
+        originalConfig = (JsonObject)current.DeepClone();
+        UpdateSaveProjectAction();
+        Status.IsOpen = false;
+        JsonStatus.IsOpen = false;
         return true;
     }
 
     private bool CanLeaveProject()
     {
-        if (ProjectPage.Visibility != Visibility.Visible || (!jsonDraft && SerializeConfig() == originalConfig))
+        if (ProjectPage.Visibility != Visibility.Visible || (!jsonDraft && !HasConfigChanges))
             return true;
 
         var choice = ConfirmProjectAction("未保存的项目", "保存当前项目的配置改动？", "保存", "放弃", canCancel: true);

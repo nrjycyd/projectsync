@@ -129,9 +129,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Config.TextChanged += (_, _) =>
         {
             if (loading) return;
-            jsonDraft = true;
+            jsonDraft = !JsonMatchesForm();
             ResetPreview();
-            JsonStatus.ShowFeedback("JSON 有待应用的改动。应用到表单后，还需保存项目。");
+            UpdateSaveProjectAction();
+            if (jsonDraft)
+                JsonStatus.ShowFeedback("JSON 有待应用的改动。应用到表单后，还需保存项目。");
+            else
+                JsonStatus.IsOpen = false;
         };
         InitializeProjects();
     }
@@ -221,6 +225,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         current["name"] = ProjectName.Text.Trim();
         current["previewAfterBuild"] = PreviewAfterBuild.IsChecked == true;
         current["cleanUntracked"] = CleanUntracked.IsChecked == true;
+        if (jsonDraft && JsonMatchesForm())
+        {
+            jsonDraft = false;
+            JsonStatus.IsOpen = false;
+        }
         if (!jsonDraft)
         {
             loading = true;
@@ -228,6 +237,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             loading = false;
         }
         ResetPreview();
+        UpdateSaveProjectAction();
+    }
+
+    private bool JsonMatchesForm()
+    {
+        try { return JsonNode.DeepEquals(current, JsonNode.Parse(Config.Text)); }
+        catch (Exception error) when (error is JsonException or ArgumentException) { return false; }
     }
 
     private void NormalizeSyncPathField(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)

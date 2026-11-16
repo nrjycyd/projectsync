@@ -296,7 +296,7 @@
    <StackPanel>
    <WrapPanel x:Name="Actions">
     <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="← 返回项目列表" Click="BackToHome"/>
-    <ui:Button Appearance="Primary" Margin="0,0,8,0" Content="保存项目" Click="SaveProject"/>
+    <ui:Button x:Name="SaveProjectButton" Appearance="Secondary" IsEnabled="False" Margin="0,0,8,0" Content="保存项目" Click="SaveProject"/>
     <ui:Button Appearance="Secondary" Content="导出 JSON" Click="Save" ToolTip="将当前表单导出成 JSON 文件"/>
    </WrapPanel>
    <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -446,7 +446,7 @@
       <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
        <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
         <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
-        <ui:Button Appearance="Primary" Content="应用到表单" Click="ApplyJson"/>
+        <ui:Button x:Name="ApplyJsonButton" Appearance="Secondary" Content="应用到表单" Click="ApplyJson"/>
        </WrapPanel>
        <TextBlock Text="应用到表单后，点击「保存项目」写入项目列表。" Style="{StaticResource WorkspaceSecondaryText}"
                   TextWrapping="Wrap" VerticalAlignment="Center"/>
