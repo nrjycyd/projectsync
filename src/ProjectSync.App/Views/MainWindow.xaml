@@ -124,7 +124,7 @@
     </Grid.RowDefinitions>
     <Grid>
      <Border x:Name="ProjectTableFrame" Style="{StaticResource WorkspacePanel}">
-    <ui:DataGrid x:Name="Projects" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+    <ui:DataGrid x:Name="Projects" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
               HeadersVisibility="Column" SelectionMode="Single" ColumnHeaderHeight="36"
 
               SelectionChanged="ProjectSelectionChanged">
@@ -236,7 +236,7 @@
       <DockPanel Margin="10,12,10,10" TextElement.FontWeight="Normal">
        <TextBlock x:Name="HomeChangesSummary" Style="{StaticResource WorkspaceSecondaryText}" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建并预览后显示待同步变更。"/>
        <Border Style="{StaticResource WorkspacePanel}">
-       <ui:DataGrid x:Name="HomeChanges" Background="Transparent" BorderThickness="0" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36">
+       <ui:DataGrid x:Name="HomeChanges" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" Background="Transparent" BorderThickness="0" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36">
         <DataGrid.GroupStyle>
          <GroupStyle>
           <GroupStyle.HeaderTemplate>

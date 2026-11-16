@@ -44,8 +44,8 @@
    </StackPanel>
    <TextBlock Margin="0,8,0,10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="复制目录时，会在目标目录下保留来源目录名。"/>
   </StackPanel>
-  <Border Style="{StaticResource WorkspaceRaisedPanel}">
-  <ui:DataGrid x:Name="Changes" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
+  <Border Style="{StaticResource WorkspacePanel}">
+  <ui:DataGrid x:Name="Changes" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
             HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
             BorderThickness="0" Background="Transparent" RowHeight="29">
    <DataGrid.Columns>
