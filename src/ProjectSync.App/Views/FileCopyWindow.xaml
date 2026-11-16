@@ -34,7 +34,7 @@
      <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
     <ScrollViewer x:Name="CopyFormScroller" MaxHeight="280" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-     <StackPanel x:Name="CopyOptions" Margin="0,0,0,10">
+     <StackPanel x:Name="CopyOptions" Margin="0,0,0,6">
       <DockPanel Margin="0,0,0,4">
        <ui:Button x:Name="SwapEndpoints" DockPanel.Dock="Right" Height="30" Content="交换路径" IsEnabled="False"
                   Icon="{ui:SymbolIcon ArrowSwap24, FontSize=16}" Click="SwapClick"
@@ -70,7 +70,7 @@
       <ui:InfoBar x:Name="PathFeedback" IsOpen="False" IsClosable="False" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
       <WrapPanel Margin="0,10,0,0">
        <Label Content="同名文件" Target="{Binding ElementName=Conflict}" VerticalAlignment="Center" Padding="0,0,8,0"/>
-       <ComboBox x:Name="Conflict" Width="96" Height="32" SelectedIndex="0" SelectionChanged="OptionsChanged">
+       <ComboBox x:Name="Conflict" Width="96" MinHeight="34" SelectedIndex="0" SelectionChanged="OptionsChanged">
         <ComboBoxItem Content="跳过"/>
         <ComboBoxItem Content="覆盖"/>
        </ComboBox>
