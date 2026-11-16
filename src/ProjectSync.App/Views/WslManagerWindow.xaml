@@ -75,15 +75,37 @@
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
       <DockPanel Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center" Background="Transparent"
                  ToolTip="{Binding DistributionHint}" AutomationProperties.Name="{Binding DistributionHint}">
-       <ui:SymbolIcon DockPanel.Dock="Left" Symbol="Desktop24" FontSize="16" Margin="0,0,6,0"/>
-       <TextBlock Text="{Binding Distribution}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+       <Grid DockPanel.Dock="Left" Width="18" Height="18" Margin="0,0,6,0" VerticalAlignment="Center">
+        <Image Source="{Binding DistributionIcon}" Stretch="Uniform"/>
+        <ui:SymbolIcon Symbol="Desktop24" FontSize="16">
+         <ui:SymbolIcon.Style>
+          <Style TargetType="ui:SymbolIcon">
+           <Setter Property="Visibility" Value="Collapsed"/>
+           <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+           <Style.Triggers>
+            <DataTrigger Binding="{Binding DistributionIcon}" Value="{x:Null}">
+             <Setter Property="Visibility" Value="Visible"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+             <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+            </DataTrigger>
+           </Style.Triggers>
+          </Style>
+         </ui:SymbolIcon.Style>
+        </ui:SymbolIcon>
+       </Grid>
+       <StackPanel VerticalAlignment="Center">
+        <TextBlock Text="{Binding Distribution}" TextTrimming="CharacterEllipsis"/>
+        <TextBlock Text="{Binding State}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                   TextTrimming="CharacterEllipsis"/>
+       </StackPanel>
       </DockPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
     <DataGridTextColumn Header="WSL" Binding="{Binding Version}" Width="60" ElementStyle="{StaticResource InstanceTextCell}"/>
-    <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="2*" MinWidth="76"
+    <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="1.55*" MinWidth="76" MaxWidth="248"
                         ElementStyle="{StaticResource InstanceTextCell}"/>
-    <DataGridTemplateColumn Header="磁盘容量" Width="0.45*" MinWidth="106" MaxWidth="136">
+    <DataGridTemplateColumn Header="磁盘容量" Width="1.1*" MinWidth="106" MaxWidth="172">
      <DataGridTemplateColumn.HeaderStyle>
       <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource InstanceColumnHeader}">
        <Setter Property="HorizontalContentAlignment" Value="Right"/>
@@ -107,15 +129,15 @@
       </StackPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTemplateColumn Header="开发环境" Width="96">
+    <DataGridTemplateColumn Header="开发环境" Width="1.05*" MinWidth="96" MaxWidth="160">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
       <Grid Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center">
        <TextBlock Text="{Binding ToolStatus}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"
                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding ToolStatus}"/>
        <ItemsControl ItemsSource="{Binding Tools}">
-        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+        <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" Columns="4"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate><DataTemplate>
-         <Border Background="Transparent" Width="19" Height="24" ToolTip="{Binding Caption}"
+         <Border Background="Transparent" Height="24" ToolTip="{Binding Caption}"
                  AutomationProperties.Name="{Binding Caption}">
           <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="16"/>
          </Border>
@@ -124,11 +146,16 @@
       </Grid>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTemplateColumn Header="操作" Width="148">
+    <DataGridTemplateColumn Header="操作" Width="1.5*" MinWidth="148" MaxWidth="208">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
-      <StackPanel Margin="{StaticResource InstanceCellInset}" Orientation="Horizontal" VerticalAlignment="Center">
-       <ui:Button Width="60" Height="30" Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Icon="{ui:SymbolIcon WindowConsole20, FontSize=14}" Padding="4,0" Margin="0,0,8,0" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"/>
-       <ui:DropDownButton Width="60" Height="30" Padding="6,0" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
+      <Grid Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="8"/>
+        <ColumnDefinition Width="*"/>
+       </Grid.ColumnDefinitions>
+       <ui:Button Height="30" HorizontalAlignment="Stretch" Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Icon="{ui:SymbolIcon WindowConsole20, FontSize=14}" Padding="4,0" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+       <ui:DropDownButton Grid.Column="2" Height="30" HorizontalAlignment="Stretch" Padding="6,0" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
         <ui:DropDownButton.Flyout>
          <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
           <ui:MenuItem Header="配置开发环境…" Click="ConfigureDevelopmentClick"/>
@@ -140,7 +167,7 @@
          </ContextMenu>
         </ui:DropDownButton.Flyout>
        </ui:DropDownButton>
-      </StackPanel>
+      </Grid>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
    </DataGrid.Columns>

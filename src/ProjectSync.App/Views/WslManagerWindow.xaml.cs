@@ -9,13 +9,14 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
 public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 {
-    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution)
+    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, ImageSource? DistributionIcon)
     {
         public string DistributionHint => $"{Distribution} · {State}";
     }
@@ -188,9 +189,9 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             else if (state is "Stopped" or "已停止" or "停止") state = "已停止";
             var (location, diskFile, flavor, osVersion) = locations.GetValueOrDefault(name);
             bool wsl2 = match.Groups[4].Value == "2";
-            ulong? capacity = wsl2 && location is not null
-                ? await Task.Run(() => VirtualDiskCapacity.Read(location, diskFile))
-                : null;
+            var (capacity, icon) = await Task.Run(() =>
+                (wsl2 && location is not null ? VirtualDiskCapacity.Read(location, diskFile) : null,
+                 ReadDistributionIcon(location, running)));
             string? limit = capacity is ulong bytes ? VirtualDiskCapacity.Format(bytes) : null;
             string unavailable = running ? "未能读取根文件系统剩余空间" : "实例未运行，剩余空间待检测";
             var disk = wsl2
@@ -199,7 +200,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
                 : new DiskUsage("不适用", "WSL 1 没有独立的虚拟磁盘。");
             string distribution = DistributionLabel(flavor, osVersion);
             rows.Add(new Instance(name, match.Groups[1].Length > 0, state, running,
-                $"WSL {match.Groups[4].Value}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution));
+                $"WSL {match.Groups[4].Value}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution, icon));
         }
         Instances.ItemsSource = rows;
         var checkedRows = await Task.WhenAll(rows.Select(async row =>
