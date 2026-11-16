@@ -7,7 +7,7 @@
   <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"/>
   <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
   <Setter Property="BorderThickness" Value="1"/>
-  <Setter Property="CornerRadius" Value="10"/>
+  <Setter Property="CornerRadius" Value="4"/>
  </Style>
  <Style x:Key="WorkspaceColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource DefaultUiDataGridColumnHeaderStyle}">
   <Setter Property="FontWeight" Value="Normal"/>
