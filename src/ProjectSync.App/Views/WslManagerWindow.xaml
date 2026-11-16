@@ -6,6 +6,18 @@
  ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica"
  WindowStartupLocation="CenterOwner" Background="{DynamicResource ApplicationBackgroundBrush}" FontSize="14" FontFamily="{StaticResource WorkspaceTypeface}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" UseLayoutRounding="True">
 
+ <ui:FluentWindow.Resources>
+  <Thickness x:Key="InstanceCellInset">10,0</Thickness>
+  <Style x:Key="InstanceColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource WorkspaceColumnHeader}">
+   <Setter Property="Padding" Value="{StaticResource InstanceCellInset}"/>
+  </Style>
+  <Style x:Key="InstanceTextCell" TargetType="TextBlock">
+   <Setter Property="Margin" Value="{StaticResource InstanceCellInset}"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
+   <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+   <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+  </Style>
+ </ui:FluentWindow.Resources>
  <DockPanel>
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="WSL 环境管理"/>
   <DockPanel Margin="20,16,20,16">
@@ -28,9 +40,9 @@
             IsReadOnly="True" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
   </Expander>
   <Border x:Name="InstanceFrame" SnapsToDevicePixels="True" Style="{StaticResource WorkspacePanel}">
-  <ui:DataGrid x:Name="Instances" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" SizeChanged="InstanceGridSizeChanged" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+  <ui:DataGrid x:Name="Instances" ColumnHeaderStyle="{StaticResource InstanceColumnHeader}" SizeChanged="InstanceGridSizeChanged" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
             HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-            RowHeight="36" ColumnHeaderHeight="36" BorderThickness="0" Background="Transparent">
+            RowHeight="42" ColumnHeaderHeight="38" BorderThickness="0" Background="Transparent">
    <DataGrid.RowStyle>
     <Style TargetType="DataGridRow">
      <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
@@ -41,9 +53,9 @@
     </Style>
    </DataGrid.RowStyle>
    <DataGrid.Columns>
-    <DataGridTemplateColumn Header="实例名称" Width="1.2*" MinWidth="100">
+    <DataGridTemplateColumn Header="实例名称" Width="*" MinWidth="100" MaxWidth="176">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
-      <DockPanel>
+      <DockPanel Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center">
        <Border DockPanel.Dock="Right" CornerRadius="4" Background="{DynamicResource ControlFillColorSecondaryBrush}" Padding="6,1" Margin="8,0,0,0">
         <Border.Style>
          <Style TargetType="Border">
@@ -59,30 +71,29 @@
       </DockPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTemplateColumn Header="发行版" Width="104">
+    <DataGridTemplateColumn Header="发行版" Width="106">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
-      <StackPanel Orientation="Horizontal" Background="Transparent" ToolTip="{Binding DistributionHint}"
-                  AutomationProperties.Name="{Binding DistributionHint}">
-       <ui:SymbolIcon Symbol="Desktop24" FontSize="16" Margin="0,0,8,0"/>
+      <DockPanel Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center" Background="Transparent"
+                 ToolTip="{Binding DistributionHint}" AutomationProperties.Name="{Binding DistributionHint}">
+       <ui:SymbolIcon DockPanel.Dock="Left" Symbol="Desktop24" FontSize="16" Margin="0,0,6,0"/>
        <TextBlock Text="{Binding Distribution}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-      </StackPanel>
+      </DockPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTextColumn Header="WSL" Binding="{Binding Version}" Width="56"/>
-    <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="2*" MinWidth="80">
-     <DataGridTextColumn.ElementStyle>
-      <Style TargetType="TextBlock">
-       <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-       <Setter Property="ToolTip" Value="{Binding Location}"/>
+    <DataGridTextColumn Header="WSL" Binding="{Binding Version}" Width="60" ElementStyle="{StaticResource InstanceTextCell}"/>
+    <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="2*" MinWidth="76"
+                        ElementStyle="{StaticResource InstanceTextCell}"/>
+    <DataGridTemplateColumn Header="磁盘容量" Width="0.45*" MinWidth="106" MaxWidth="136">
+     <DataGridTemplateColumn.HeaderStyle>
+      <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource InstanceColumnHeader}">
+       <Setter Property="HorizontalContentAlignment" Value="Right"/>
       </Style>
-     </DataGridTextColumn.ElementStyle>
-    </DataGridTextColumn>
-    <DataGridTemplateColumn Header="磁盘容量" Width="96">
+     </DataGridTemplateColumn.HeaderStyle>
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
-      <StackPanel Background="Transparent" VerticalAlignment="Center" ToolTip="{Binding Disk.Hint}"
+      <StackPanel Margin="{StaticResource InstanceCellInset}" Background="Transparent" VerticalAlignment="Center" ToolTip="{Binding Disk.Hint}"
                   AutomationProperties.Name="{Binding Disk.Hint}">
-       <TextBlock Text="{Binding Disk.Label}" FontSize="13" TextTrimming="CharacterEllipsis"/>
-       <ProgressBar Value="{Binding Disk.Percent, Mode=OneWay}" Maximum="100" Height="3" Margin="0,3,8,0"
+       <TextBlock Text="{Binding Disk.Label}" FontSize="13" TextAlignment="Right" TextTrimming="CharacterEllipsis"/>
+       <ProgressBar Value="{Binding Disk.Percent, Mode=OneWay}" Maximum="100" Height="3" Margin="0,4,0,0"
                                 AutomationProperties.Name="剩余空间比例">
         <ProgressBar.Style>
          <Style TargetType="ProgressBar" BasedOn="{StaticResource {x:Type ProgressBar}}">
@@ -96,14 +107,15 @@
       </StackPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTemplateColumn Header="开发环境" Width="84">
+    <DataGridTemplateColumn Header="开发环境" Width="96">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
-      <Grid>
-       <TextBlock Text="{Binding ToolStatus}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13" VerticalAlignment="Center"/>
+      <Grid Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center">
+       <TextBlock Text="{Binding ToolStatus}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"
+                  VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding ToolStatus}"/>
        <ItemsControl ItemsSource="{Binding Tools}">
         <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate><DataTemplate>
-         <Border Background="Transparent" Width="24" Height="24" ToolTip="{Binding Caption}"
+         <Border Background="Transparent" Width="19" Height="24" ToolTip="{Binding Caption}"
                  AutomationProperties.Name="{Binding Caption}">
           <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="16"/>
          </Border>
@@ -112,11 +124,11 @@
       </Grid>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTemplateColumn Header="操作" Width="160">
+    <DataGridTemplateColumn Header="操作" Width="148">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-       <ui:Button Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Icon="{ui:SymbolIcon WindowConsole20}" Padding="8,4" Margin="0,0,8,0" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"/>
-       <ui:DropDownButton Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
+      <StackPanel Margin="{StaticResource InstanceCellInset}" Orientation="Horizontal" VerticalAlignment="Center">
+       <ui:Button Width="60" Height="30" Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Icon="{ui:SymbolIcon WindowConsole20, FontSize=14}" Padding="4,0" Margin="0,0,8,0" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+       <ui:DropDownButton Width="60" Height="30" Padding="6,0" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
         <ui:DropDownButton.Flyout>
          <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
           <ui:MenuItem Header="配置开发环境…" Click="ConfigureDevelopmentClick"/>
