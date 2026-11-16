@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
@@ -546,10 +548,10 @@ public partial class MainWindow
         int canApply = selected.Count(project => CanRunBatchOperation(project, Operation.Apply));
         int canPublish = selected.Count(project => CanRunBatchOperation(project, Operation.Publish));
         int canRetry = selected.Count(project => CanRunBatchOperation(project, Operation.RetryPush));
-        PreviewBatchButton.IsEnabled = !running && canPreview > 0;
-        ApplyBatchButton.IsEnabled = !running && canApply > 0;
-        PublishBatchButton.IsEnabled = !running && canPublish > 0;
-        RetryPushButton.IsEnabled = !running && canRetry > 0;
+        UpdateBatchButton(PreviewBatchButton, "构建并预览", canPreview, selected.Length, "勾选要构建并预览的项目。");
+        UpdateBatchButton(ApplyBatchButton, "应用同步", canApply, selected.Length, "勾选已完成预览的项目。");
+        UpdateBatchButton(PublishBatchButton, "提交并推送", canPublish, selected.Length, "勾选已应用同步的项目。");
+        UpdateBatchButton(RetryPushButton, "重试推送", canRetry, selected.Length, "勾选已提交、待推送的项目。");
         RetryPushButton.Visibility = canRetry > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // Prefer finishing work that has already reached a later stage.
@@ -559,8 +561,22 @@ public partial class MainWindow
             button.Appearance = button == primaryAction ? ControlAppearance.Primary : ControlAppearance.Secondary;
         NewProjectButton.Appearance = primaryAction is null ? ControlAppearance.Primary : ControlAppearance.Secondary;
 
-        SelectionSummary.Text = selected.Length == 0 ? "勾选项目后开始" :
-            $"勾选 {selected.Length} · 可预览 {canPreview} · 可同步 {canApply} · 可提交推送 {canPublish} · 待重试 {canRetry}";
+        string summary = selected.Length == 0 ? "勾选项目后开始" : $"已勾选 {selected.Length} 项";
+        if (SelectionSummary.Text != summary)
+        {
+            SelectionSummary.Text = summary;
+            UIElementAutomationPeer.FromElement(SelectionSummary)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        }
+    }
+
+    private void UpdateBatchButton(Wpf.Ui.Controls.Button button, string label, int eligible, int selected, string selectionHint)
+    {
+        bool partial = eligible > 0 && eligible < selected;
+        button.Content = partial ? $"{label} · {eligible}" : label;
+        button.IsEnabled = !running && eligible > 0;
+        string hint = eligible > 0 ? $"可对已勾选的 {eligible}/{selected} 个项目执行「{label}」。" : selectionHint;
+        button.ToolTip = hint;
+        AutomationProperties.SetHelpText(button, hint);
     }
 
     private async void PreviewSelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.Preview);
