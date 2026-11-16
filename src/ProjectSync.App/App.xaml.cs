@@ -3,6 +3,9 @@ using System.IO;
 using System.Security.Principal;
 using System.Threading;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace ProjectSync.App;
 
@@ -24,6 +27,49 @@ public partial class App : Application
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
+    }
+
+    public static readonly DependencyProperty UseNativeComboBoxMotionProperty =
+        DependencyProperty.RegisterAttached("UseNativeComboBoxMotion", typeof(bool), typeof(App),
+            new PropertyMetadata(false, OnUseNativeComboBoxMotionChanged));
+
+    public static bool GetUseNativeComboBoxMotion(ComboBox control) =>
+        (bool)control.GetValue(UseNativeComboBoxMotionProperty);
+
+    public static void SetUseNativeComboBoxMotion(ComboBox control, bool value) =>
+        control.SetValue(UseNativeComboBoxMotionProperty, value);
+
+    private static void OnUseNativeComboBoxMotionChanged(DependencyObject target, DependencyPropertyChangedEventArgs e)
+    {
+        if (target is not ComboBox comboBox) return;
+
+        if ((bool)e.NewValue)
+            comboBox.DropDownOpened += ComboBoxPopupOpened;
+        else
+            comboBox.DropDownOpened -= ComboBoxPopupOpened;
+    }
+
+    private static void ComboBoxPopupOpened(object? sender, EventArgs e)
+    {
+        if (sender is ComboBox comboBox)
+            UseNativePopupMotion(comboBox, "DropDownBorder");
+    }
+
+    private void ContextMenuPopupOpened(object sender, RoutedEventArgs e) =>
+        UseNativePopupMotion((ContextMenu)sender, "Border");
+
+    private static void UseNativePopupMotion(Control control, string templatePart)
+    {
+        // WPF UI begins a second slide after the open event. Reset its transform before rendering.
+        _ = control.Dispatcher.InvokeAsync(() =>
+        {
+            bool isOpen = control is ComboBox { IsDropDownOpen: true } or ContextMenu { IsOpen: true };
+            if (isOpen && control.Template?.FindName(templatePart, control) is Border border &&
+                border.RenderTransform is TranslateTransform)
+            {
+                border.SetCurrentValue(UIElement.RenderTransformProperty, new TranslateTransform());
+            }
+        }, DispatcherPriority.Send);
     }
 
     protected override void OnStartup(StartupEventArgs e)
