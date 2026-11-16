@@ -23,10 +23,15 @@ internal static class FlyoutKeyboard
         if (flyout is not ContextMenu menu || sender is not System.Windows.Controls.Button button)
             return;
 
+        Open(menu, button);
+        e.Handled = true;
+    }
+
+    internal static void Open(ContextMenu menu, System.Windows.Controls.Button button)
+    {
         menu.MinWidth = Math.Max(menu.MinWidth, button.ActualWidth);
         menu.PlacementTarget = button;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
-        e.Handled = true;
     }
 }

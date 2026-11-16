@@ -225,6 +225,14 @@ public partial class MainWindow
 
     private async void NewProject(object sender, RoutedEventArgs e)
     {
+        if (e.OriginalSource is System.Windows.Controls.Primitives.ToggleButton &&
+            sender is Wpf.Ui.Controls.SplitButton { Flyout: System.Windows.Controls.ContextMenu menu } button)
+        {
+            e.Handled = true;
+            FlyoutKeyboard.Open(menu, button);
+            return;
+        }
+
         await ShowProjectAsync("{}", null, useSavedOptions: false);
     }
 
