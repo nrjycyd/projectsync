@@ -5,13 +5,15 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Wpf.Ui.Controls;
 
 namespace ProjectSync.App.Views;
 
 public partial class WslManagerWindow
 {
-    private sealed record DevelopmentTool(string Caption, SymbolRegular Icon);
+    private sealed record DevelopmentTool(string Caption, string Tool)
+    {
+        public string Icon => $"/ProjectSync.App;component/Assets/DevelopmentTools/{Tool}.png";
+    }
 
     private static async Task<(DevelopmentTool[] Tools, string Status)> ReadInstalledToolsAsync(string instance)
     {
@@ -31,7 +33,7 @@ public partial class WslManagerWindow
                 if (!match.Success) continue;
                 string tool = match.Groups[1].Value;
                 string name = tool switch { "git" => "Git", "python3" => "Python", "node" => "Node.js", _ => "pnpm" };
-                tools.Add(new DevelopmentTool($"{name} {match.Groups[2].Value}", ToolIcon(tool)));
+                tools.Add(new DevelopmentTool($"{name} {match.Groups[2].Value}", tool));
             }
             return (tools.ToArray(), tools.Count == 0 ? "未检测到工具" : "");
         }
@@ -41,11 +43,4 @@ public partial class WslManagerWindow
         }
     }
 
-    private static SymbolRegular ToolIcon(string tool) => tool switch
-    {
-        "git" => SymbolRegular.Branch24,
-        "python3" => SymbolRegular.Code24,
-        "node" => SymbolRegular.WindowConsole20,
-        _ => SymbolRegular.Box24
-    };
 }

@@ -9,6 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/ProjectSync.ico" />
+    <Resource Include="Assets/DevelopmentTools/*.png" />
+    <Content Include="Assets/DevelopmentTools/Notices.md" Link="licenses/DevelopmentToolLogos.md" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="../ProjectSync.Core/ProjectSync.Core.csproj" />
   </ItemGroup>
   <ItemGroup>

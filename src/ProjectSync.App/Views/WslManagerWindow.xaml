@@ -135,7 +135,22 @@
         <ItemsControl.ItemTemplate><DataTemplate>
          <Border Background="Transparent" Height="24" ToolTip="{Binding Caption}"
                  AutomationProperties.Name="{Binding Caption}">
-          <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="16"/>
+          <Image Width="16" Height="16" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+           <Image.Style>
+            <Style TargetType="Image">
+             <Setter Property="Source" Value="{Binding Icon}"/>
+             <Style.Triggers>
+              <MultiDataTrigger>
+               <MultiDataTrigger.Conditions>
+                <Condition Binding="{Binding Tool}" Value="pnpm"/>
+                <Condition Binding="{Binding Foreground.Color, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="White"/>
+               </MultiDataTrigger.Conditions>
+               <Setter Property="Source" Value="/ProjectSync.App;component/Assets/DevelopmentTools/pnpm-dark.png"/>
+              </MultiDataTrigger>
+             </Style.Triggers>
+            </Style>
+           </Image.Style>
+          </Image>
          </Border>
         </DataTemplate></ItemsControl.ItemTemplate>
        </ItemsControl>

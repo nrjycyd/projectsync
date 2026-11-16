@@ -42,6 +42,7 @@ try {
         'Wpf.Ui.Abstractions.dll'
         'licenses/WPF-UI-LICENSE.md'
         'licenses/WPF-UI-ThirdPartyNotices.txt'
+        'licenses/DevelopmentToolLogos.md'
         'ProjectSync.App.deps.json'
         'ProjectSync.App.runtimeconfig.json'
         'scripts/BuildSync.ps1'
