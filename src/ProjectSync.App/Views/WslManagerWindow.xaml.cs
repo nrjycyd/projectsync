@@ -363,7 +363,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             .Where(match => match.Success && match.Groups[1].Value != "NAME")
             .Select(match => match.Groups[1].Value).Distinct().ToArray() : Array.Empty<string>();
         var (dialog, form) = CreateDialog("安装发行版");
-        var distribution = new ComboBox { IsEditable = true, ItemsSource = names, MinHeight = 34, Padding = new Thickness(8, 4, 8, 4) };
+        var distribution = new ComboBox { IsEditable = true, ItemsSource = names };
         AddField(form, "发行版（留空安装默认发行版）", distribution);
         if (names.Length == 0) form.Children.Add(new TextBlock { Text = "可手动填写发行版名称，例如 Ubuntu。", TextWrapping = TextWrapping.Wrap });
         var name = AddInput(form, "实例名称（可选）");

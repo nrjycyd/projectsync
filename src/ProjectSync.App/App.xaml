@@ -12,6 +12,7 @@
         <ResourceDictionary Source="Styles/WorkspaceVisuals.xaml"/>
       </ResourceDictionary.MergedDictionaries>
       <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
+        <Setter Property="MinHeight" Value="34"/>
         <Setter Property="Popup.PopupAnimation" Value="{DynamicResource {x:Static SystemParameters.MenuPopupAnimationKey}}"/>
         <Setter Property="local:App.UseNativeComboBoxMotion" Value="True"/>
       </Style>

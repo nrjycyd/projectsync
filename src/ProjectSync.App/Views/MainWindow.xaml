@@ -112,7 +112,7 @@
       <ui:Button Appearance="Secondary" x:Name="ExportDiagnosticsButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="导出诊断" Click="ExportDiagnostics"/>
       <TextBlock x:Name="ThemeChoiceCaption" Text="主题" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"
                  Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-      <ComboBox x:Name="ThemeChoice" Width="112" Height="34" Margin="0,0,12,0" FontSize="13" SelectedIndex="1"
+      <ComboBox x:Name="ThemeChoice" Width="112" Margin="0,0,12,0" FontSize="13" SelectedIndex="1"
                 SelectionChanged="ChooseTheme" AutomationProperties.LabeledBy="{Binding ElementName=ThemeChoiceCaption}">
        <ComboBox.Style>
         <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
@@ -329,12 +329,12 @@
           <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=remote}" Content="远端名称"/>
           <DockPanel>
            <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测远端名称" Click="DetectRemotes" ToolTip="从 Git 本地仓库的仓库路径读取远端名称" Margin="8,0,0,0" VerticalAlignment="Center" MinHeight="32"/>
-           <ComboBox x:Name="remote" IsEditable="True" IsTextSearchEnabled="False" MinHeight="32" ToolTip="例如 origin"/>
+           <ComboBox x:Name="remote" IsEditable="True" IsTextSearchEnabled="False" ToolTip="例如 origin"/>
           </DockPanel>
          </StackPanel>
          <StackPanel Width="224">
           <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=branch}" Content="目标分支"/>
-          <ComboBox x:Name="branch" IsEditable="True" IsTextSearchEnabled="False" MinHeight="32"/>
+          <ComboBox x:Name="branch" IsEditable="True" IsTextSearchEnabled="False"/>
          </StackPanel>
         </WrapPanel>
         <ui:InfoBar x:Name="RemoteDetectionStatus" IsOpen="False" IsClosable="False" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
@@ -386,17 +386,17 @@
         <WrapPanel>
          <StackPanel Width="248" Margin="0,0,16,0">
           <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=WslDistribution}" Content="WSL 发行版"/>
-          <ComboBox x:Name="WslDistribution" SelectionChanged="ChooseWslDistribution"/>
+          <ComboBox x:Name="WslDistribution" SelectionChanged="ChooseWslDistribution" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
          </StackPanel>
          <StackPanel Width="248">
           <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=WslUserChoice}" Content="WSL 用户"/>
-          <ComboBox x:Name="WslUserChoice" SelectionChanged="ChooseWslUser"/>
+          <ComboBox x:Name="WslUserChoice" SelectionChanged="ChooseWslUser" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
          </StackPanel>
         </WrapPanel>
         <ui:TextBox x:Name="distro" Visibility="Collapsed"/>
         <ui:TextBox x:Name="wslUser" Visibility="Collapsed"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=NodeVersion}" Content="Node.js 版本"/>
-        <ComboBox x:Name="NodeVersion" Width="248" HorizontalAlignment="Left" DisplayMemberPath="Label" SelectionChanged="ChooseNodeVersion"/>
+        <ComboBox x:Name="NodeVersion" Width="248" HorizontalAlignment="Left" DisplayMemberPath="Label" SelectionChanged="ChooseNodeVersion" ToolTip="{Binding SelectedItem.Label, RelativeSource={RelativeSource Self}}"/>
         <TextBlock x:Name="NodeHint" TextWrapping="Wrap">
          <TextBlock.Style>
           <Style TargetType="TextBlock" BasedOn="{StaticResource WorkspaceSecondaryText}">

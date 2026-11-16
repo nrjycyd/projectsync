@@ -140,7 +140,7 @@ public partial class WslManagerWindow
     private static Component ComponentInput(StackPanel form, string label, string version, params string[] choices)
     {
         var check = new Wpf.Ui.Controls.ToggleSwitch { OnContent = label, OffContent = label, IsChecked = true, Margin = new Thickness(0, 10, 0, 4) };
-        var input = new ComboBox { ItemsSource = choices, SelectedItem = version, MinHeight = 30, MaxDropDownHeight = 250 };
+        var input = new ComboBox { ItemsSource = choices, SelectedItem = version, MaxDropDownHeight = 250 };
         System.Windows.Automation.AutomationProperties.SetName(input, label + "版本");
         check.Checked += (_, _) => input.IsEnabled = true;
         check.Unchecked += (_, _) => input.IsEnabled = false;
