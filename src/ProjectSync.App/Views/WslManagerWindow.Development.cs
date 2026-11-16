@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -29,27 +30,22 @@ public partial class WslManagerWindow
         var alias = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "提供 python 命令（python-is-python3）", OffContent = "提供 python 命令（python-is-python3）", Margin = new Thickness(0, 8, 0, 0) };
         form.Children.Add(alias);
         var node = ComponentInput(form, "Node.js（nvm）", "lts/*", "latest", "lts/*");
-        var downloadHint = new TextBlock
+        var downloadNotice = new Wpf.Ui.Controls.InfoBar
         {
-            TextWrapping = TextWrapping.Wrap
+            IsOpen = false, IsClosable = false, Margin = new Thickness(0, 6, 0, 0)
         };
-        var downloadNotice = new Border
-        {
-            Child = downloadHint,
-            CornerRadius = new CornerRadius(4), Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 6, 0, 0)
-        };
-        downloadHint.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
-        downloadNotice.SetResourceReference(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
         form.Children.Add(downloadNotice);
         bool closed = false;
         int probeVersion = 0;
         async Task CheckDownloadToolAsync()
         {
             int request = ++probeVersion;
-            downloadNotice.Visibility = node.Selected ? Visibility.Visible : Visibility.Collapsed;
-            if (!node.Selected) return;
-            downloadHint.Text = "正在检查 Node.js 下载工具…";
+            if (!node.Selected)
+            {
+                downloadNotice.IsOpen = false;
+                return;
+            }
+            downloadNotice.ShowFeedback("正在检查 Node.js 下载工具…");
             try
             {
                 var args = new List<string> { "-d", instance.Name };
@@ -61,17 +57,17 @@ public partial class WslManagerWindow
                     .WaitAsync(TimeSpan.FromSeconds(10));
                 if (closed || request != probeVersion) return;
                 if (result.Code == 0 && result.Output.Trim() == "available")
-                    downloadNotice.Visibility = Visibility.Collapsed;
+                    downloadNotice.IsOpen = false;
                 else if (result.Code == 0 && result.Output.Trim() == "missing")
-                    downloadHint.Text = "缺少下载工具。继续安装时将补装 curl 和 CA 证书。";
+                    downloadNotice.ShowFeedback("缺少下载工具。继续安装时将补装 curl 和 CA 证书。", InfoBarSeverity.Warning);
                 else
-                    downloadHint.Text = "暂无法检测下载工具，安装前会重新检查。";
+                    downloadNotice.ShowFeedback("暂无法检测下载工具，安装前会重新检查。", InfoBarSeverity.Warning);
             }
             catch (Exception error) when (error is TimeoutException or InvalidOperationException or
                 System.ComponentModel.Win32Exception or System.IO.IOException)
             {
                 if (!closed && request == probeVersion)
-                    downloadHint.Text = "暂无法检测下载工具，安装前会重新检查。";
+                    downloadNotice.ShowFeedback("暂无法检测下载工具，安装前会重新检查。", InfoBarSeverity.Warning);
             }
         }
 
@@ -82,7 +78,8 @@ public partial class WslManagerWindow
         user.LostKeyboardFocus += async (_, _) => { if (!closed) await CheckDownloadToolAsync(); };
         var pnpm = ComponentInput(form, "pnpm（需要 nvm 管理的 Node.js）", "latest", "latest");
 
-        var versionStatus = new TextBlock { Text = "正在读取可用版本…", Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
+        var versionStatus = new Wpf.Ui.Controls.InfoBar { IsClosable = false, Margin = new Thickness(0, 10, 0, 0) };
+        versionStatus.ShowFeedback("正在读取可用版本…");
         form.Children.Add(versionStatus);
         bool loadFinished = false;
         var load = new System.Threading.CancellationTokenSource();
@@ -129,9 +126,9 @@ public partial class WslManagerWindow
                 start.ArgumentList.Add(argument);
             foreach (string package in packages) start.ArgumentList.Add(package);
             using var terminal = Process.Start(start) ?? throw new InvalidOperationException("无法启动 WSL 终端。");
-            Status.Text = "安装进度和版本验证结果显示在 WSL 终端中。";
+            Status.ShowFeedback("安装进度和版本验证结果显示在 WSL 终端中。");
         }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { Status.ShowFeedback(error.Message, InfoBarSeverity.Error); }
     }
 
     private sealed record Component(Wpf.Ui.Controls.ToggleSwitch Check, ComboBox Input)
@@ -160,7 +157,7 @@ public partial class WslManagerWindow
     private static readonly HttpClient VersionClient = new() { Timeout = TimeSpan.FromSeconds(12) };
 
     private async Task LoadDevelopmentVersionsAsync(string instance, Component git, Component python,
-        Component node, Component pnpm, TextBlock status, System.Threading.CancellationToken token)
+        Component node, Component pnpm, Wpf.Ui.Controls.InfoBar status, System.Threading.CancellationToken token)
     {
         async Task<bool> Fill(Component component, Func<Task<string[]>> read)
         {
@@ -187,7 +184,10 @@ public partial class WslManagerWindow
         if (token.IsCancellationRequested) return;
         string[] names = { "Git", "Python 3", "Node.js", "pnpm" };
         var missing = names.Where((_, index) => !loaded[index]).ToArray();
-        status.Text = missing.Length == 0 ? "" : $"未能读取具体版本：{string.Join("、", missing)}。仍可使用默认选项。";
+        if (missing.Length == 0)
+            status.IsOpen = false;
+        else
+            status.ShowFeedback($"未能读取具体版本：{string.Join("、", missing)}。仍可使用默认选项。", InfoBarSeverity.Warning);
     }
 
     private static async Task<string[]> ReadAptVersionsAsync(string instance, string package)

@@ -17,13 +17,6 @@
    <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
    <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
-  <Style x:Key="InlineTaskStatus" TargetType="TextBlock" BasedOn="{StaticResource WorkspaceSecondaryText}">
-   <Setter Property="Margin" Value="0,4,0,0"/>
-   <Setter Property="TextWrapping" Value="Wrap"/>
-   <Style.Triggers>
-    <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger>
-   </Style.Triggers>
-  </Style>
   <ControlTemplate x:Key="SettingsTabsLayout" TargetType="TabControl">
    <Grid>
     <Grid.ColumnDefinitions>
@@ -101,7 +94,7 @@
    <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="0,6,0,2"
            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
     <DockPanel>
-     <StackPanel x:Name="FooterActions" DockPanel.Dock="Right" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+     <StackPanel x:Name="FooterActions" HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Center">
       <ui:Button Appearance="Secondary" x:Name="ExportDiagnosticsButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="导出诊断" Click="ExportDiagnostics"/>
       <TextBlock x:Name="ThemeChoiceCaption" Text="主题" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"
                  Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
@@ -135,9 +128,11 @@
        </StackPanel>
       </ui:Button>
      </StackPanel>
-     <TextBlock x:Name="HomeStatus" Style="{StaticResource WorkspaceSecondaryText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" VerticalAlignment="Center"/>
     </DockPanel>
    </Border>
+   <ScrollViewer DockPanel.Dock="Bottom" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ui:InfoBar x:Name="HomeStatus" IsOpen="False" IsClosable="True" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
+   </ScrollViewer>
    <Grid>
     <Grid.RowDefinitions>
      <RowDefinition Height="38*" MinHeight="104"/>
@@ -304,15 +299,9 @@
     <ui:Button Appearance="Primary" Margin="0,0,8,0" Content="保存项目" Click="SaveProject"/>
     <ui:Button Appearance="Secondary" Content="导出 JSON" Click="Save" ToolTip="将当前表单导出成 JSON 文件"/>
    </WrapPanel>
-   <TextBlock x:Name="Status" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
-    <TextBlock.Style>
-     <Style TargetType="TextBlock">
-      <Style.Triggers>
-       <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger>
-      </Style.Triggers>
-     </Style>
-    </TextBlock.Style>
-   </TextBlock>
+   <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ui:InfoBar x:Name="Status" IsOpen="False" IsClosable="True" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
+   </ScrollViewer>
    </StackPanel>
   </Border>
    <TabControl x:Name="SettingsTabs" TabStripPlacement="Left" Template="{StaticResource SettingsTabsLayout}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
@@ -334,7 +323,7 @@
           <ComboBox x:Name="branch" IsEditable="True" IsTextSearchEnabled="False" MinHeight="32"/>
          </StackPanel>
         </WrapPanel>
-        <TextBlock x:Name="RemoteDetectionStatus" Style="{StaticResource InlineTaskStatus}" AutomationProperties.LiveSetting="Polite"/>
+        <ui:InfoBar x:Name="RemoteDetectionStatus" IsOpen="False" IsClosable="False" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=remoteUrl}" Content="远端仓库地址"/>
         <ui:TextBox x:Name="remoteUrl" ToolTip="git@github.com:账号/仓库.git 或 https://github.com/账号/仓库.git"/>
         <TextBlock Text="留空时使用远端名称" Style="{StaticResource WorkspaceSecondaryText}" Margin="0,4,0,0"/>
@@ -347,7 +336,7 @@
          </StackPanel>
         </Expander>
         <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Margin="0,12,0,0" Content="测试远端连接" Click="TestRemote"/>
-        <TextBlock x:Name="RemoteTestStatus" Style="{StaticResource InlineTaskStatus}" AutomationProperties.LiveSetting="Polite"/>
+        <ui:InfoBar x:Name="RemoteTestStatus" IsOpen="False" IsClosable="False" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
        </StackPanel>
       </Border>
      </ScrollViewer>
@@ -365,7 +354,7 @@
          <ui:TextBox x:Name="windowsRepo"/>
         </DockPanel>
         <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Margin="0,12,0,0" Content="初始化 Git…" Click="InitializeLocalGit"/>
-        <TextBlock x:Name="LocalGitStatus" Style="{StaticResource WorkspaceSecondaryText}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+        <ui:InfoBar x:Name="LocalGitStatus" IsOpen="False" IsClosable="False" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
        </StackPanel>
       </Border>
      </ScrollViewer>
@@ -459,9 +448,12 @@
         <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
         <ui:Button Appearance="Primary" Content="应用到表单" Click="ApplyJson"/>
        </WrapPanel>
-       <TextBlock x:Name="JsonStatus" Text="应用到表单后，点击「保存项目」写入项目列表。" Style="{StaticResource WorkspaceSecondaryText}" AutomationProperties.LiveSetting="Polite"
+       <TextBlock Text="应用到表单后，点击「保存项目」写入项目列表。" Style="{StaticResource WorkspaceSecondaryText}"
                   TextWrapping="Wrap" VerticalAlignment="Center"/>
       </DockPanel>
+      <ScrollViewer DockPanel.Dock="Top" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+       <ui:InfoBar x:Name="JsonStatus" IsOpen="False" IsClosable="False" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
+      </ScrollViewer>
       <ui:TextBox x:Name="Config" Style="{StaticResource WorkspaceLog}"
                   FontFamily="Consolas, Microsoft YaHei UI" FontWeight="Normal"
                   CaretBrush="{Binding Foreground, RelativeSource={RelativeSource Self}}"

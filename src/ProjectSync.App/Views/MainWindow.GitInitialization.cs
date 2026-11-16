@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -16,7 +17,7 @@ public partial class MainWindow
         string path = windowsRepo.Text.Trim();
         if (!Directory.Exists(path) || !Path.IsPathFullyQualified(path))
         {
-            LocalGitStatus.Text = "请选择现有的 Windows 项目目录。";
+            LocalGitStatus.ShowFeedback("请选择现有的 Windows 项目目录。", InfoBarSeverity.Warning);
             return;
         }
 
@@ -26,7 +27,7 @@ public partial class MainWindow
             var metadata = Path.Combine(path, ".git");
             if (Directory.Exists(metadata) || File.Exists(metadata))
             {
-                LocalGitStatus.Text = "此目录已有 Git 元数据。如仓库不可用，请检查现有仓库。";
+                LocalGitStatus.ShowFeedback("此目录已有 Git 元数据。如仓库不可用，请检查现有仓库。");
                 return;
             }
             using var entries = Directory.EnumerateFileSystemEntries(path).GetEnumerator();
@@ -34,7 +35,7 @@ public partial class MainWindow
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            LocalGitStatus.Text = $"无法读取本地目录：{error.Message}";
+            LocalGitStatus.ShowFeedback($"无法读取本地目录：{error.Message}", InfoBarSeverity.Error);
             return;
         }
 
@@ -43,7 +44,7 @@ public partial class MainWindow
         if (address.Length == 0 || targetBranch.Length == 0)
         {
             SettingsTabs.SelectedItem = RemoteSettingsTab;
-            Status.Text = "请填写远端仓库地址和目标分支，再回到「Git 本地仓库」初始化。";
+            RemoteDetectionStatus.ShowFeedback("请填写远端仓库地址和目标分支，再回到「Git 本地仓库」初始化。", InfoBarSeverity.Warning);
             return;
         }
 
@@ -56,8 +57,8 @@ public partial class MainWindow
 
         running = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
-        Status.Text = "";
-        LocalGitStatus.Text = "正在初始化 Git。如弹出浏览器，请完成登录。";
+        Status.IsOpen = false;
+        LocalGitStatus.ShowFeedback("正在初始化 Git。如弹出浏览器，请完成登录。");
         var changes = new List<string>();
         var messages = new List<string>();
         bool completed = false;
@@ -78,16 +79,17 @@ public partial class MainWindow
             if (!completed)
                 throw new InvalidOperationException("未收到 Git 初始化完成状态。");
 
-            LocalGitStatus.Text = hasFiles ? "Git 已初始化，现有文件已保留。" : "克隆完成，可以构建并预览。";
             if (hasFiles && statusUnavailable)
-                LocalGitStatus.Text += " 无法读取差异，请在本地仓库查看 Git 状态。";
-            else if (hasFiles)
+                LocalGitStatus.ShowFeedback("Git 已初始化，但无法读取差异。请在本地仓库查看 Git 状态。", InfoBarSeverity.Warning);
+            else
+                LocalGitStatus.ShowFeedback(hasFiles ? "Git 已初始化，现有文件已保留。" : "克隆完成，可以构建并预览。", InfoBarSeverity.Success);
+            if (hasFiles && !statusUnavailable)
                 ShowInitializedChanges(changes);
         }
         catch (Exception error)
         {
-            LocalGitStatus.Text = "Git 初始化未完成。";
-            Status.Text = messages.Count == 0 ? error.Message : string.Join(Environment.NewLine, messages);
+            string details = messages.Count == 0 ? error.Message : string.Join(Environment.NewLine, messages);
+            LocalGitStatus.ShowFeedback($"Git 初始化未完成。{Environment.NewLine}{details}", InfoBarSeverity.Error);
         }
         finally
         {

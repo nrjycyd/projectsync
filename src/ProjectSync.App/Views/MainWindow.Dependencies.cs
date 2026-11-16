@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -15,7 +16,7 @@ public partial class MainWindow
         if (running) return;
         if (string.IsNullOrWhiteSpace(command))
         {
-            HomeStatus.Text = $"请先在「{project.Name}」的本地构建环境中填写{operation}命令。";
+            HomeStatus.ShowFeedback($"请先在「{project.Name}」的本地构建环境中填写{operation}命令。", InfoBarSeverity.Warning);
             return;
         }
         if (string.IsNullOrWhiteSpace(user) ||
@@ -23,7 +24,7 @@ public partial class MainWindow
             Array.Exists(directory.Split('/'), part => part is "." or "..") ||
             directory.Trim('/') == "")
         {
-            HomeStatus.Text = "请先检测并保存有效的 WSL 用户和项目根目录。";
+            HomeStatus.ShowFeedback("请先检测并保存有效的 WSL 用户和项目根目录。", InfoBarSeverity.Warning);
             return;
         }
 
@@ -36,7 +37,7 @@ public partial class MainWindow
         UpdateHomeActions();
         HomeLog.Clear();
         HomeResults.SelectedItem = HomeLogTab;
-        HomeStatus.Text = $"正在为「{project.Name}」执行{operation}…";
+        HomeStatus.ShowFeedback($"正在为「{project.Name}」执行{operation}…");
         WriteHomeLog($"[{project.Name}] {operation}");
         // Maintenance may change the dependency lockfile, so refresh any cached preview.
         if (projectRuns.TryGetValue(project.Id, out var state) && state.Progress != "已提交，待推送")
@@ -72,13 +73,14 @@ public partial class MainWindow
             await Task.WhenAll(output, errors, process.WaitForExitAsync());
             if (process.ExitCode != 0)
                 throw new InvalidOperationException($"命令返回退出代码 {process.ExitCode}，请查看日志。");
-            HomeStatus.Text = $"「{project.Name}」{operation}完成。";
+            HomeStatus.ShowFeedback($"「{project.Name}」{operation}完成。", InfoBarSeverity.Success);
             WriteHomeLog($"{operation}完成。");
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"{operation}失败：{error.Message}";
-            WriteHomeLog(HomeStatus.Text);
+            string message = $"{operation}失败：{error.Message}";
+            HomeStatus.ShowFeedback(message, InfoBarSeverity.Error);
+            WriteHomeLog(message);
         }
         finally
         {

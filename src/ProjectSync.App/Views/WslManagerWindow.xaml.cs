@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -144,7 +145,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         busy = true;
         Toolbar.IsEnabled = Instances.IsEnabled = false;
         try { await work(); }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { Status.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
             busy = false;
@@ -154,7 +155,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 
     private async Task RefreshAsync()
     {
-        Status.Text = "正在检测 WSL…";
+        Status.ShowFeedback("正在检测 WSL…");
         var results = await Task.WhenAll(InvokeAsync(new[] { "--version" }), InvokeAsync(new[] { "--help" }),
             InvokeAsync(new[] { "--list", "--verbose" }));
         string version = Regex.Match(results[0].Output, @"\d+(?:\.\d+){2,3}").Value;
@@ -216,7 +217,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             Log.Text = results[2].Output;
             LogArea.IsExpanded = true;
         }
-        Status.Text = results[2].Code == 0 ? $"检测到 {rows.Count} 个发行版实例。" : "无法读取实例列表，请查看日志。";
+        Status.ShowFeedback(results[2].Code == 0 ? $"检测到 {rows.Count} 个发行版实例。" : "无法读取实例列表，请查看日志。", results[2].Code == 0 ? InfoBarSeverity.Informational : InfoBarSeverity.Error);
     }
 
     private static string NormalizeInstallLocation(string location)
@@ -234,7 +235,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     {
         Log.Clear();
         LogArea.IsExpanded = true;
-        Status.Text = "正在执行 WSL 操作…";
+        Status.ShowFeedback("正在执行 WSL 操作…");
         var result = await InvokeAsync(args, line => { Log.AppendText(line + Environment.NewLine); Log.ScrollToEnd(); });
         if (result.Code != 0)
         {
@@ -265,7 +266,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             start.ArgumentList.Add("~");
             using var terminal = Process.Start(start);
         }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { Status.ShowFeedback(error.Message, InfoBarSeverity.Error); }
     }
 
     private async void DefaultClick(object sender, RoutedEventArgs e)
@@ -286,20 +287,20 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         if (Row(sender) is not { } instance) return;
         if (instance.Version != "WSL 2" || !help.Contains("--resize", StringComparison.Ordinal))
         {
-            Status.Text = "调整磁盘上限需要支持 --resize 的 WSL 2。";
+            Status.ShowFeedback("调整磁盘上限需要支持 --resize 的 WSL 2。", InfoBarSeverity.Warning);
             return;
         }
         await RunAsync(async () =>
         {
             if (instance.DiskFile is null)
             {
-                Status.Text = "无法确认当前磁盘上限，请先刷新检测。";
+                Status.ShowFeedback("无法确认当前磁盘上限，请先刷新检测。", InfoBarSeverity.Error);
                 return;
             }
             ulong? capacity = await Task.Run(() => VirtualDiskCapacity.Read(instance.Location, instance.DiskFile));
             if (capacity is not ulong current || current == 0)
             {
-                Status.Text = "无法确认当前磁盘上限，请先刷新检测。";
+                Status.ShowFeedback("无法确认当前磁盘上限，请先刷新检测。", InfoBarSeverity.Error);
                 return;
             }
             const ulong gib = 1UL << 30;
@@ -352,7 +353,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 
     private async void InstallClick(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
-        Status.Text = "正在获取在线发行版列表…";
+        Status.ShowFeedback("正在获取在线发行版列表…");
         var list = await InvokeAsync(new[] { "--list", "--online" });
         var names = list.Code == 0 ? list.Output.Split('\n')
             .Select(line => Regex.Match(line, @"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s{2,}\S"))
@@ -391,7 +392,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             (size.Text.Trim().Length == 0 || PositiveSize(size.Text));
         if (!Confirm(dialog, form, "开始安装", Valid, "请检查发行版名称、未占用的实例名称、空安装目录和正整数容量。"))
         {
-            Status.Text = "已取消安装。";
+            Status.ShowFeedback("已取消安装。");
             return;
         }
         var args = new List<string> { "--install" };

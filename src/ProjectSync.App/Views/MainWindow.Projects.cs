@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
 using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -67,7 +68,7 @@ public partial class MainWindow
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"无法加载项目列表：{error.Message}";
+            HomeStatus.ShowFeedback($"无法加载项目列表：{error.Message}", InfoBarSeverity.Error);
         }
         foreach (var project in savedProjects)
         {
@@ -90,7 +91,7 @@ public partial class MainWindow
                     }
                 }
             }
-            catch (Exception error) { HomeStatus.Text = $"无法读取「{project.Name}」的待推送记录：{error.Message}"; }
+            catch (Exception error) { HomeStatus.ShowFeedback($"无法读取「{project.Name}」的待推送记录：{error.Message}", InfoBarSeverity.Error); }
         }
         HomeChanges.Items.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(BatchChange.Group)));
         ShowSavedChanges();
@@ -185,8 +186,8 @@ public partial class MainWindow
         int openSequence = ++settingsOpenSequence;
         restoreDetectedOptions = useSavedOptions;
         LoadConfig(configuration);
-        LocalGitStatus.Text = "";
-        Status.Text = "";
+        LocalGitStatus.IsOpen = false;
+        Status.IsOpen = false;
         activeProject = entry;
         originalConfig = entry is null ? null : SerializeConfig();
         var selectedTab = RemoteSettingsTab;
@@ -248,11 +249,11 @@ public partial class MainWindow
             await ShowProjectAsync(configuration, null);
             if (string.IsNullOrWhiteSpace(ProjectName.Text))
                 ProjectName.Text = Path.GetFileNameWithoutExtension(dialog.FileName);
-            Status.Text = "已导入配置。点击「保存项目」加入列表。";
+            Status.ShowFeedback("已导入配置。点击「保存项目」加入列表。");
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"无法导入项目：{error.Message}";
+            HomeStatus.ShowFeedback($"无法导入项目：{error.Message}", InfoBarSeverity.Error);
         }
     }
 
@@ -261,7 +262,7 @@ public partial class MainWindow
         if (Projects.SelectedItem is not ProjectEntry entry)
             return;
         try { await ShowProjectAsync(entry.Configuration, entry); }
-        catch (Exception error) { HomeStatus.Text = $"无法打开项目：{error.Message}"; }
+        catch (Exception error) { HomeStatus.ShowFeedback($"无法打开项目：{error.Message}", InfoBarSeverity.Error); }
     }
 
     private void SaveProject(object sender, RoutedEventArgs e) => TrySaveProject();
@@ -277,7 +278,7 @@ public partial class MainWindow
         {
             SettingsTabs.SelectedItem = LocalSettingsTab;
             ProjectName.Focus();
-            Status.Text = "请填写项目名称。";
+            Status.ShowFeedback("请填写项目名称。", InfoBarSeverity.Warning);
             return false;
         }
 
@@ -296,7 +297,7 @@ public partial class MainWindow
         {
             if (previous is null) savedProjects.Remove(entry);
             else savedProjects[index] = previous;
-            Status.Text = $"保存失败：{error.Message}";
+            Status.ShowFeedback($"保存失败：{error.Message}", InfoBarSeverity.Error);
             return false;
         }
 
@@ -308,7 +309,7 @@ public partial class MainWindow
             ShowSavedChanges();
         }
         originalConfig = entry.Configuration;
-        Status.Text = $"已保存项目「{entry.Name}」。";
+        Status.ShowFeedback($"已保存项目「{entry.Name}」。", InfoBarSeverity.Success);
         return true;
     }
 
@@ -328,7 +329,7 @@ public partial class MainWindow
         ResetPreview();
         ProjectPage.Visibility = Visibility.Collapsed;
         HomePage.Visibility = Visibility.Visible;
-        HomeStatus.Text = "";
+        HomeStatus.IsOpen = false;
         RefreshProjects();
         Projects.SelectedItem = activeProject;
     }
@@ -354,7 +355,7 @@ public partial class MainWindow
         catch (Exception error)
         {
             savedProjects.Insert(index, entry);
-            HomeStatus.Text = $"移除失败：{error.Message}";
+            HomeStatus.ShowFeedback($"移除失败：{error.Message}", InfoBarSeverity.Error);
             return;
         }
 
@@ -362,7 +363,7 @@ public partial class MainWindow
         projectRuns.Remove(entry.Id);
         DeletePreview(entry);
         ShowSavedChanges();
-        HomeStatus.Text = $"已移除「{entry.Name}」。";
+        HomeStatus.ShowFeedback($"已移除「{entry.Name}」。", InfoBarSeverity.Success);
     }
 
     private sealed record BatchChange(string Project, string Action, string Path)
@@ -456,7 +457,7 @@ public partial class MainWindow
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"无法打开「{project.Name}」的快捷访问目标：{error.Message}";
+            HomeStatus.ShowFeedback($"无法打开「{project.Name}」的快捷访问目标：{error.Message}", InfoBarSeverity.Error);
         }
     }
 
@@ -649,7 +650,7 @@ public partial class MainWindow
         var selected = savedProjects.Where(project => project.Checked && CanRunBatchOperation(project, operation)).ToArray();
         if (selected.Length == 0)
         {
-            HomeStatus.Text = "当前勾选的项目中没有可执行此操作的项目。";
+            HomeStatus.ShowFeedback("当前勾选的项目中没有可执行此操作的项目。", InfoBarSeverity.Warning);
             return;
         }
 
@@ -668,7 +669,7 @@ public partial class MainWindow
         StopBatchButton.IsEnabled = true;
         BatchProgressText.Text = $"正在准备处理 {selected.Length} 个项目…";
         BatchProgressPanel.Visibility = Visibility.Visible;
-        HomeStatus.Text = "";
+        HomeStatus.IsOpen = false;
         running = true;
         HomePage.Tag = true;
         HomeActions.IsEnabled = false;
@@ -682,7 +683,6 @@ public partial class MainWindow
         }
         int completed = 0;
         int failed = 0;
-        string? lastFailure = null;
         try
         {
             var summaries = new Dictionary<Guid, string>();
@@ -707,8 +707,7 @@ public partial class MainWindow
                     catch (Exception error)
                     {
                         failed++;
-                        lastFailure = $"{project.Name}：无法读取待提交文件：{error.Message}";
-                        WriteHomeLog(lastFailure);
+                        WriteHomeLog($"{project.Name}：无法读取待提交文件：{error.Message}");
                         return;
                     }
                 }
@@ -780,8 +779,7 @@ public partial class MainWindow
                 {
                     failed++;
                     projectRuns[project.Id] = new RunState(null, pending, pending is null ? "操作失败" : "已提交，待推送");
-                    lastFailure = $"{project.Name}：{error.Message}";
-                    WriteHomeLog($"失败：{error.Message}");
+                    WriteHomeLog($"{project.Name}：操作失败。{error.Message}");
                 }
             }
         }
@@ -798,9 +796,12 @@ public partial class MainWindow
             {
                 if (completed == selected.Length) HomeResults.SelectedItem = HomeChangesTab;
             }
-            HomeStatus.Text = (cancellation.IsCancellationRequested ? "已停止 · " : "") +
-                $"完成 {completed} 个 · 失败 {failed} 个" +
-                (lastFailure is null ? "" : $" · {lastFailure}");
+            string result = (cancellation.IsCancellationRequested ? "已停止 · " : "") +
+                $"完成 {completed} 个 · 失败 {failed} 个";
+            if (failed > 0)
+                HomeStatus.ShowFeedback(result + "。详情见运行日志。", InfoBarSeverity.Warning);
+            else
+                HomeStatus.ShowFeedback(result, cancellation.IsCancellationRequested ? InfoBarSeverity.Informational : InfoBarSeverity.Success);
             if (closeAfterBatch)
             {
                 closeAfterBatch = false;
@@ -864,11 +865,11 @@ public partial class MainWindow
                     input.CopyTo(entry);
                 }
             }
-            HomeStatus.Text = "已导出诊断。分享前请检查日志是否包含敏感信息。";
+            HomeStatus.ShowFeedback("已导出诊断。分享前请检查日志是否包含敏感信息。", InfoBarSeverity.Success);
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"无法导出诊断：{error.Message}";
+            HomeStatus.ShowFeedback($"无法导出诊断：{error.Message}", InfoBarSeverity.Error);
         }
     }
 

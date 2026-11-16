@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -101,7 +102,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             .AddValueChanged(remote, (_, _) => RemoteChanged());
         windowsRepo.TextChanged += (_, _) =>
         {
-            LocalGitStatus.Text = "";
+            LocalGitStatus.IsOpen = false;
             if (loading) return;
             string text = remote.Text;
             loading = true;
@@ -118,7 +119,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             WslUserChoice.ItemsSource = null;
             distro.Clear();
             wslUser.Clear();
-            ShowEnvironmentFeedback("仓库路径已修改，请检测环境。");
+            EnvironmentFeedback.ShowFeedback("仓库路径已修改，请检测环境。");
         };
         PreviewAfterBuild.Checked += (_, _) => FormChanged();
         PreviewAfterBuild.Unchecked += (_, _) => FormChanged();
@@ -130,7 +131,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             if (loading) return;
             jsonDraft = true;
             ResetPreview();
-            JsonStatus.Text = "JSON 有待应用的改动。应用到表单后，还需保存项目。";
+            JsonStatus.ShowFeedback("JSON 有待应用的改动。应用到表单后，还需保存项目。");
         };
         InitializeProjects();
     }
@@ -181,10 +182,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         branch.Text = configuredBranch;
         foreach (var field in fields)
             field.Value.Text = values[field.Key];
-        RemoteDetectionStatus.Text = "";
-        RemoteTestStatus.Text = "";
+        RemoteDetectionStatus.IsOpen = false;
+        RemoteTestStatus.IsOpen = false;
         EnvironmentFeedback.IsOpen = false;
-        JsonStatus.Text = "应用到表单后，点击「保存项目」写入项目列表。";
+        JsonStatus.IsOpen = false;
         RemoteConnectionOptions.IsExpanded = !string.IsNullOrWhiteSpace(githubUsername.Text) ||
             !string.IsNullOrWhiteSpace(gitSshCommand.Text);
         RestoreChoices(remote, configuredRemote, ReadChoices<string[]>(RemoteChoiceKey()));
@@ -251,7 +252,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
         catch (ArgumentException error)
         {
-            Status.Text = error.Message;
+            Status.ShowFeedback(error.Message, InfoBarSeverity.Error);
             return false;
         }
     }
@@ -286,21 +287,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             if (!ConfirmExternalConfiguration(Config.Text, onlyChanged: true)) return;
             LoadConfig(Config.Text);
-            JsonStatus.Text = "已应用到表单。点击「保存项目」写入项目列表。";
+            JsonStatus.ShowFeedback("已应用到表单。", InfoBarSeverity.Success);
         }
-        catch (Exception error) { JsonStatus.Text = $"配置无效：{error.Message}"; }
+        catch (Exception error) { JsonStatus.ShowFeedback($"配置无效：{error.Message}", InfoBarSeverity.Error); }
     }
 
     private void ShowPendingJson(string message)
     {
         SettingsTabs.SelectedItem = JsonSettingsTab;
-        JsonStatus.Text = message;
+        JsonStatus.ShowFeedback(message, InfoBarSeverity.Warning);
         Config.Focus();
     }
 
     private void ResetPreview()
     {
-        Status.Text = "";
+        Status.IsOpen = false;
     }
 
     private void Open(object sender, RoutedEventArgs e)
@@ -313,12 +314,12 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             string configuration = File.ReadAllText(dialog.FileName);
             if (!ConfirmExternalConfiguration(configuration)) return;
             LoadConfig(configuration);
-            JsonStatus.Text = "已导入到表单。点击「保存项目」写入项目列表。";
+            JsonStatus.ShowFeedback("已导入并应用到表单。", InfoBarSeverity.Success);
         }
-        catch (IOException error) { JsonStatus.Text = error.Message; }
-        catch (UnauthorizedAccessException error) { JsonStatus.Text = error.Message; }
-        catch (JsonException error) { JsonStatus.Text = error.Message; }
-        catch (InvalidOperationException error) { JsonStatus.Text = error.Message; }
+        catch (IOException error) { JsonStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
+        catch (UnauthorizedAccessException error) { JsonStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
+        catch (JsonException error) { JsonStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
+        catch (InvalidOperationException error) { JsonStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
     }
 
     private void Save(object sender, RoutedEventArgs e)
@@ -343,9 +344,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         try
         {
             File.WriteAllText(dialog.FileName, SerializeConfig());
-            Status.Text = $"已导出 JSON 到 {dialog.FileName}";
+            Status.ShowFeedback($"已导出 JSON 到 {dialog.FileName}", InfoBarSeverity.Success);
         }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { Status.ShowFeedback(error.Message, InfoBarSeverity.Error); }
     }
 
     private void RemoteChanged()
@@ -360,11 +361,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (running || detectingWsl) return;
         if (string.IsNullOrWhiteSpace(windowsRepo.Text))
         {
-            RemoteDetectionStatus.Text = "请先在「Git 本地仓库」填写仓库路径。";
+            RemoteDetectionStatus.ShowFeedback("请先在「Git 本地仓库」填写仓库路径。", InfoBarSeverity.Warning);
             return;
         }
 
-        RemoteDetectionStatus.Text = "正在读取本地仓库的远端名称…";
+        RemoteDetectionStatus.ShowFeedback("正在读取本地仓库的远端名称…");
         running = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         try
@@ -389,10 +390,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             ClearRemoteBranches();
             FormChanged();
             string? cacheError = SaveChoices(RemoteChoiceKey(), output);
-            RemoteDetectionStatus.Text = cacheError ?? (output.Count == 0 ? "本地仓库没有配置远端名称，可以直接填写远端仓库地址。" :
-                $"已读取 {output.Count} 个远端名称。可从下拉列表选择。");
+            RemoteDetectionStatus.ShowFeedback(cacheError ?? (output.Count == 0 ? "本地仓库没有配置远端名称，可以直接填写远端仓库地址。" :
+                $"已读取 {output.Count} 个远端名称。可从下拉列表选择。"), cacheError is not null || output.Count == 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         }
-        catch (Exception error) { RemoteDetectionStatus.Text = error.Message; }
+        catch (Exception error) { RemoteDetectionStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
             running = false;
@@ -421,7 +422,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         running = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         ClearRemoteBranches();
-        RemoteTestStatus.Text = "正在读取远端分支。如弹出浏览器，请完成 GitHub 登录。";
+        RemoteTestStatus.ShowFeedback("正在读取远端分支。如弹出浏览器，请完成 GitHub 登录。");
         var branches = new List<string>();
         var output = new StringBuilder();
         try
@@ -440,13 +441,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             RestoreChoices(branch, text, branches.ToArray());
             loading = false;
             string? cacheError = SaveChoices(BranchChoiceKey(), branches);
-            RemoteTestStatus.Text = cacheError ?? (branches.Count == 0 ? "连接成功，远端暂无分支。" :
+            RemoteTestStatus.ShowFeedback(cacheError ?? (branches.Count == 0 ? "连接成功，远端暂无分支。" :
                 branches.Contains(text) ? $"连接成功，已读取 {branches.Count} 个分支。" :
-                $"连接成功，已读取 {branches.Count} 个分支。请从下拉列表选择目标分支。");
+                $"连接成功，已读取 {branches.Count} 个分支。请从下拉列表选择目标分支。"), cacheError is not null ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         }
         catch (Exception error)
         {
-            RemoteTestStatus.Text = output.Length == 0 ? error.Message : output.ToString().Trim();
+            RemoteTestStatus.ShowFeedback(output.Length == 0 ? error.Message : output.ToString().Trim(), InfoBarSeverity.Error);
         }
         finally
         {

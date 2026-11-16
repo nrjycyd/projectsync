@@ -20,7 +20,9 @@
     <TextBlock x:Name="VersionText" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="12,0,0,0" VerticalAlignment="Center"/>
    </StackPanel>
   </DockPanel>
-  <TextBlock x:Name="Status" DockPanel.Dock="Top" Margin="0,0,0,8" Style="{StaticResource WorkspaceSecondaryText}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+  <ScrollViewer DockPanel.Dock="Top" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+   <ui:InfoBar x:Name="Status" IsOpen="False" IsClosable="True" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
+  </ScrollViewer>
   <Expander x:Name="LogArea" DockPanel.Dock="Bottom" Header="运行日志" Margin="0,8,0,0">
    <ui:TextBox x:Name="Log" Style="{StaticResource WorkspaceLog}" Height="105" Margin="0,6,0,0" Padding="8"
             IsReadOnly="True" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
