@@ -132,10 +132,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             jsonDraft = !JsonMatchesForm();
             ResetPreview();
             UpdateSaveProjectAction();
-            if (jsonDraft)
-                JsonStatus.ShowFeedback("JSON 有待应用的改动。应用到表单后，还需保存项目。");
-            else
-                JsonStatus.IsOpen = false;
+            JsonStatus.IsOpen = false;
         };
         InitializeProjects();
     }
@@ -303,7 +300,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             if (!ConfirmExternalConfiguration(Config.Text, onlyChanged: true)) return;
             LoadConfig(Config.Text);
-            JsonStatus.ShowFeedback("已应用到表单。", InfoBarSeverity.Success);
         }
         catch (Exception error) { JsonStatus.ShowFeedback($"配置无效：{error.Message}", InfoBarSeverity.Error); }
     }
@@ -330,7 +326,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             string configuration = File.ReadAllText(dialog.FileName);
             if (!ConfirmExternalConfiguration(configuration)) return;
             LoadConfig(configuration);
-            JsonStatus.ShowFeedback("已导入并应用到表单。", InfoBarSeverity.Success);
         }
         catch (IOException error) { JsonStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         catch (UnauthorizedAccessException error) { JsonStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }

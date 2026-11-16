@@ -443,14 +443,10 @@
     </TabItem>
     <TabItem Header="快速配置（JSON）" x:Name="JsonSettingsTab">
      <DockPanel Margin="24,16,24,20">
-      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-       <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
-        <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
-        <ui:Button x:Name="ApplyJsonButton" Appearance="Secondary" Content="应用到表单" Click="ApplyJson"/>
-       </WrapPanel>
-       <TextBlock Text="应用到表单后，点击「保存项目」写入项目列表。" Style="{StaticResource WorkspaceSecondaryText}"
-                  TextWrapping="Wrap" VerticalAlignment="Center"/>
-      </DockPanel>
+      <WrapPanel DockPanel.Dock="Top" HorizontalAlignment="Right" Margin="0,0,0,8">
+       <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
+       <ui:Button x:Name="ApplyJsonButton" Appearance="Secondary" Content="应用到表单" Click="ApplyJson"/>
+      </WrapPanel>
       <ScrollViewer DockPanel.Dock="Top" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
        <ui:InfoBar x:Name="JsonStatus" IsOpen="False" IsClosable="False" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
       </ScrollViewer>
