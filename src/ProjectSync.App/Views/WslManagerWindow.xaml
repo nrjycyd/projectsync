@@ -74,7 +74,7 @@
     <DataGridTemplateColumn Header="发行版" Width="106">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
       <DockPanel Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center" Background="Transparent"
-                 ToolTip="{Binding DistributionHint}" AutomationProperties.Name="{Binding DistributionHint}">
+                 ToolTip="{Binding Distribution}" AutomationProperties.Name="{Binding DistributionHint}">
        <Grid DockPanel.Dock="Left" Width="18" Height="18" Margin="0,0,6,0" VerticalAlignment="Center">
         <Image Source="{Binding DistributionIcon}" Stretch="Uniform"/>
         <ui:SymbolIcon Symbol="Desktop24" FontSize="16">
@@ -94,11 +94,7 @@
          </ui:SymbolIcon.Style>
         </ui:SymbolIcon>
        </Grid>
-       <StackPanel VerticalAlignment="Center">
-        <TextBlock Text="{Binding Distribution}" TextTrimming="CharacterEllipsis"/>
-        <TextBlock Text="{Binding State}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                   TextTrimming="CharacterEllipsis"/>
-       </StackPanel>
+       <TextBlock Text="{Binding Distribution}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
       </DockPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>

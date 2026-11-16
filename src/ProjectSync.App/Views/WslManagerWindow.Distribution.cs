@@ -32,7 +32,7 @@ public partial class WslManagerWindow
             var frame = decoder.Frames.MinBy(candidate => Math.Abs(candidate.PixelWidth - 32));
             if (frame is null) return null;
 
-            BitmapSource logo = isRunning ? frame : GrayscaleIcon(frame);
+            BitmapSource logo = CopyIconPixels(frame, grayscale: !isRunning);
             logo.Freeze();
             return logo;
         }
@@ -43,20 +43,24 @@ public partial class WslManagerWindow
         }
     }
 
-    private static BitmapSource GrayscaleIcon(BitmapSource source)
+    private static BitmapSource CopyIconPixels(BitmapSource source, bool grayscale)
     {
         var bitmap = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
         int stride = bitmap.PixelWidth * 4;
         var pixels = new byte[stride * bitmap.PixelHeight];
         bitmap.CopyPixels(pixels, stride, 0);
-        for (int i = 0; i < pixels.Length; i += 4)
+        if (grayscale)
         {
-            int luminance = (77 * pixels[i + 2] + 150 * pixels[i + 1] + 29 * pixels[i]) / 256;
-            // Keep stopped icons legible on both theme backgrounds without changing alpha.
-            byte gray = (byte)(112 + luminance * 96 / 255);
-            pixels[i] = pixels[i + 1] = pixels[i + 2] = gray;
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                int luminance = (77 * pixels[i + 2] + 150 * pixels[i + 1] + 29 * pixels[i]) / 256;
+                // Keep stopped icons legible on both theme backgrounds without changing alpha.
+                byte gray = (byte)(112 + luminance * 96 / 255);
+                pixels[i] = pixels[i + 1] = pixels[i + 2] = gray;
+            }
         }
 
+        // An ICO frame can still refer to its thread-bound decoder even after freezing.
         return BitmapSource.Create(bitmap.PixelWidth, bitmap.PixelHeight, bitmap.DpiX, bitmap.DpiY,
             PixelFormats.Bgra32, null, pixels, stride);
     }

@@ -19,6 +19,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, ImageSource? DistributionIcon)
     {
         public string DistributionHint => $"{Distribution} · {State}";
+
+        public override string ToString() => $"{Name} · {DistributionHint}";
     }
     private sealed record DiskUsage(string Label, string Hint, double Percent = 0, bool HasMeasurement = false)
     {
