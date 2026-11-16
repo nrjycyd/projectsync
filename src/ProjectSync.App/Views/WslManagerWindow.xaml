@@ -8,20 +8,20 @@
 
  <DockPanel>
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="WSL 环境管理"/>
-  <DockPanel Margin="20">
-  <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+  <DockPanel Margin="20,16,20,16">
+  <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
    <StackPanel x:Name="Toolbar" Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
     <ui:Button Content="刷新检测" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,8,0" Click="RefreshClick"/>
     <ui:Button Content="安装发行版" Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Margin="0,0,8,0" Click="InstallClick"/>
     <ui:Button Content="更新 WSL" Icon="{ui:SymbolIcon ArrowUpload24}" Click="UpdateClick"/>
    </StackPanel>
    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-    <TextBlock Text="WSL 环境管理" FontSize="20" FontWeight="SemiBold"/>
+    <TextBlock Text="发行版" FontSize="16" FontWeight="SemiBold"/>
     <TextBlock x:Name="VersionText" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="12,0,0,0" VerticalAlignment="Center"/>
    </StackPanel>
   </DockPanel>
-  <TextBlock x:Name="Status" DockPanel.Dock="Bottom" Margin="0,10,0,0" TextWrapping="Wrap"/>
-  <Expander x:Name="LogArea" DockPanel.Dock="Bottom" Header="运行日志" Margin="0,10,0,0">
+  <TextBlock x:Name="Status" DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap"/>
+  <Expander x:Name="LogArea" DockPanel.Dock="Bottom" Header="运行日志" Margin="0,8,0,0">
    <ui:TextBox x:Name="Log" Style="{StaticResource WorkspaceLog}" Height="105" Margin="0,6,0,0" Padding="8"
             IsReadOnly="True" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
   </Expander>
@@ -39,11 +39,10 @@
     </Style>
    </DataGrid.RowStyle>
    <DataGrid.Columns>
-    <DataGridTemplateColumn Header="实例名称" Width="1.2*">
+    <DataGridTemplateColumn Header="实例名称" Width="1.2*" MinWidth="100">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
-      <StackPanel Orientation="Horizontal">
-       <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-       <Border CornerRadius="4" Background="{DynamicResource ControlFillColorSecondaryBrush}" Padding="6,1" Margin="8,0,0,0">
+      <DockPanel>
+       <Border DockPanel.Dock="Right" CornerRadius="4" Background="{DynamicResource ControlFillColorSecondaryBrush}" Padding="6,1" Margin="8,0,0,0">
         <Border.Style>
          <Style TargetType="Border">
           <Setter Property="Visibility" Value="Collapsed"/>
@@ -54,10 +53,11 @@
         </Border.Style>
         <TextBlock Text="默认" Foreground="{DynamicResource SystemFillColorSuccessBrush}" FontSize="12"/>
        </Border>
-      </StackPanel>
+       <TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+      </DockPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTemplateColumn Header="发行版版本" Width="176">
+    <DataGridTemplateColumn Header="发行版" Width="104">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
       <StackPanel Orientation="Horizontal" Background="Transparent" ToolTip="{Binding DistributionHint}"
                   AutomationProperties.Name="{Binding DistributionHint}">
@@ -66,9 +66,16 @@
       </StackPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTextColumn Header="WSL 版本" Binding="{Binding Version}" Width="94"/>
-    <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="2*"/>
-    <DataGridTemplateColumn Header="磁盘容量" Width="106">
+    <DataGridTextColumn Header="WSL" Binding="{Binding Version}" Width="56"/>
+    <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="2*" MinWidth="80">
+     <DataGridTextColumn.ElementStyle>
+      <Style TargetType="TextBlock">
+       <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+       <Setter Property="ToolTip" Value="{Binding Location}"/>
+      </Style>
+     </DataGridTextColumn.ElementStyle>
+    </DataGridTextColumn>
+    <DataGridTemplateColumn Header="磁盘容量" Width="96">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
       <StackPanel Background="Transparent" VerticalAlignment="Center" ToolTip="{Binding Disk.Hint}"
                   AutomationProperties.Name="{Binding Disk.Hint}">
@@ -87,7 +94,7 @@
       </StackPanel>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTemplateColumn Header="开发环境" Width="120">
+    <DataGridTemplateColumn Header="开发环境" Width="84">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
       <Grid>
        <TextBlock Text="{Binding ToolStatus}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13" VerticalAlignment="Center"/>
@@ -103,10 +110,10 @@
       </Grid>
      </DataTemplate></DataGridTemplateColumn.CellTemplate>
     </DataGridTemplateColumn>
-    <DataGridTemplateColumn Header="操作" Width="222">
+    <DataGridTemplateColumn Header="操作" Width="160">
      <DataGridTemplateColumn.CellTemplate><DataTemplate>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-       <ui:Button Content="启动终端" Icon="{ui:SymbolIcon WindowConsole20}" Margin="0,0,8,0" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+       <ui:Button Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Icon="{ui:SymbolIcon WindowConsole20}" Padding="8,4" Margin="0,0,8,0" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"/>
        <ui:DropDownButton Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
         <ui:DropDownButton.Flyout>
          <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">

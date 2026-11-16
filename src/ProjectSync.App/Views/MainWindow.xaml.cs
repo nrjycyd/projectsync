@@ -181,6 +181,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         branch.Text = configuredBranch;
         foreach (var field in fields)
             field.Value.Text = values[field.Key];
+        RemoteConnectionOptions.IsExpanded = !string.IsNullOrWhiteSpace(githubUsername.Text) ||
+            !string.IsNullOrWhiteSpace(gitSshCommand.Text);
         RestoreChoices(remote, configuredRemote, ReadChoices<string[]>(RemoteChoiceKey()));
         displayedBranchKey = BranchChoiceKey();
         RestoreChoices(branch, configuredBranch, ReadChoices<string[]>(displayedBranchKey));

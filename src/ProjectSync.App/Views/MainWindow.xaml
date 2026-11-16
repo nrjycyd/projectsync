@@ -16,7 +16,7 @@
   <ControlTemplate x:Key="SettingsTabsLayout" TargetType="TabControl">
    <Grid>
     <Grid.ColumnDefinitions>
-     <ColumnDefinition Width="196"/>
+     <ColumnDefinition Width="168"/>
      <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
     <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0"
@@ -30,7 +30,7 @@
  <DockPanel Background="Transparent">
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="ProjectSync"/>
   <Grid Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
-  <DockPanel x:Name="HomePage" Margin="26,20,26,16" Background="Transparent" TextElement.FontSize="14">
+  <DockPanel x:Name="HomePage" Margin="24,16,24,16" Background="Transparent" TextElement.FontSize="14">
    <local:HomeToolbarPanel DockPanel.Dock="Top" Margin="0,0,0,12">
     <StackPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
      <StackPanel.Resources>
@@ -279,7 +279,7 @@
    </Grid>
   </DockPanel>
   <DockPanel x:Name="ProjectPage" Visibility="Collapsed" Background="Transparent" TextElement.FontSize="14" TextElement.FontWeight="Normal">
-  <Border DockPanel.Dock="Top" Background="{DynamicResource LayerFillColorDefaultBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="18,14,18,12">
+  <Border DockPanel.Dock="Top" Background="{DynamicResource LayerFillColorDefaultBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="24,12">
    <StackPanel>
    <WrapPanel x:Name="Actions">
     <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="← 返回项目列表" Click="BackToHome"/>
@@ -299,102 +299,138 @@
   </Border>
    <TabControl x:Name="SettingsTabs" TabStripPlacement="Left" Template="{StaticResource SettingsTabsLayout}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
     <TabItem x:Name="RemoteSettingsTab" Header="Git 远端仓库">
-     <ScrollViewer VerticalScrollBarVisibility="Auto">
-      <StackPanel Margin="24,14,24,24">
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=remote}" Content="Git 远端名称（如 origin）"/>
-        <DockPanel>
-         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测远端名称" Click="DetectRemotes" Margin="8,0,0,0"/>
-         <ComboBox x:Name="remote" IsEditable="True" IsTextSearchEnabled="False"/>
-        </DockPanel>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=remoteUrl}" Content="远端仓库地址（留空时使用远端名称）"/>
+     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <Border Style="{StaticResource SettingsForm}">
+       <StackPanel>
+        <TextBlock Text="仓库连接" Style="{StaticResource SettingsSectionTitle}"/>
+        <WrapPanel>
+         <StackPanel Width="352" Margin="0,0,16,0">
+          <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=remote}" Content="远端名称"/>
+          <DockPanel>
+           <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测远端名称" Click="DetectRemotes" Margin="8,0,0,0" VerticalAlignment="Center" MinHeight="32"/>
+           <ComboBox x:Name="remote" IsEditable="True" IsTextSearchEnabled="False" MinHeight="32" ToolTip="例如 origin"/>
+          </DockPanel>
+         </StackPanel>
+         <StackPanel Width="224">
+          <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=branch}" Content="目标分支"/>
+          <ComboBox x:Name="branch" IsEditable="True" IsTextSearchEnabled="False" MinHeight="32"/>
+         </StackPanel>
+        </WrapPanel>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=remoteUrl}" Content="远端仓库地址"/>
         <ui:TextBox x:Name="remoteUrl" ToolTip="git@github.com:账号/仓库.git 或 https://github.com/账号/仓库.git"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=githubUsername}" Content="GitHub 登录用户名（HTTPS，可选）"/>
-        <ui:TextBox x:Name="githubUsername" ToolTip="填写此项目用来授权的账号，可以与仓库所有者不同。"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=branch}" Content="目标分支"/>
-        <ComboBox x:Name="branch" IsEditable="True" IsTextSearchEnabled="False"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=gitSshCommand}" Content="SSH 命令与参数（可选）"/>
-        <ui:TextBox x:Name="gitSshCommand"/>
-        <ui:Button Appearance="Primary" HorizontalAlignment="Left" Margin="0,6,0,4" Content="测试远端连接" Click="TestRemote"/>
-
-      </StackPanel>
+        <TextBlock Text="留空时使用远端名称" Style="{StaticResource WorkspaceSecondaryText}" Margin="0,4,0,0"/>
+        <Expander x:Name="RemoteConnectionOptions" Header="连接选项" Margin="0,12,0,0">
+         <StackPanel Margin="12,0,12,12">
+          <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=githubUsername}" Content="GitHub 用户名（HTTPS，可选）"/>
+          <ui:TextBox x:Name="githubUsername" Width="256" HorizontalAlignment="Left" ToolTip="填写此项目用来授权的账号，可以与仓库所有者不同。"/>
+          <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=gitSshCommand}" Content="SSH 命令与参数（可选）"/>
+          <ui:TextBox x:Name="gitSshCommand"/>
+         </StackPanel>
+        </Expander>
+        <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Margin="0,12,0,0" Content="测试远端连接" Click="TestRemote"/>
+       </StackPanel>
+      </Border>
      </ScrollViewer>
     </TabItem>
     <TabItem x:Name="LocalSettingsTab" Header="Git 本地仓库">
-     <ScrollViewer VerticalScrollBarVisibility="Auto">
-      <StackPanel Margin="24,14,24,24">
-       <Label Padding="0,8,0,5" Target="{Binding ElementName=ProjectName}" Content="项目名称"/>
-       <ui:TextBox x:Name="ProjectName" Margin="0,0,0,10"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=windowsRepo}" Content="仓库路径"/>
+     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <Border Style="{StaticResource SettingsForm}">
+       <StackPanel>
+        <TextBlock Text="项目与仓库" Style="{StaticResource SettingsSectionTitle}"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=ProjectName}" Content="项目名称"/>
+        <ui:TextBox x:Name="ProjectName" Width="288" HorizontalAlignment="Left"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=windowsRepo}" Content="仓库路径"/>
         <DockPanel>
-         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="初始化 Git…" Click="InitializeLocalGit" Margin="8,0,0,0"/>
-         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0"/>
+         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0" VerticalAlignment="Center"/>
          <ui:TextBox x:Name="windowsRepo"/>
         </DockPanel>
-        <TextBlock x:Name="LocalGitStatus" Margin="0,8,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13" TextWrapping="Wrap"/>
-      </StackPanel>
+        <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Margin="0,12,0,0" Content="初始化 Git…" Click="InitializeLocalGit"/>
+        <TextBlock x:Name="LocalGitStatus" Style="{StaticResource WorkspaceSecondaryText}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+       </StackPanel>
+      </Border>
      </ScrollViewer>
     </TabItem>
     <TabItem Header="本地构建环境">
-     <ScrollViewer VerticalScrollBarVisibility="Auto">
-      <StackPanel Margin="24,14,24,24">
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=wslRepo}" Content="WSL 仓库路径"/>
+     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <Border Style="{StaticResource SettingsForm}">
+       <StackPanel>
+        <TextBlock Text="运行环境" Style="{StaticResource SettingsSectionTitle}"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=wslRepo}" Content="WSL 仓库路径"/>
         <DockPanel>
-         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测环境" Click="DetectWsl" Margin="8,0,0,0"/>
+         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测环境" Click="DetectWsl" Margin="8,0,0,0" VerticalAlignment="Center"/>
          <ui:TextBox x:Name="wslRepo"/>
         </DockPanel>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=WslDistribution}" Content="WSL 发行版"/>
-        <ComboBox x:Name="WslDistribution" SelectionChanged="ChooseWslDistribution"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=WslUserChoice}" Content="WSL 用户"/>
-        <ComboBox x:Name="WslUserChoice" SelectionChanged="ChooseWslUser"/>
+        <WrapPanel>
+         <StackPanel Width="248" Margin="0,0,16,0">
+          <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=WslDistribution}" Content="WSL 发行版"/>
+          <ComboBox x:Name="WslDistribution" SelectionChanged="ChooseWslDistribution"/>
+         </StackPanel>
+         <StackPanel Width="248">
+          <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=WslUserChoice}" Content="WSL 用户"/>
+          <ComboBox x:Name="WslUserChoice" SelectionChanged="ChooseWslUser"/>
+         </StackPanel>
+        </WrapPanel>
         <ui:TextBox x:Name="distro" Visibility="Collapsed"/>
         <ui:TextBox x:Name="wslUser" Visibility="Collapsed"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=pullPath}" Content="从远端拉入 WSL 的目录（每行一项）"/>
-        <ui:TextBox x:Name="pullPath" AcceptsReturn="True" Height="70" VerticalScrollBarVisibility="Visible"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=buildCommand}" Content="构建命令"/>
-        <ui:TextBox x:Name="buildCommand"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=previewCommand}" Content="预览命令（可选）"/>
-        <ui:TextBox x:Name="previewCommand" ToolTip="例如 pnpm docs:preview。请在命令输出中提供本地预览地址。"/>
-        <ui:ToggleSwitch x:Name="PreviewAfterBuild" Margin="0,8,0,0" OnContent="构建成功后在浏览器打开预览" OffContent="构建成功后在浏览器打开预览" AutomationProperties.Name="构建成功后在浏览器打开预览"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=reinstallCommand}" Content="重装依赖命令（可选）"/>
-        <ui:TextBox x:Name="reinstallCommand" AcceptsReturn="True" Height="98" VerticalScrollBarVisibility="Visible"
-                 ToolTip="在项目的 WSL 根目录执行，每行可填写一条 shell 命令。"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=themeUpgradeCommand}" Content="升级主题命令（可选）"/>
-        <ui:TextBox x:Name="themeUpgradeCommand" AcceptsReturn="True" Height="98" VerticalScrollBarVisibility="Visible"
-                 ToolTip="例如 pnpm dlx vp-update。在 WSL 项目根目录执行。"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=NodeVersion}" Content="Node.js 版本"/>
-        <ComboBox x:Name="NodeVersion" DisplayMemberPath="Label" SelectionChanged="ChooseNodeVersion"/>
-        <TextBlock x:Name="NodeHint" TextWrapping="Wrap"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=nodeBin}" Content="额外 PATH 目录（可选）"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=NodeVersion}" Content="Node.js 版本"/>
+        <ComboBox x:Name="NodeVersion" Width="248" HorizontalAlignment="Left" DisplayMemberPath="Label" SelectionChanged="ChooseNodeVersion"/>
+        <TextBlock x:Name="NodeHint" Style="{StaticResource WorkspaceSecondaryText}" TextWrapping="Wrap"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=nodeBin}" Content="额外 PATH 目录（可选）"/>
         <ui:TextBox x:Name="nodeBin"/>
 
-      </StackPanel>
+        <Border Style="{StaticResource SettingsSectionDivider}"/>
+        <TextBlock Text="构建与预览" Style="{StaticResource SettingsSectionTitle}"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=pullPath}" Content="从远端拉入 WSL 的目录（每行一项）"/>
+        <ui:TextBox x:Name="pullPath" AcceptsReturn="True" Height="72" VerticalScrollBarVisibility="Visible"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=buildCommand}" Content="构建命令"/>
+        <ui:TextBox x:Name="buildCommand"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=previewCommand}" Content="预览命令（可选）"/>
+        <ui:TextBox x:Name="previewCommand" ToolTip="例如 pnpm docs:preview。请在命令输出中提供本地预览地址。"/>
+        <ui:ToggleSwitch x:Name="PreviewAfterBuild" Margin="0,8,0,0" OnContent="构建成功后在浏览器打开预览" OffContent="构建成功后在浏览器打开预览" AutomationProperties.Name="构建成功后在浏览器打开预览"/>
+
+        <Border Style="{StaticResource SettingsSectionDivider}"/>
+        <TextBlock Text="维护命令" Style="{StaticResource SettingsSectionTitle}"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=reinstallCommand}" Content="重装依赖命令（可选）"/>
+        <ui:TextBox x:Name="reinstallCommand" AcceptsReturn="True" Height="96" VerticalScrollBarVisibility="Visible"
+                    ToolTip="在项目的 WSL 根目录执行，每行可填写一条 shell 命令。"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=themeUpgradeCommand}" Content="升级主题命令（可选）"/>
+        <ui:TextBox x:Name="themeUpgradeCommand" AcceptsReturn="True" Height="96" VerticalScrollBarVisibility="Visible"
+                    ToolTip="例如 pnpm dlx vp-update。在项目的 WSL 根目录执行。"/>
+       </StackPanel>
+      </Border>
      </ScrollViewer>
     </TabItem>
     <TabItem Header="同步与清理">
-     <ScrollViewer VerticalScrollBarVisibility="Auto">
-      <StackPanel Margin="24,14,24,24">
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=include}" Content="构建通过后同步的路径（每行一项）"/>
-        <ui:TextBox x:Name="include" LostKeyboardFocus="NormalizeSyncPathField" AcceptsReturn="True" Height="208" VerticalScrollBarVisibility="Visible"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=exclude}" Content="排除路径（每行一项，可留空）"/>
-        <ui:TextBox x:Name="exclude" LostKeyboardFocus="NormalizeSyncPathField" AcceptsReturn="True" Height="98" VerticalScrollBarVisibility="Visible"/>
-        <Label Padding="0,8,0,5" Target="{Binding ElementName=excludeSuffixes}" Content="排除文件名后缀（每行一项，可留空）"/>
-        <ui:TextBox x:Name="excludeSuffixes" AcceptsReturn="True" Height="98" VerticalScrollBarVisibility="Visible"
-                 ToolTip="填写文件名结尾，例如 Zone.Identifier 或 .map。"/>
-        <ui:ToggleSwitch x:Name="CleanUntracked" Margin="0,16,0,0" OnContent="同步前永久清理整个目标仓库中未跟踪且未忽略的文件" OffContent="同步前永久清理整个目标仓库中未跟踪且未忽略的文件" AutomationProperties.Name="同步前永久清理整个目标仓库中未跟踪且未忽略的文件"/>
-      </StackPanel>
+     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <Border Style="{StaticResource SettingsForm}">
+       <StackPanel>
+        <TextBlock Text="同步范围" Style="{StaticResource SettingsSectionTitle}"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=include}" Content="构建通过后同步的路径（每行一项）"/>
+        <ui:TextBox x:Name="include" LostKeyboardFocus="NormalizeSyncPathField" AcceptsReturn="True" Height="160" VerticalScrollBarVisibility="Visible"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=exclude}" Content="排除路径（每行一项，可留空）"/>
+        <ui:TextBox x:Name="exclude" LostKeyboardFocus="NormalizeSyncPathField" AcceptsReturn="True" Height="96" VerticalScrollBarVisibility="Visible"/>
+        <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=excludeSuffixes}" Content="排除文件名后缀（每行一项，可留空）"/>
+        <ui:TextBox x:Name="excludeSuffixes" AcceptsReturn="True" Height="96" VerticalScrollBarVisibility="Visible"
+                    ToolTip="填写文件名结尾，例如 Zone.Identifier 或 .map。"/>
+
+        <Border Style="{StaticResource SettingsSectionDivider}"/>
+        <TextBlock Text="目标仓库清理" Style="{StaticResource SettingsSectionTitle}"/>
+        <ui:ToggleSwitch x:Name="CleanUntracked" Margin="0,8,0,0" OnContent="同步前永久清理整个目标仓库中未跟踪且未忽略的文件" OffContent="同步前永久清理整个目标仓库中未跟踪且未忽略的文件" AutomationProperties.Name="同步前永久清理整个目标仓库中未跟踪且未忽略的文件"/>
+       </StackPanel>
+      </Border>
      </ScrollViewer>
     </TabItem>
     <TabItem Header="快速配置（JSON）" x:Name="JsonSettingsTab">
-     <DockPanel Margin="24,20,24,24">
-      <StackPanel DockPanel.Dock="Top">
-       <TextBlock Text="JSON 配置" FontSize="16" Margin="0,0,0,12"/>
-       <WrapPanel>
-        <ui:Button Appearance="Secondary" Content="导入文件" Click="Open"/>
+     <DockPanel Margin="24,16,24,20">
+      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+       <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
+        <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
         <ui:Button Appearance="Primary" Content="应用 JSON" Click="ApplyJson"/>
        </WrapPanel>
-       <TextBlock Text="粘贴或修改 JSON 后，点击「应用 JSON」更新项目设置。" TextWrapping="Wrap" Margin="0,4,0,8"/>
-      </StackPanel>
-      <ui:TextBox x:Name="Config" Style="{StaticResource WorkspaceLog}" AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto"/>
+       <TextBlock Text="粘贴或修改 JSON 后，点击「应用 JSON」更新项目设置。" Style="{StaticResource WorkspaceSecondaryText}"
+                  TextWrapping="Wrap" VerticalAlignment="Center"/>
+      </DockPanel>
+      <ui:TextBox x:Name="Config" Style="{StaticResource WorkspaceLog}" AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="JSON 配置"/>
      </DockPanel>
     </TabItem>
    </TabControl>
