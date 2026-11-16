@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
+using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
 
 namespace ProjectSync.App.Views;
 
@@ -500,6 +501,13 @@ public partial class MainWindow
         RetryPushButton.IsEnabled = !running && canRetry > 0;
         RetryPushButton.Visibility = canRetry > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+        // Prefer finishing work that has already reached a later stage.
+        var batchButtons = new[] { RetryPushButton, PublishBatchButton, ApplyBatchButton, PreviewBatchButton };
+        var primaryAction = Array.Find(batchButtons, button => button.IsEnabled);
+        foreach (var button in batchButtons)
+            button.Appearance = button == primaryAction ? ControlAppearance.Primary : ControlAppearance.Secondary;
+        NewProjectButton.Appearance = primaryAction is null ? ControlAppearance.Primary : ControlAppearance.Secondary;
+
         SelectionSummary.Text = selected.Length == 0 ? "勾选项目后开始" :
             $"已勾选 {selected.Length} 个 · 可同步 {canApply} 个 · 可推送 {canPublish + canRetry} 个";
     }
@@ -564,11 +572,11 @@ public partial class MainWindow
         };
         System.Windows.Controls.DockPanel.SetDock(actions, System.Windows.Controls.Dock.Bottom);
         body.Children.Add(actions);
-        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary, Margin = new Thickness(0, 0, 8, 0) };
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Appearance = ControlAppearance.Secondary, Margin = new Thickness(0, 0, 8, 0) };
         var accept = new Wpf.Ui.Controls.Button
         {
             Content = "提交并推送", IsDefault = true, IsEnabled = false,
-            Appearance = Wpf.Ui.Controls.ControlAppearance.Primary
+            Appearance = ControlAppearance.Primary
         };
         actions.Children.Add(cancel);
         actions.Children.Add(accept);
