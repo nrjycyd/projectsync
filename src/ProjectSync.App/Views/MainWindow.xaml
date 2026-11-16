@@ -82,10 +82,10 @@
       </ui:SplitButton>
       <ui:DropDownButton x:Name="ToolsButton" Content="工具" Appearance="Secondary" Height="34" PreviewKeyDown="MenuKeyDown">
        <ui:DropDownButton.Flyout>
-        <ContextMenu>
+        <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}">
          <ui:MenuItem Header="文件复制" Icon="{ui:SymbolIcon Copy24}" Click="OpenFileCopy"/>
          <ui:MenuItem Header="WSL 环境" Icon="{ui:SymbolIcon Desktop24}" Click="OpenWslManager"/>
-        </ContextMenu>
+        </local:RightAlignedContextMenu>
        </ui:DropDownButton.Flyout>
       </ui:DropDownButton>
      </StackPanel>
