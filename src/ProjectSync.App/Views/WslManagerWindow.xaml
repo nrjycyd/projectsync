@@ -169,12 +169,12 @@
        <ui:DropDownButton Grid.Column="2" Height="30" HorizontalAlignment="Stretch" Padding="6,0" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
         <ui:DropDownButton.Flyout>
          <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-          <ui:MenuItem Header="配置开发环境…" Click="ConfigureDevelopmentClick"/>
+          <ui:MenuItem Header="配置开发环境" Click="ConfigureDevelopmentClick"/>
           <ui:MenuItem Header="设为默认" Click="DefaultClick"/>
-          <ui:MenuItem Header="调整磁盘上限…" Click="ResizeClick"/>
-          <ui:MenuItem Header="导出备份…" Click="ExportClick"/>
+          <ui:MenuItem Header="调整磁盘上限" Click="ResizeClick"/>
+          <ui:MenuItem Header="导出备份" Click="ExportClick"/>
           <Separator/>
-          <ui:MenuItem Header="注销并删除…" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Click="DeleteClick"/>
+          <ui:MenuItem Header="注销并删除" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Click="DeleteClick"/>
          </ContextMenu>
         </ui:DropDownButton.Flyout>
        </ui:DropDownButton>

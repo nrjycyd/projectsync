@@ -8,7 +8,7 @@
 
  <ui:FluentWindow.Resources>
   <ContextMenu x:Key="ProjectRowMenu" x:Shared="False" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-   <ui:MenuItem Header="移除项目…" Icon="{ui:SymbolIcon SubtractCircle16, FontSize=16}"
+   <ui:MenuItem Header="移除项目" Icon="{ui:SymbolIcon SubtractCircle16, FontSize=16}"
                 Foreground="{DynamicResource SystemFillColorCriticalBrush}" Click="RemoveProject"/>
   </ContextMenu>
   <Style x:Key="ToolbarMenuIcon" TargetType="ui:SymbolIcon">
