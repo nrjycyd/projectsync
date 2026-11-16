@@ -35,19 +35,19 @@
   <Grid Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
   <DockPanel x:Name="HomePage" Margin="24,16,24,16" Background="Transparent" TextElement.FontSize="14">
    <local:HomeToolbarPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-    <StackPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
-     <StackPanel.Resources>
+    <WrapPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
+     <WrapPanel.Resources>
       <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{DynamicResource TextFillColorPrimary}"/>
-     </StackPanel.Resources>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowSync24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUpload24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="RetryPushButton" Content="重试推送"
+     </WrapPanel.Resources>
+     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
+     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowSync24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
+     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUpload24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
+     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="RetryPushButton" Content="重试推送"
              Visibility="Collapsed" Click="RetryPushSelected"/>
-    </StackPanel>
-     <StackPanel x:Name="HomeActions" Orientation="Horizontal">
+    </WrapPanel>
+     <WrapPanel x:Name="HomeActions" Orientation="Horizontal">
       <ui:SplitButton x:Name="NewProjectButton" Content="新建项目" Appearance="Primary"
-                      MinWidth="116" Height="34" Margin="0,0,8,0" Click="NewProject" PreviewKeyDown="MenuKeyDown">
+                      MinWidth="116" MinHeight="34" Margin="0,0,8,0" Click="NewProject" PreviewKeyDown="MenuKeyDown">
        <ui:SplitButton.Style>
         <Style TargetType="ui:SplitButton" BasedOn="{StaticResource {x:Type ui:SplitButton}}">
          <Style.Triggers>
@@ -71,7 +71,7 @@
         </ContextMenu>
        </ui:SplitButton.Flyout>
       </ui:SplitButton>
-      <ui:DropDownButton x:Name="ToolsButton" Content="工具" Appearance="Secondary" Height="34" PreviewKeyDown="MenuKeyDown">
+      <ui:DropDownButton x:Name="ToolsButton" Content="工具" Appearance="Secondary" MinHeight="34" PreviewKeyDown="MenuKeyDown">
        <ui:DropDownButton.Flyout>
         <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}">
          <ui:MenuItem Header="文件复制" Click="OpenFileCopy">
@@ -87,7 +87,7 @@
         </local:RightAlignedContextMenu>
        </ui:DropDownButton.Flyout>
       </ui:DropDownButton>
-     </StackPanel>
+     </WrapPanel>
    </local:HomeToolbarPanel>
    <Border x:Name="BatchProgressPanel" DockPanel.Dock="Top" Style="{StaticResource WorkspacePanel}"
            Margin="0,0,0,8" Padding="12,6" Visibility="Collapsed">
@@ -322,8 +322,8 @@
          <StackPanel Width="352" Margin="0,0,16,0">
           <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=remote}" Content="远端名称"/>
           <DockPanel>
-           <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测远端名称" Click="DetectRemotes" ToolTip="从 Git 本地仓库的仓库路径读取远端名称" Margin="8,0,0,0" VerticalAlignment="Center" MinHeight="32"/>
-           <ComboBox x:Name="remote" IsEditable="True" IsTextSearchEnabled="False" ToolTip="例如 origin"/>
+           <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测远端名称" Click="DetectRemotes" ToolTip="从 Git 本地仓库的仓库路径读取远端名称" Margin="8,0,0,0" VerticalAlignment="Stretch" MinHeight="34"/>
+           <ComboBox x:Name="remote" VerticalAlignment="Stretch" IsEditable="True" IsTextSearchEnabled="False" ToolTip="例如 origin"/>
           </DockPanel>
          </StackPanel>
          <StackPanel Width="224">
@@ -358,8 +358,8 @@
         <ui:TextBox x:Name="ProjectName" Width="288" HorizontalAlignment="Left"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=windowsRepo}" Content="仓库路径"/>
         <DockPanel>
-         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0" VerticalAlignment="Center"/>
-         <ui:TextBox x:Name="windowsRepo"/>
+         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0" VerticalAlignment="Stretch" MinHeight="34"/>
+         <ui:TextBox x:Name="windowsRepo" VerticalAlignment="Stretch" MinHeight="34"/>
         </DockPanel>
         <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Margin="0,12,0,0" Content="初始化 Git…" Click="InitializeLocalGit"/>
         <ui:InfoBar x:Name="LocalGitStatus" IsOpen="False" IsClosable="False" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
@@ -374,8 +374,8 @@
         <TextBlock Text="运行环境" Style="{StaticResource SettingsSectionTitle}"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=wslRepo}" Content="WSL 仓库路径"/>
         <DockPanel>
-         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测环境" Click="DetectWsl" Margin="8,0,0,0" VerticalAlignment="Center"/>
-         <ui:TextBox x:Name="wslRepo"/>
+         <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测环境" Click="DetectWsl" Margin="8,0,0,0" VerticalAlignment="Stretch" MinHeight="34"/>
+         <ui:TextBox x:Name="wslRepo" VerticalAlignment="Stretch" MinHeight="34"/>
         </DockPanel>
         <WrapPanel>
          <StackPanel Width="248" Margin="0,0,16,0">

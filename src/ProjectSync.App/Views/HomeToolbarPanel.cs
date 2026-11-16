@@ -13,7 +13,7 @@ public sealed class HomeToolbarPanel : Panel
     protected override Size MeasureOverride(Size availableSize)
     {
         foreach (UIElement child in InternalChildren)
-            child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            child.Measure(new Size(availableSize.Width, double.PositiveInfinity));
 
         var (batch, tools) = GetRectangles(availableSize.Width);
         return new Size(Math.Min(availableSize.Width, tools.Right), Math.Max(batch.Bottom, tools.Bottom));
