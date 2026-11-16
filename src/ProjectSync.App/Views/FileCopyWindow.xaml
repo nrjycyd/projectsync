@@ -13,8 +13,8 @@
   <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
     <ui:Button x:Name="CancelCopy" Content="取消" Click="CancelClick" Visibility="Collapsed" Margin="0,0,8,0"/>
-    <ui:Button x:Name="PreviewCopy" Content="预览复制" Click="PreviewClick" Margin="0,0,8,0"/>
-    <ui:Button x:Name="StartCopy" Content="开始复制" Appearance="Primary" Icon="{ui:SymbolIcon Copy24}" Click="CopyClick"/>
+    <ui:Button x:Name="PreviewCopy" Content="预览复制" Appearance="Primary" IsEnabled="False" Click="PreviewClick" Margin="0,0,8,0"/>
+    <ui:Button x:Name="StartCopy" Content="开始复制" Appearance="Secondary" IsEnabled="False" Icon="{ui:SymbolIcon Copy24}" Click="CopyClick"/>
    </StackPanel>
    <TextBlock x:Name="CopyStatus" Style="{StaticResource WorkspaceSecondaryText}" Margin="0,10,0,0" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
   </StackPanel>
@@ -30,14 +30,16 @@
    </DockPanel>
    <DockPanel Margin="0,0,0,4">
     <ComboBox x:Name="TargetLocation" DockPanel.Dock="Right" Width="184" SelectionChanged="EndpointChanged" AutomationProperties.Name="目标位置"/>
-    <ui:Button DockPanel.Dock="Right" Content="交换" Icon="{ui:SymbolIcon ArrowSwap24}" Click="SwapClick" Margin="0,0,8,0"
-               ToolTip="交换来源和目标" AutomationProperties.Name="交换来源和目标" VerticalAlignment="Center"/>
+    <ui:Button x:Name="SwapEndpoints" DockPanel.Dock="Right" Content="交换" IsEnabled="False" Icon="{ui:SymbolIcon ArrowSwap24}" Click="SwapClick" Margin="0,0,8,0"
+               ToolTip="仅在来源和目标均为现有目录时交换" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="交换来源和目标" VerticalAlignment="Center"/>
     <Label Content="目标目录" Target="{Binding ElementName=TargetPath}" Padding="0" VerticalAlignment="Center"/>
    </DockPanel>
    <DockPanel>
     <ui:Button DockPanel.Dock="Right" Content="浏览…" Click="BrowseTargetFolder" Margin="8,0,0,0"/>
     <ui:TextBox x:Name="TargetPath" TextChanged="OptionsChanged"/>
    </DockPanel>
+   <TextBlock x:Name="SwapFeedback" Style="{StaticResource WorkspaceSecondaryText}" Margin="0,4,0,0"
+              Visibility="Collapsed" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
    <WrapPanel Margin="0,8,0,0">
     <Label Content="同名文件" Target="{Binding ElementName=Conflict}" VerticalAlignment="Center" Padding="0,0,8,0"/>
     <ComboBox x:Name="Conflict" Width="109" SelectedIndex="0" SelectionChanged="OptionsChanged">

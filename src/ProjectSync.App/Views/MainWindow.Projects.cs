@@ -268,9 +268,16 @@ public partial class MainWindow
 
     private bool TrySaveProject()
     {
-        if (jsonDraft || string.IsNullOrWhiteSpace(ProjectName.Text))
+        if (jsonDraft)
         {
-            Status.Text = jsonDraft ? "请先应用待处理的 JSON 改动。" : "请填写项目名称。";
+            ShowPendingJson("请先应用到表单，再保存项目。");
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(ProjectName.Text))
+        {
+            SettingsTabs.SelectedItem = LocalSettingsTab;
+            ProjectName.Focus();
+            Status.Text = "请填写项目名称。";
             return false;
         }
 
@@ -326,13 +333,22 @@ public partial class MainWindow
         Projects.SelectedItem = activeProject;
     }
 
+    private void ProjectRowMenuOpening(object sender, System.Windows.Controls.ContextMenuEventArgs e)
+    {
+        if (running) e.Handled = true;
+    }
+
     private void RemoveProject(object sender, RoutedEventArgs e)
     {
-        if (Projects.SelectedItem is not ProjectEntry entry ||
-            ConfirmProjectAction("移除项目", $"从列表移除「{entry.Name}」？仓库文件会保留。", "移除", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
+        if (running || sender is not System.Windows.Controls.MenuItem { DataContext: ProjectEntry row })
             return;
 
-        int index = savedProjects.IndexOf(entry);
+        int index = savedProjects.FindIndex(project => project.Id == row.Id);
+        if (index < 0) return;
+        var entry = savedProjects[index];
+        if (ConfirmProjectAction("移除项目", $"从列表移除「{entry.Name}」？仓库文件会保留。", "移除", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
+            return;
+
         savedProjects.RemoveAt(index);
         try { PersistProjects(); }
         catch (Exception error)
@@ -489,8 +505,19 @@ public partial class MainWindow
     private void MenuKeyDown(object sender, System.Windows.Input.KeyEventArgs e) =>
         FlyoutKeyboard.Handle(sender, e);
 
-    private void ProjectMenuOpened(object sender, RoutedEventArgs e) =>
-        RemoveProjectItem.IsEnabled = Projects.SelectedItem is ProjectEntry;
+    private bool CanRunBatchOperation(ProjectEntry project, Operation operation)
+    {
+        projectRuns.TryGetValue(project.Id, out var state);
+        bool pending = state?.Progress == "已提交，待推送";
+        return operation switch
+        {
+            Operation.Preview => !pending,
+            Operation.Apply => !pending && state?.Plan is not null,
+            Operation.Publish => !pending && state?.Synced is not null,
+            Operation.RetryPush => pending && state?.Synced is not null,
+            _ => false
+        };
+    }
 
     private void UpdateHomeActions()
     {
@@ -498,12 +525,11 @@ public partial class MainWindow
             return;
 
         var selected = savedProjects.Where(project => project.Checked).ToArray();
-        int canApply = selected.Count(project => projectRuns.TryGetValue(project.Id, out var state) && state.Plan is not null);
-        int canPublish = selected.Count(project => projectRuns.TryGetValue(project.Id, out var state) &&
-            state.Synced is not null && state.Progress != "已提交，待推送");
-        int canRetry = selected.Count(project => projectRuns.TryGetValue(project.Id, out var state) &&
-            state.Progress == "已提交，待推送");
-        PreviewBatchButton.IsEnabled = !running && selected.Length > 0;
+        int canPreview = selected.Count(project => CanRunBatchOperation(project, Operation.Preview));
+        int canApply = selected.Count(project => CanRunBatchOperation(project, Operation.Apply));
+        int canPublish = selected.Count(project => CanRunBatchOperation(project, Operation.Publish));
+        int canRetry = selected.Count(project => CanRunBatchOperation(project, Operation.RetryPush));
+        PreviewBatchButton.IsEnabled = !running && canPreview > 0;
         ApplyBatchButton.IsEnabled = !running && canApply > 0;
         PublishBatchButton.IsEnabled = !running && canPublish > 0;
         RetryPushButton.IsEnabled = !running && canRetry > 0;
@@ -517,7 +543,7 @@ public partial class MainWindow
         NewProjectButton.Appearance = primaryAction is null ? ControlAppearance.Primary : ControlAppearance.Secondary;
 
         SelectionSummary.Text = selected.Length == 0 ? "勾选项目后开始" :
-            $"已勾选 {selected.Length} 个 · 可同步 {canApply} 个 · 可推送 {canPublish + canRetry} 个";
+            $"勾选 {selected.Length} · 可预览 {canPreview} · 可同步 {canApply} · 可提交推送 {canPublish} · 待重试 {canRetry}";
     }
 
     private async void PreviewSelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.Preview);
@@ -613,21 +639,17 @@ public partial class MainWindow
     {
         batchCancellation?.Cancel();
         StopBatchButton.IsEnabled = false;
-        HomeStatus.Text = "正在停止批量操作…";
+        BatchProgressText.Text = "正在停止批量操作…";
     }
 
     private async Task RunSelectedAsync(Operation operation)
     {
         if (running) return;
         bool publishing = operation is Operation.Publish or Operation.RetryPush;
-        var selected = savedProjects.Where(project => project.Checked).Where(project =>
-        {
-            bool pending = projectRuns.TryGetValue(project.Id, out var state) && state.Progress == "已提交，待推送";
-            return operation == Operation.RetryPush ? pending : operation != Operation.Publish || !pending;
-        }).ToArray();
+        var selected = savedProjects.Where(project => project.Checked && CanRunBatchOperation(project, operation)).ToArray();
         if (selected.Length == 0)
         {
-            HomeStatus.Text = "请先勾选要操作的项目。";
+            HomeStatus.Text = "当前勾选的项目中没有可执行此操作的项目。";
             return;
         }
 
@@ -644,7 +666,9 @@ public partial class MainWindow
         using var cancellation = new CancellationTokenSource();
         batchCancellation = cancellation;
         StopBatchButton.IsEnabled = true;
-        StopBatchButton.Visibility = Visibility.Visible;
+        BatchProgressText.Text = $"正在准备处理 {selected.Length} 个项目…";
+        BatchProgressPanel.Visibility = Visibility.Visible;
+        HomeStatus.Text = "";
         running = true;
         HomePage.Tag = true;
         HomeActions.IsEnabled = false;
@@ -657,7 +681,6 @@ public partial class MainWindow
             HomeChangesSummary.Text = "正在生成变更清单…";
         }
         int completed = 0;
-        int skipped = 0;
         int failed = 0;
         string? lastFailure = null;
         try
@@ -695,22 +718,10 @@ public partial class MainWindow
             foreach (var project in selected)
             {
                 if (cancellation.IsCancellationRequested) break;
-                HomeStatus.Text = $"正在处理「{project.Name}」 · {++position}/{selected.Length}";
+                BatchProgressText.Text = $"正在处理「{project.Name}」 · {++position}/{selected.Length}";
                 WriteHomeLog($"[{project.Name}] {operation switch { Operation.Preview => "构建并预览", Operation.Apply => "应用同步", Operation.RetryPush => "重试推送", _ => "提交并推送" }}");
                 projectRuns.TryGetValue(project.Id, out var state);
-                if (!publishing && state?.Progress == "已提交，待推送")
-                {
-                    WriteHomeLog("已跳过。此项目已有待推送提交，请先重试推送。");
-                    skipped++;
-                    continue;
-                }
                 string? expected = publishing ? state?.Synced : state?.Plan;
-                if (operation != Operation.Preview && expected is null)
-                {
-                    WriteHomeLog(publishing ? "已跳过，请先应用同步。" : "已跳过，请先构建并预览。");
-                    skipped++;
-                    continue;
-                }
                 string? pending = publishing && expected?.Count(ch => ch == ':') == 2 ? expected : null;
                 projectRuns.Remove(project.Id);
                 DeletePreview(project);
@@ -778,7 +789,7 @@ public partial class MainWindow
         {
             running = false;
             batchCancellation = null;
-            StopBatchButton.Visibility = Visibility.Collapsed;
+            BatchProgressPanel.Visibility = Visibility.Collapsed;
             HomePage.Tag = false;
             HomeActions.IsEnabled = true;
             RefreshProjects();
@@ -788,7 +799,7 @@ public partial class MainWindow
                 if (completed == selected.Length) HomeResults.SelectedItem = HomeChangesTab;
             }
             HomeStatus.Text = (cancellation.IsCancellationRequested ? "已停止 · " : "") +
-                $"完成 {completed} 个 · 失败 {failed} 个 · 跳过 {skipped} 个" +
+                $"完成 {completed} 个 · 失败 {failed} 个" +
                 (lastFailure is null ? "" : $" · {lastFailure}");
             if (closeAfterBatch)
             {

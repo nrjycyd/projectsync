@@ -7,11 +7,22 @@
  Background="{DynamicResource ApplicationBackgroundBrush}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" UseLayoutRounding="True" FontFamily="{StaticResource WorkspaceTypeface}" Icon="/ProjectSync.App;component/Assets/ProjectSync.ico">
 
  <ui:FluentWindow.Resources>
+  <ContextMenu x:Key="ProjectRowMenu" x:Shared="False" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+   <ui:MenuItem Header="移除项目…" Icon="{ui:SymbolIcon SubtractCircle16, FontSize=16}"
+                Foreground="{DynamicResource SystemFillColorCriticalBrush}" Click="RemoveProject"/>
+  </ContextMenu>
   <Style x:Key="ProjectCellText" TargetType="TextBlock">
    <Setter Property="Margin" Value="12,0,6,0"/>
    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
    <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style x:Key="InlineTaskStatus" TargetType="TextBlock" BasedOn="{StaticResource WorkspaceSecondaryText}">
+   <Setter Property="Margin" Value="0,4,0,0"/>
+   <Setter Property="TextWrapping" Value="Wrap"/>
+   <Style.Triggers>
+    <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger>
+   </Style.Triggers>
   </Style>
   <ControlTemplate x:Key="SettingsTabsLayout" TargetType="TabControl">
    <Grid>
@@ -59,11 +70,8 @@
         </Style>
        </ui:SplitButton.Style>
        <ui:SplitButton.Flyout>
-        <ContextMenu Opened="ProjectMenuOpened">
+        <ContextMenu>
          <ui:MenuItem Header="导入 JSON" Icon="{ui:SymbolIcon FolderOpen16, FontSize=16}" Click="ImportProject"/>
-         <Separator/>
-         <ui:MenuItem x:Name="RemoveProjectItem" Header="移除" Icon="{ui:SymbolIcon SubtractCircle16, FontSize=16}" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-                      Click="RemoveProject" IsEnabled="False"/>
         </ContextMenu>
        </ui:SplitButton.Flyout>
       </ui:SplitButton>
@@ -80,12 +88,20 @@
                ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
                VerticalAlignment="Center"/>
    </local:HomeToolbarPanel>
+   <Border x:Name="BatchProgressPanel" DockPanel.Dock="Top" Style="{StaticResource WorkspacePanel}"
+           Margin="0,0,0,8" Padding="12,6" Visibility="Collapsed">
+    <DockPanel>
+     <ui:Button x:Name="StopBatchButton" DockPanel.Dock="Right" Appearance="Secondary"
+                Margin="12,0,0,0" Content="停止" Click="StopBatch"
+                ToolTip="取消构建和预览，或在当前同步或推送结束后停止批量操作"/>
+     <TextBlock x:Name="BatchProgressText" VerticalAlignment="Center" TextWrapping="Wrap"
+                AutomationProperties.LiveSetting="Polite"/>
+    </DockPanel>
+   </Border>
    <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="0,6,0,2"
            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
     <DockPanel>
      <StackPanel x:Name="FooterActions" DockPanel.Dock="Right" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-      <ui:Button Appearance="Secondary" x:Name="StopBatchButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="停止" Click="StopBatch" Visibility="Collapsed"
-              ToolTip="取消构建和预览，或在当前同步或推送结束后停止批量操作"/>
       <ui:Button Appearance="Secondary" x:Name="ExportDiagnosticsButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="导出诊断" Click="ExportDiagnostics"/>
       <TextBlock x:Name="ThemeChoiceCaption" Text="主题" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"
                  Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
@@ -137,6 +153,8 @@
      <DataGrid.RowStyle>
       <Style TargetType="DataGridRow">
        <EventSetter Event="MouseDoubleClick" Handler="OpenProjectRow"/>
+       <EventSetter Event="ContextMenuOpening" Handler="ProjectRowMenuOpening"/>
+       <Setter Property="ContextMenu" Value="{DynamicResource ProjectRowMenu}"/>
        <Style.Triggers>
         <DataTrigger Binding="{Binding Checked}" Value="True"><Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/></DataTrigger>
        </Style.Triggers>
@@ -307,7 +325,7 @@
          <StackPanel Width="352" Margin="0,0,16,0">
           <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=remote}" Content="远端名称"/>
           <DockPanel>
-           <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测远端名称" Click="DetectRemotes" Margin="8,0,0,0" VerticalAlignment="Center" MinHeight="32"/>
+           <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="检测远端名称" Click="DetectRemotes" ToolTip="从 Git 本地仓库的仓库路径读取远端名称" Margin="8,0,0,0" VerticalAlignment="Center" MinHeight="32"/>
            <ComboBox x:Name="remote" IsEditable="True" IsTextSearchEnabled="False" MinHeight="32" ToolTip="例如 origin"/>
           </DockPanel>
          </StackPanel>
@@ -316,6 +334,7 @@
           <ComboBox x:Name="branch" IsEditable="True" IsTextSearchEnabled="False" MinHeight="32"/>
          </StackPanel>
         </WrapPanel>
+        <TextBlock x:Name="RemoteDetectionStatus" Style="{StaticResource InlineTaskStatus}" AutomationProperties.LiveSetting="Polite"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=remoteUrl}" Content="远端仓库地址"/>
         <ui:TextBox x:Name="remoteUrl" ToolTip="git@github.com:账号/仓库.git 或 https://github.com/账号/仓库.git"/>
         <TextBlock Text="留空时使用远端名称" Style="{StaticResource WorkspaceSecondaryText}" Margin="0,4,0,0"/>
@@ -328,6 +347,7 @@
          </StackPanel>
         </Expander>
         <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Margin="0,12,0,0" Content="测试远端连接" Click="TestRemote"/>
+        <TextBlock x:Name="RemoteTestStatus" Style="{StaticResource InlineTaskStatus}" AutomationProperties.LiveSetting="Polite"/>
        </StackPanel>
       </Border>
      </ScrollViewer>
@@ -425,9 +445,9 @@
       <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
        <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
         <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
-        <ui:Button Appearance="Primary" Content="应用 JSON" Click="ApplyJson"/>
+        <ui:Button Appearance="Primary" Content="应用到表单" Click="ApplyJson"/>
        </WrapPanel>
-       <TextBlock Text="粘贴或修改 JSON 后，点击「应用 JSON」更新项目设置。" Style="{StaticResource WorkspaceSecondaryText}"
+       <TextBlock x:Name="JsonStatus" Text="应用到表单后，点击「保存项目」写入项目列表。" Style="{StaticResource WorkspaceSecondaryText}" AutomationProperties.LiveSetting="Polite"
                   TextWrapping="Wrap" VerticalAlignment="Center"/>
       </DockPanel>
       <ui:TextBox x:Name="Config" Style="{StaticResource WorkspaceLog}" AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="JSON 配置"/>

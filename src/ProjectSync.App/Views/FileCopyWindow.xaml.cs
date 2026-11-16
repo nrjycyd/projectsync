@@ -22,6 +22,8 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
     private sealed record PreviewRow(string Action, string Path);
     private IReadOnlyList<CopyEntry>? preview;
     private CancellationTokenSource? operation;
+    private bool checkingSwap;
+    private bool swapRejected;
 
     internal FileCopyWindow(Func<Task<string[]>> getDistributions)
     {
@@ -30,6 +32,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         SourceLocation.Items.Add(pc);
         TargetLocation.Items.Add(pc);
         SourceLocation.SelectedIndex = TargetLocation.SelectedIndex = 0;
+        UpdateCopyActions();
         Loaded += async (_, _) =>
         {
             try
@@ -65,15 +68,64 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (Changes is null) return;
         preview = null;
+        swapRejected = false;
+        SwapFeedback.Visibility = Visibility.Collapsed;
         Changes.ItemsSource = null;
-        CopyStatus.Text = "请选择来源和目标，或直接输入绝对路径。";
+        CopyStatus.Text = "填写来源和目标后，先预览复制清单。";
+        UpdateCopyActions();
     }
 
-    private void SwapClick(object sender, RoutedEventArgs e)
+    private void UpdateCopyActions()
     {
-        (SourceLocation.SelectedItem, TargetLocation.SelectedItem) =
-            (TargetLocation.SelectedItem, SourceLocation.SelectedItem);
-        (SourcePath.Text, TargetPath.Text) = (TargetPath.Text, SourcePath.Text);
+        bool idle = operation is null && !checkingSwap;
+        bool pathsEntered = !string.IsNullOrWhiteSpace(SourcePath.Text) && !string.IsNullOrWhiteSpace(TargetPath.Text);
+        bool canCopy = preview?.Any(entry => entry.Action is CopyAction.Copy or CopyAction.Replace or CopyAction.CreateDirectory) == true;
+        CopyOptions.IsEnabled = idle;
+        SwapEndpoints.IsEnabled = idle && pathsEntered && !swapRejected;
+        PreviewCopy.IsEnabled = idle && pathsEntered;
+        StartCopy.IsEnabled = idle && canCopy;
+        PreviewCopy.Appearance = canCopy ? Wpf.Ui.Controls.ControlAppearance.Secondary : Wpf.Ui.Controls.ControlAppearance.Primary;
+        StartCopy.Appearance = canCopy ? Wpf.Ui.Controls.ControlAppearance.Primary : Wpf.Ui.Controls.ControlAppearance.Secondary;
+    }
+
+    private async void SwapClick(object sender, RoutedEventArgs e) => await SwapEndpointsAsync();
+
+    private async Task SwapEndpointsAsync()
+    {
+        if (!SwapEndpoints.IsEnabled) return;
+
+        checkingSwap = true;
+        UpdateCopyActions();
+        try
+        {
+            var source = FileCopy.ResolvePath(SourcePath.Text, Distribution(SourceLocation));
+            var target = FileCopy.ResolvePath(TargetPath.Text, Distribution(TargetLocation));
+            if (!await Task.Run(() => Directory.Exists(source) && Directory.Exists(target)))
+            {
+                ShowSwapFeedback("仅可交换两个现有目录。来源为单个文件时，目标仍须是目录。");
+                return;
+            }
+
+            (SourceLocation.SelectedItem, TargetLocation.SelectedItem) =
+                (TargetLocation.SelectedItem, SourceLocation.SelectedItem);
+            (SourcePath.Text, TargetPath.Text) = (TargetPath.Text, SourcePath.Text);
+        }
+        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            ShowSwapFeedback(error.Message);
+        }
+        finally
+        {
+            checkingSwap = false;
+            UpdateCopyActions();
+        }
+    }
+
+    private void ShowSwapFeedback(string message)
+    {
+        swapRejected = true;
+        SwapFeedback.Text = message;
+        SwapFeedback.Visibility = Visibility.Visible;
     }
 
     private void BrowseSourceFile(object sender, RoutedEventArgs e) => Browse(SourceLocation, SourcePath, true);
@@ -110,6 +162,11 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
             }
             FileCopy.ResolvePath(selected, distro);
             field.Text = selected;
+            if (file && field == SourcePath)
+            {
+                ShowSwapFeedback("来源为单个文件时不能交换。请选择来源目录后再试。");
+                UpdateCopyActions();
+            }
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
         {
@@ -131,10 +188,15 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
 
     private async Task RunAsync(bool apply)
     {
-        if (operation is not null) return;
+        if (operation is not null || checkingSwap) return;
+        if (apply && !StartCopy.IsEnabled)
+        {
+            CopyStatus.Text = "请先预览复制清单。";
+            return;
+        }
         using var cancellation = new CancellationTokenSource();
         operation = cancellation;
-        CopyOptions.IsEnabled = PreviewCopy.IsEnabled = StartCopy.IsEnabled = false;
+        UpdateCopyActions();
         CancelCopy.Visibility = Visibility.Visible;
         CopyStatus.Text = "正在检查来源和目标…";
         int filesCopied = 0, directoriesCreated = 0;
@@ -160,7 +222,12 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
             int skips = plan.Count(entry => entry.Action is CopyAction.SkipExisting or CopyAction.SkipDownloadMark);
             int folders = plan.Count(entry => entry.Action == CopyAction.CreateDirectory);
             CopyStatus.Text = $"复制 {copies} 个 · 覆盖 {replacements} 个 · 跳过 {skips} 个 · 创建目录 {folders} 个";
-            if (!apply) return;
+            if (!apply)
+            {
+                if (copies + replacements + folders == 0)
+                    CopyStatus.Text = $"没有需要复制的项目，跳过 {skips} 个。";
+                return;
+            }
             if (changed)
             {
                 CopyStatus.Text = "来源或目标已变化，已刷新清单。请核对后再次点击开始复制。";
@@ -197,7 +264,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         finally
         {
             operation = null;
-            CopyOptions.IsEnabled = PreviewCopy.IsEnabled = StartCopy.IsEnabled = true;
+            UpdateCopyActions();
             CancelCopy.Visibility = Visibility.Collapsed;
         }
     }

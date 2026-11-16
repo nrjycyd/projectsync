@@ -130,7 +130,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             if (loading) return;
             jsonDraft = true;
             ResetPreview();
-            Status.Text = "JSON 有待应用的改动。";
+            JsonStatus.Text = "JSON 有待应用的改动。应用到表单后，还需保存项目。";
         };
         InitializeProjects();
     }
@@ -181,6 +181,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         branch.Text = configuredBranch;
         foreach (var field in fields)
             field.Value.Text = values[field.Key];
+        RemoteDetectionStatus.Text = "";
+        RemoteTestStatus.Text = "";
+        JsonStatus.Text = "应用到表单后，点击「保存项目」写入项目列表。";
         RemoteConnectionOptions.IsExpanded = !string.IsNullOrWhiteSpace(githubUsername.Text) ||
             !string.IsNullOrWhiteSpace(gitSshCommand.Text);
         RestoreChoices(remote, configuredRemote, ReadChoices<string[]>(RemoteChoiceKey()));
@@ -278,8 +281,20 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void ApplyJson(object sender, RoutedEventArgs e)
     {
-        try { if (ConfirmExternalConfiguration(Config.Text, onlyChanged: true)) { LoadConfig(Config.Text); Status.Text = "已应用 JSON 配置。"; } }
-        catch (Exception error) { Status.Text = $"配置无效：{error.Message}"; }
+        try
+        {
+            if (!ConfirmExternalConfiguration(Config.Text, onlyChanged: true)) return;
+            LoadConfig(Config.Text);
+            JsonStatus.Text = "已应用到表单。点击「保存项目」写入项目列表。";
+        }
+        catch (Exception error) { JsonStatus.Text = $"配置无效：{error.Message}"; }
+    }
+
+    private void ShowPendingJson(string message)
+    {
+        SettingsTabs.SelectedItem = JsonSettingsTab;
+        JsonStatus.Text = message;
+        Config.Focus();
     }
 
     private void ResetPreview()
@@ -297,20 +312,19 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             string configuration = File.ReadAllText(dialog.FileName);
             if (!ConfirmExternalConfiguration(configuration)) return;
             LoadConfig(configuration);
-            Status.Text = "已导入项目配置。";
+            JsonStatus.Text = "已导入到表单。点击「保存项目」写入项目列表。";
         }
-        catch (IOException error) { Status.Text = error.Message; }
-        catch (UnauthorizedAccessException error) { Status.Text = error.Message; }
-        catch (JsonException error) { Status.Text = error.Message; }
-        catch (InvalidOperationException error) { Status.Text = error.Message; }
+        catch (IOException error) { JsonStatus.Text = error.Message; }
+        catch (UnauthorizedAccessException error) { JsonStatus.Text = error.Message; }
+        catch (JsonException error) { JsonStatus.Text = error.Message; }
+        catch (InvalidOperationException error) { JsonStatus.Text = error.Message; }
     }
 
     private void Save(object sender, RoutedEventArgs e)
     {
         if (jsonDraft)
         {
-            SettingsTabs.SelectedItem = JsonSettingsTab;
-            Status.Text = "请先应用待处理的 JSON 改动，再导出。";
+            ShowPendingJson("请先应用到表单，再导出 JSON。");
             return;
         }
 
@@ -343,6 +357,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private async void DetectRemotes(object sender, RoutedEventArgs e)
     {
         if (running || detectingWsl) return;
+        if (string.IsNullOrWhiteSpace(windowsRepo.Text))
+        {
+            RemoteDetectionStatus.Text = "请先在「Git 本地仓库」填写仓库路径。";
+            return;
+        }
+
+        RemoteDetectionStatus.Text = "正在读取本地仓库的远端名称…";
         running = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         try
@@ -367,10 +388,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             ClearRemoteBranches();
             FormChanged();
             string? cacheError = SaveChoices(RemoteChoiceKey(), output);
-            Status.Text = cacheError ?? (output.Count == 0 ? "本地仓库没有配置远端名称，可以直接填写远端仓库地址。" :
+            RemoteDetectionStatus.Text = cacheError ?? (output.Count == 0 ? "本地仓库没有配置远端名称，可以直接填写远端仓库地址。" :
                 $"已读取 {output.Count} 个远端名称。可从下拉列表选择。");
         }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { RemoteDetectionStatus.Text = error.Message; }
         finally
         {
             running = false;
@@ -393,13 +414,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (running || jsonDraft)
         {
-            if (jsonDraft) Status.Text = "请先应用待处理的 JSON 改动。";
+            if (jsonDraft) ShowPendingJson("请先应用到表单，再测试远端连接。");
             return;
         }
         running = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         ClearRemoteBranches();
-        Status.Text = "正在读取远端分支。如弹出浏览器，请完成 GitHub 登录。";
+        RemoteTestStatus.Text = "正在读取远端分支。如弹出浏览器，请完成 GitHub 登录。";
         var branches = new List<string>();
         var output = new StringBuilder();
         try
@@ -418,13 +439,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             RestoreChoices(branch, text, branches.ToArray());
             loading = false;
             string? cacheError = SaveChoices(BranchChoiceKey(), branches);
-            Status.Text = cacheError ?? (branches.Count == 0 ? "连接成功，远端暂无分支。" :
+            RemoteTestStatus.Text = cacheError ?? (branches.Count == 0 ? "连接成功，远端暂无分支。" :
                 branches.Contains(text) ? $"连接成功，已读取 {branches.Count} 个分支。" :
                 $"连接成功，已读取 {branches.Count} 个分支。请从下拉列表选择目标分支。");
         }
         catch (Exception error)
         {
-            Status.Text = output.Length == 0 ? error.Message : output.ToString().Trim();
+            RemoteTestStatus.Text = output.Length == 0 ? error.Message : output.ToString().Trim();
         }
         finally
         {
