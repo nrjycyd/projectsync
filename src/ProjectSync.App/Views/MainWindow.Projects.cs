@@ -546,10 +546,10 @@ public partial class MainWindow
         int canApply = selected.Count(project => CanRunBatchOperation(project, Operation.Apply));
         int canPublish = selected.Count(project => CanRunBatchOperation(project, Operation.Publish));
         int canRetry = selected.Count(project => CanRunBatchOperation(project, Operation.RetryPush));
-        UpdateBatchButton(PreviewBatchButton, "构建并预览", canPreview, selected.Length, "勾选要构建并预览的项目。");
-        UpdateBatchButton(ApplyBatchButton, "应用同步", canApply, selected.Length, "勾选已完成预览的项目。");
-        UpdateBatchButton(PublishBatchButton, "提交并推送", canPublish, selected.Length, "勾选已应用同步的项目。");
-        UpdateBatchButton(RetryPushButton, "重试推送", canRetry, selected.Length, "勾选已提交、待推送的项目。");
+        UpdateBatchButton(PreviewBatchButton, "构建并预览", canPreview, selected.Length, "请勾选可预览的项目");
+        UpdateBatchButton(ApplyBatchButton, "应用同步", canApply, selected.Length, "请勾选已预览的项目");
+        UpdateBatchButton(PublishBatchButton, "提交并推送", canPublish, selected.Length, "请勾选已同步的项目");
+        UpdateBatchButton(RetryPushButton, "重试推送", canRetry, selected.Length, "请勾选待推送的项目");
         RetryPushButton.Visibility = canRetry > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // Prefer finishing work that has already reached a later stage.
@@ -565,7 +565,8 @@ public partial class MainWindow
         bool partial = eligible > 0 && eligible < selected;
         button.Content = partial ? $"{label} · {eligible}" : label;
         button.IsEnabled = !running && eligible > 0;
-        string hint = eligible > 0 ? $"可对已勾选的 {eligible}/{selected} 个项目执行「{label}」。" : selectionHint;
+        string hint = partial ? $"处理 {eligible}/{selected} 项" :
+            eligible > 0 ? $"处理 {eligible} 项" : selectionHint;
         button.ToolTip = hint;
         AutomationProperties.SetHelpText(button, hint);
     }
