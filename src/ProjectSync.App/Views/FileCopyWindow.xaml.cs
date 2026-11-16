@@ -52,6 +52,15 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         };
     }
 
+    private void CopyBodySizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        const double minimumPreviewHeight = 148;
+        CopyFormScroller.MaxHeight = Math.Max(0, e.NewSize.Height - minimumPreviewHeight);
+    }
+
+    private void BrowseSourceKeyDown(object sender, System.Windows.Input.KeyEventArgs e) =>
+        FlyoutKeyboard.Handle(sender, e);
+
     private static string? Distribution(ComboBox selector) => (selector.SelectedItem as Location)?.Distribution;
 
     private void EndpointChanged(object sender, RoutedEventArgs e)
@@ -70,7 +79,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         if (Changes is null) return;
         preview = null;
         swapRejected = false;
-        SwapFeedback.IsOpen = false;
+        PathFeedback.IsOpen = false;
         Changes.ItemsSource = null;
         CopyStatus.IsOpen = false;
         UpdateCopyActions();
@@ -125,7 +134,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
     private void ShowSwapFeedback(string message)
     {
         swapRejected = true;
-        SwapFeedback.ShowFeedback(message, InfoBarSeverity.Warning);
+        PathFeedback.ShowFeedback(message, InfoBarSeverity.Warning);
     }
 
     private void BrowseSourceFile(object sender, RoutedEventArgs e) => Browse(SourceLocation, SourcePath, true);
@@ -164,13 +173,13 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
             field.Text = selected;
             if (file && field == SourcePath)
             {
-                ShowSwapFeedback("来源为单个文件时不能交换。请选择来源目录后再试。");
+                swapRejected = true;
                 UpdateCopyActions();
             }
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
         {
-            CopyStatus.ShowFeedback(ex.Message, InfoBarSeverity.Error);
+            PathFeedback.ShowFeedback(ex.Message, InfoBarSeverity.Error);
         }
     }
 

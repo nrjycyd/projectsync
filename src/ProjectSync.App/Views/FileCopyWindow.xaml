@@ -1,76 +1,101 @@
 <ui:FluentWindow x:Class="ProjectSync.App.Views.FileCopyWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+ xmlns:local="clr-namespace:ProjectSync.App.Views"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="文件复制" Width="680" Height="626" MinWidth="490" MinHeight="515"
  ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica"
  WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource ApplicationBackgroundBrush}"
  Foreground="{DynamicResource TextFillColorPrimaryBrush}" FontSize="14" FontFamily="{StaticResource WorkspaceTypeface}" UseLayoutRounding="True">
 
+ <ui:FluentWindow.Resources>
+  <Style x:Key="CopyPathLabel" TargetType="Label">
+   <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+   <Setter Property="Padding" Value="0,0,0,4"/>
+  </Style>
+ </ui:FluentWindow.Resources>
  <DockPanel>
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="文件复制"/>
-  <DockPanel Margin="20,16,20,16">
-  <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-    <ui:Button x:Name="CancelCopy" Content="取消" Click="CancelClick" Visibility="Collapsed" Margin="0,0,8,0"/>
-    <ui:Button x:Name="PreviewCopy" Content="预览复制" Appearance="Primary" IsEnabled="False" Click="PreviewClick" Margin="0,0,8,0"/>
-    <ui:Button x:Name="StartCopy" Content="开始复制" Appearance="Secondary" IsEnabled="False" Icon="{ui:SymbolIcon Copy24}" Click="CopyClick"/>
-   </StackPanel>
-  </StackPanel>
-  <ScrollViewer DockPanel.Dock="Bottom" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-   <ui:InfoBar x:Name="CopyStatus" IsOpen="False" IsClosable="True" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
-  </ScrollViewer>
-  <Grid>
-   <Grid.RowDefinitions>
-    <RowDefinition Height="2*"/>
-    <RowDefinition Height="*" MinHeight="105"/>
-   </Grid.RowDefinitions>
-   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,8">
-   <StackPanel x:Name="CopyOptions">
-   <DockPanel Margin="0,0,0,4">
-    <ComboBox x:Name="SourceLocation" DockPanel.Dock="Right" Width="184" SelectionChanged="EndpointChanged" AutomationProperties.Name="来源位置"/>
-    <Label Content="来源文件或目录" Target="{Binding ElementName=SourcePath}" Padding="0" VerticalAlignment="Center"/>
-   </DockPanel>
-   <DockPanel Margin="0,0,0,10">
-    <ui:Button DockPanel.Dock="Right" Content="选目录…" Click="BrowseSourceFolder" Margin="8,0,0,0"/>
-    <ui:Button DockPanel.Dock="Right" Content="选文件…" Click="BrowseSourceFile" Margin="8,0,0,0"/>
-    <ui:TextBox x:Name="SourcePath" TextChanged="OptionsChanged"/>
-   </DockPanel>
-   <DockPanel Margin="0,0,0,4">
-    <ComboBox x:Name="TargetLocation" DockPanel.Dock="Right" Width="184" SelectionChanged="EndpointChanged" AutomationProperties.Name="目标位置"/>
-    <ui:Button x:Name="SwapEndpoints" DockPanel.Dock="Right" Content="交换" IsEnabled="False" Icon="{ui:SymbolIcon ArrowSwap24}" Click="SwapClick" Margin="0,0,8,0"
-               ToolTip="仅在来源和目标均为现有目录时交换" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="交换来源和目标" VerticalAlignment="Center"/>
-    <Label Content="目标目录" Target="{Binding ElementName=TargetPath}" Padding="0" VerticalAlignment="Center"/>
-   </DockPanel>
-   <DockPanel>
-    <ui:Button DockPanel.Dock="Right" Content="浏览…" Click="BrowseTargetFolder" Margin="8,0,0,0"/>
-    <ui:TextBox x:Name="TargetPath" TextChanged="OptionsChanged"/>
-   </DockPanel>
-   <ui:InfoBar x:Name="SwapFeedback" IsOpen="False" IsClosable="False" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
-   <WrapPanel Margin="0,8,0,0">
-    <Label Content="同名文件" Target="{Binding ElementName=Conflict}" VerticalAlignment="Center" Padding="0,0,8,0"/>
-    <ComboBox x:Name="Conflict" Width="109" SelectedIndex="0" SelectionChanged="OptionsChanged">
-     <ComboBoxItem Content="跳过"/>
-     <ComboBoxItem Content="覆盖"/>
-    </ComboBox>
-    <ui:ToggleSwitch x:Name="SkipMarks" OnContent="跳过 Zone.Identifier 下载标记" OffContent="跳过 Zone.Identifier 下载标记" IsChecked="True"
-              Checked="OptionsChanged" Unchecked="OptionsChanged" VerticalAlignment="Center" Margin="14,0,0,0"/>
-   </WrapPanel>
-   <TextBlock Margin="0,8,0,8" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-              Text="复制目录时，会在目标目录下保留来源目录名。填写来源和目标后，先预览复制清单。" TextWrapping="Wrap"/>
-  </StackPanel>
+  <DockPanel Margin="20,12,20,16">
+   <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Padding="0,10,0,0"
+           BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+     <ui:Button x:Name="CancelCopy" Content="取消" Click="CancelClick" Height="34" Visibility="Collapsed" Margin="0,0,8,0"/>
+     <ui:Button x:Name="StartCopy" Content="开始复制" Appearance="Secondary" Height="34" IsEnabled="False"
+                Icon="{ui:SymbolIcon Copy24, FontSize=16}" Click="CopyClick"/>
+    </StackPanel>
+   </Border>
+   <ScrollViewer DockPanel.Dock="Bottom" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ui:InfoBar x:Name="CopyStatus" IsOpen="False" IsClosable="True" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
    </ScrollViewer>
-  <Border Grid.Row="1" Style="{StaticResource WorkspacePanel}">
-  <ui:DataGrid x:Name="Changes" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
-            HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-            BorderThickness="0" Background="Transparent" RowHeight="29">
-   <DataGrid.Columns>
-    <DataGridTextColumn Header="操作" Width="120" Binding="{Binding Action}"/>
-    <DataGridTextColumn Header="目标相对路径" Width="*" MinWidth="160" Binding="{Binding Path}"/>
-   </DataGrid.Columns>
-  </ui:DataGrid>
-  </Border>
-  </Grid>
+   <Grid x:Name="CopyBody" SizeChanged="CopyBodySizeChanged">
+    <Grid.RowDefinitions>
+     <RowDefinition Height="Auto"/>
+     <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+    <ScrollViewer x:Name="CopyFormScroller" MaxHeight="280" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <StackPanel x:Name="CopyOptions" Margin="0,0,0,10">
+      <DockPanel Margin="0,0,0,4">
+       <ui:Button x:Name="SwapEndpoints" DockPanel.Dock="Right" Height="30" Content="交换路径" IsEnabled="False"
+                  Icon="{ui:SymbolIcon ArrowSwap24, FontSize=16}" Click="SwapClick"
+                  ToolTip="仅在来源和目标均为现有目录时交换" ToolTipService.ShowOnDisabled="True"
+                  AutomationProperties.Name="交换来源和目标" VerticalAlignment="Center"/>
+       <TextBlock Text="复制路径" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+      </DockPanel>
+      <Label Content="来源文件或目录" Target="{Binding ElementName=SourcePath}" Style="{StaticResource CopyPathLabel}"/>
+      <DockPanel Margin="0,0,0,10">
+       <ComboBox x:Name="SourceLocation" DockPanel.Dock="Left" Width="156" Height="34" Margin="0,0,8,0"
+                 SelectionChanged="EndpointChanged" AutomationProperties.Name="来源位置"/>
+       <ui:DropDownButton x:Name="BrowseSource" DockPanel.Dock="Right" Width="84" Height="34" Margin="8,0,0,0"
+                          Content="浏览" AutomationProperties.Name="浏览来源" PreviewKeyDown="BrowseSourceKeyDown">
+        <ui:DropDownButton.Flyout>
+         <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}">
+          <ui:MenuItem Header="选择文件" Icon="{ui:SymbolIcon Document16, FontSize=16}" Click="BrowseSourceFile"/>
+          <ui:MenuItem Header="选择目录" Icon="{ui:SymbolIcon FolderOpen16, FontSize=16}" Click="BrowseSourceFolder"/>
+         </local:RightAlignedContextMenu>
+        </ui:DropDownButton.Flyout>
+       </ui:DropDownButton>
+       <ui:TextBox x:Name="SourcePath" Height="34" TextChanged="OptionsChanged"/>
+      </DockPanel>
+      <Label Content="目标目录" Target="{Binding ElementName=TargetPath}" Style="{StaticResource CopyPathLabel}"/>
+      <DockPanel>
+       <ComboBox x:Name="TargetLocation" DockPanel.Dock="Left" Width="156" Height="34" Margin="0,0,8,0"
+                 SelectionChanged="EndpointChanged" AutomationProperties.Name="目标位置"/>
+       <ui:Button x:Name="BrowseTarget" DockPanel.Dock="Right" Width="84" Height="34" Margin="8,0,0,0"
+                  Content="浏览" AutomationProperties.Name="浏览目标目录" Click="BrowseTargetFolder"/>
+       <ui:TextBox x:Name="TargetPath" Height="34" TextChanged="OptionsChanged"/>
+      </DockPanel>
+      <TextBlock Margin="0,6,0,0" Style="{StaticResource WorkspaceSecondaryText}" TextWrapping="Wrap"
+                 Text="复制目录时，目标下会保留来源目录名。"/>
+      <ui:InfoBar x:Name="PathFeedback" IsOpen="False" IsClosable="False" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
+      <WrapPanel Margin="0,10,0,0">
+       <Label Content="同名文件" Target="{Binding ElementName=Conflict}" VerticalAlignment="Center" Padding="0,0,8,0"/>
+       <ComboBox x:Name="Conflict" Width="96" Height="32" SelectedIndex="0" SelectionChanged="OptionsChanged">
+        <ComboBoxItem Content="跳过"/>
+        <ComboBoxItem Content="覆盖"/>
+       </ComboBox>
+       <ui:ToggleSwitch x:Name="SkipMarks" OnContent="跳过 Zone.Identifier 下载标记" OffContent="跳过 Zone.Identifier 下载标记" IsChecked="True"
+                        Checked="OptionsChanged" Unchecked="OptionsChanged" VerticalAlignment="Center" Margin="16,0,0,0"/>
+      </WrapPanel>
+     </StackPanel>
+    </ScrollViewer>
+    <DockPanel Grid.Row="1">
+     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+      <ui:Button x:Name="PreviewCopy" DockPanel.Dock="Right" Height="34" Content="预览复制" Appearance="Primary" IsEnabled="False" Click="PreviewClick"/>
+      <TextBlock Text="复制清单" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+     </DockPanel>
+     <Border Style="{StaticResource WorkspacePanel}">
+      <ui:DataGrid x:Name="Changes" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
+                   HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                   BorderThickness="0" Background="Transparent" RowHeight="29" AutomationProperties.Name="复制清单">
+       <DataGrid.Columns>
+        <DataGridTextColumn Header="操作" Width="104" Binding="{Binding Action}"/>
+        <DataGridTextColumn Header="目标相对路径" Width="*" MinWidth="160" Binding="{Binding Path}"/>
+       </DataGrid.Columns>
+      </ui:DataGrid>
+     </Border>
+    </DockPanel>
+   </Grid>
   </DockPanel>
  </DockPanel>
 </ui:FluentWindow>
