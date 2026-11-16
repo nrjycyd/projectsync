@@ -80,9 +80,7 @@
         </ContextMenu>
        </ui:SplitButton.Flyout>
       </ui:SplitButton>
-      <ui:DropDownButton x:Name="ToolsButton" AutomationProperties.Name="工具" Appearance="Secondary" MinWidth="116" Height="34"
-                         HorizontalContentAlignment="Stretch" Padding="10,0" PreviewKeyDown="MenuKeyDown">
-       <TextBlock Text="工具" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      <ui:DropDownButton x:Name="ToolsButton" Content="工具" Appearance="Secondary" Height="34" PreviewKeyDown="MenuKeyDown">
        <ui:DropDownButton.Flyout>
         <ContextMenu>
          <ui:MenuItem Header="文件复制" Icon="{ui:SymbolIcon Copy24}" Click="OpenFileCopy"/>
