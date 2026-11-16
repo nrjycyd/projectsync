@@ -63,8 +63,6 @@ public partial class MainWindow
             if (File.Exists(projectFile))
                 savedProjects.AddRange(JsonSerializer.Deserialize<List<ProjectEntry>>(File.ReadAllText(projectFile))
                     ?? throw new JsonException("项目列表必须是 JSON 数组。"));
-            if (savedProjects.Count == 0)
-                HomeStatus.Text = "新建项目，或导入 JSON。";
         }
         catch (Exception error)
         {
@@ -172,6 +170,13 @@ public partial class MainWindow
         Projects.ItemsSource = null;
         Projects.ItemsSource = savedProjects;
         Projects.SelectedItem = savedProjects.Find(project => project.Id == selected);
+        bool hasProjects = savedProjects.Count > 0;
+        var projectVisibility = hasProjects ? Visibility.Visible : Visibility.Collapsed;
+        ProjectTableFrame.Visibility = projectVisibility;
+        BatchActions.Visibility = projectVisibility;
+        SelectionSummary.Visibility = projectVisibility;
+        EmptyProjects.Visibility = hasProjects ? Visibility.Collapsed : Visibility.Visible;
+        NewProjectButton.Appearance = hasProjects ? Wpf.Ui.Controls.ControlAppearance.Secondary : Wpf.Ui.Controls.ControlAppearance.Primary;
         UpdateHomeActions();
     }
 

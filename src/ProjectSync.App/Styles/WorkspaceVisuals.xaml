@@ -3,22 +3,11 @@
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
  <FontFamily x:Key="WorkspaceTypeface">Segoe UI Variable Text, Segoe UI, Microsoft YaHei UI</FontFamily>
  <FontFamily x:Key="WorkspaceMonoTypeface">Cascadia Mono, Consolas, Microsoft YaHei UI</FontFamily>
- <DropShadowEffect x:Key="WorkspaceShadow" Color="{DynamicResource SmokeFillColorDefault}"
-                   BlurRadius="14" ShadowDepth="2" Direction="270" Opacity="0.17"/>
-
  <Style x:Key="WorkspacePanel" TargetType="Border">
-  <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+  <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"/>
   <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
   <Setter Property="BorderThickness" Value="1"/>
   <Setter Property="CornerRadius" Value="10"/>
- </Style>
- <Style x:Key="WorkspaceRaisedPanel" TargetType="Border" BasedOn="{StaticResource WorkspacePanel}">
-  <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"/>
-  <Setter Property="Effect" Value="{StaticResource WorkspaceShadow}"/>
- </Style>
- <Style x:Key="WorkspaceRaisedContent" TargetType="Border" BasedOn="{StaticResource WorkspacePanel}">
-  <Setter Property="Background" Value="Transparent"/>
-  <Setter Property="BorderBrush" Value="Transparent"/>
  </Style>
  <Style x:Key="WorkspaceSecondaryText" TargetType="TextBlock">
   <Setter Property="FontSize" Value="13"/>

@@ -25,9 +25,7 @@
    <ui:TextBox x:Name="Log" Style="{StaticResource WorkspaceLog}" Height="105" Margin="0,6,0,0" Padding="8"
             IsReadOnly="True" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
   </Expander>
-  <Grid>
-   <Border Style="{StaticResource WorkspaceRaisedPanel}" IsHitTestVisible="False"/>
-   <Border x:Name="InstanceFrame" SnapsToDevicePixels="True" Style="{StaticResource WorkspaceRaisedContent}">
+  <Border x:Name="InstanceFrame" SnapsToDevicePixels="True" Style="{StaticResource WorkspacePanel}">
   <ui:DataGrid x:Name="Instances" SizeChanged="InstanceGridSizeChanged" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
             HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
             RowHeight="36" ColumnHeaderHeight="36" BorderThickness="0" Background="Transparent">
@@ -126,8 +124,7 @@
     </DataGridTemplateColumn>
    </DataGrid.Columns>
   </ui:DataGrid>
-   </Border>
-  </Grid>
+  </Border>
   </DockPanel>
  </DockPanel>
 </ui:FluentWindow>

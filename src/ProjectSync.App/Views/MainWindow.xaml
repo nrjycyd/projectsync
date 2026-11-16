@@ -29,11 +29,11 @@
  </ui:FluentWindow.Resources>
  <DockPanel Background="Transparent">
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="ProjectSync"/>
-  <Grid>
+  <Grid Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
   <DockPanel x:Name="HomePage" Margin="26,20,26,16" Background="Transparent" TextElement.FontSize="14">
    <local:HomeToolbarPanel DockPanel.Dock="Top" Margin="0,0,0,12">
     <StackPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
-     <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False"/>
+     <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="勾选要构建并预览的项目"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowSync24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="对预览成功且已勾选的项目应用同步"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUpload24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="提交并推送已应用同步且已勾选的项目"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="RetryPushButton" Content="重试推送"
@@ -42,6 +42,19 @@
      <StackPanel x:Name="HomeActions" Orientation="Horizontal">
       <ui:SplitButton x:Name="NewProjectButton" Content="新建项目" Appearance="Secondary"
                       MinWidth="116" Height="34" Margin="0,0,8,0" Click="NewProject" PreviewKeyDown="MenuKeyDown">
+       <ui:SplitButton.Style>
+        <Style TargetType="ui:SplitButton" BasedOn="{StaticResource {x:Type ui:SplitButton}}">
+         <Style.Triggers>
+          <Trigger Property="Appearance" Value="Primary">
+           <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}"/>
+           <Setter Property="MouseOverBackground" Value="{DynamicResource AccentButtonBackgroundPointerOver}"/>
+           <Setter Property="PressedBackground" Value="{DynamicResource AccentButtonBackgroundPressed}"/>
+           <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}"/>
+           <Setter Property="PressedForeground" Value="{DynamicResource AccentButtonForegroundPointerOver}"/>
+          </Trigger>
+         </Style.Triggers>
+        </Style>
+       </ui:SplitButton.Style>
        <ui:SplitButton.Flyout>
         <ContextMenu Opened="ProjectMenuOpened">
          <ui:MenuItem Header="导入 JSON" Icon="{ui:SymbolIcon DocumentArrowDown24}" Click="ImportProject"/>
@@ -107,8 +120,7 @@
      <RowDefinition Height="62*" MinHeight="120"/>
     </Grid.RowDefinitions>
     <Grid>
-     <Border Style="{StaticResource WorkspaceRaisedPanel}" IsHitTestVisible="False"/>
-     <Border Style="{StaticResource WorkspaceRaisedContent}">
+     <Border x:Name="ProjectTableFrame" Style="{StaticResource WorkspacePanel}">
     <ui:DataGrid x:Name="Projects" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
               HeadersVisibility="Column" SelectionMode="Single" ColumnHeaderHeight="36"
 
@@ -194,6 +206,10 @@
      </DataGrid.Columns>
     </ui:DataGrid>
      </Border>
+     <Border x:Name="EmptyProjects" Style="{StaticResource WorkspacePanel}" Visibility="Collapsed">
+      <TextBlock Text="还没有项目，可以新建项目或导入 JSON。" Margin="16" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+     </Border>
     </Grid>
     <GridSplitter Grid.Row="1" Height="14" HorizontalAlignment="Stretch" VerticalAlignment="Center"
                   ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
@@ -202,7 +218,7 @@
       <ControlTemplate TargetType="GridSplitter">
        <Grid Background="Transparent">
         <Border Height="1" VerticalAlignment="Center" Background="{DynamicResource ControlStrokeColorDefaultBrush}"/>
-        <Border Width="32" Height="9" Background="{DynamicResource ApplicationBackgroundBrush}" HorizontalAlignment="Center">
+        <Border Width="32" Height="9" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" HorizontalAlignment="Center">
          <StackPanel VerticalAlignment="Center" Margin="4,0">
           <Border Height="1" Background="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,0,0,2"/>
           <Border Height="1" Background="{DynamicResource TextFillColorTertiaryBrush}"/>
@@ -212,12 +228,12 @@
       </ControlTemplate>
      </GridSplitter.Template>
     </GridSplitter>
-    <TabControl Grid.Row="2" x:Name="HomeResults" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+    <TabControl Grid.Row="2" x:Name="HomeResults" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
      <TabItem Header="变更清单" x:Name="HomeChangesTab">
       <DockPanel Margin="10,12,10,10" TextElement.FontWeight="Normal">
        <TextBlock x:Name="HomeChangesSummary" Style="{StaticResource WorkspaceSecondaryText}" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建并预览后显示待同步变更。"/>
        <Border Style="{StaticResource WorkspacePanel}">
-       <ui:DataGrid x:Name="HomeChanges" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36">
+       <ui:DataGrid x:Name="HomeChanges" Background="Transparent" BorderThickness="0" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36">
         <DataGrid.GroupStyle>
          <GroupStyle>
           <GroupStyle.HeaderTemplate>

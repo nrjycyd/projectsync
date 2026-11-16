@@ -38,7 +38,7 @@ public sealed class HomeToolbarPanel : Panel
         width = double.IsPositiveInfinity(width) ? preferredWidth : width;
 
         double rowHeight = Math.Max(batch.Height, tools.Height);
-        double toolsLeft = Math.Max(0, width - tools.Width);
+        double toolsLeft = InternalChildren[0].Visibility == Visibility.Collapsed ? 0 : Math.Max(0, width - tools.Width);
         if (width >= preferredWidth)
         {
             rowHeight = Math.Max(rowHeight, summary.Height);
