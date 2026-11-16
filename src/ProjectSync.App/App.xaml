@@ -11,6 +11,7 @@
         <ui:ControlsDictionary/>
         <ResourceDictionary Source="Styles/WorkspaceVisuals.xaml"/>
       </ResourceDictionary.MergedDictionaries>
+      <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="{DynamicResource SurfaceStrokeColorFlyout}"/>
       <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
         <Setter Property="MinHeight" Value="34"/>
         <Setter Property="Popup.PopupAnimation" Value="{DynamicResource {x:Static SystemParameters.MenuPopupAnimationKey}}"/>
