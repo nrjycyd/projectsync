@@ -1,4 +1,4 @@
-using System;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -29,9 +29,9 @@ internal static class FlyoutKeyboard
 
     internal static void Open(ContextMenu menu, System.Windows.Controls.Button button)
     {
-        menu.MinWidth = Math.Max(menu.MinWidth, button.ActualWidth);
-        menu.PlacementTarget = button;
-        menu.Placement = PlacementMode.Bottom;
-        menu.IsOpen = true;
+        menu.SetCurrentValue(FrameworkElement.MinWidthProperty, button.ActualWidth);
+        menu.SetCurrentValue(ContextMenu.PlacementTargetProperty, button);
+        menu.SetCurrentValue(ContextMenu.PlacementProperty, PlacementMode.Bottom);
+        menu.SetCurrentValue(ContextMenu.IsOpenProperty, true);
     }
 }

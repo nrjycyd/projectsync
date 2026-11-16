@@ -11,6 +11,11 @@
    <ui:MenuItem Header="移除项目…" Icon="{ui:SymbolIcon SubtractCircle16, FontSize=16}"
                 Foreground="{DynamicResource SystemFillColorCriticalBrush}" Click="RemoveProject"/>
   </ContextMenu>
+  <Style x:Key="ToolbarMenuIcon" TargetType="ui:SymbolIcon">
+   <Setter Property="FontSize" Value="16"/>
+   <Setter Property="Width" Value="18"/>
+   <Setter Property="Height" Value="18"/>
+  </Style>
   <Style x:Key="ProjectCellText" TargetType="TextBlock">
    <Setter Property="Margin" Value="12,0,6,0"/>
    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
@@ -64,15 +69,27 @@
        </ui:SplitButton.Style>
        <ui:SplitButton.Flyout>
         <ContextMenu>
-         <ui:MenuItem Header="导入 JSON" Icon="{ui:SymbolIcon FolderOpen16, FontSize=16}" Click="ImportProject"/>
+         <ui:MenuItem Header="导入 JSON" Click="ImportProject">
+          <ui:MenuItem.Icon>
+           <ui:SymbolIcon Symbol="FolderOpen16" Style="{StaticResource ToolbarMenuIcon}"/>
+          </ui:MenuItem.Icon>
+         </ui:MenuItem>
         </ContextMenu>
        </ui:SplitButton.Flyout>
       </ui:SplitButton>
       <ui:DropDownButton x:Name="ToolsButton" Content="工具" Appearance="Secondary" Height="34" PreviewKeyDown="MenuKeyDown">
        <ui:DropDownButton.Flyout>
         <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}">
-         <ui:MenuItem Header="文件复制" Icon="{ui:SymbolIcon Copy24}" Click="OpenFileCopy"/>
-         <ui:MenuItem Header="WSL 环境" Icon="{ui:SymbolIcon Desktop24}" Click="OpenWslManager"/>
+         <ui:MenuItem Header="文件复制" Click="OpenFileCopy">
+          <ui:MenuItem.Icon>
+           <ui:SymbolIcon Symbol="Copy16" Style="{StaticResource ToolbarMenuIcon}"/>
+          </ui:MenuItem.Icon>
+         </ui:MenuItem>
+         <ui:MenuItem Header="WSL 环境" Click="OpenWslManager">
+          <ui:MenuItem.Icon>
+           <ui:SymbolIcon Symbol="Desktop16" Style="{StaticResource ToolbarMenuIcon}"/>
+          </ui:MenuItem.Icon>
+         </ui:MenuItem>
         </local:RightAlignedContextMenu>
        </ui:DropDownButton.Flyout>
       </ui:DropDownButton>
