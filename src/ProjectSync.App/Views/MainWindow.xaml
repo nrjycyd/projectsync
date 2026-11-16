@@ -450,7 +450,7 @@
        <TextBlock x:Name="JsonStatus" Text="应用到表单后，点击「保存项目」写入项目列表。" Style="{StaticResource WorkspaceSecondaryText}" AutomationProperties.LiveSetting="Polite"
                   TextWrapping="Wrap" VerticalAlignment="Center"/>
       </DockPanel>
-      <ui:TextBox x:Name="Config" Style="{StaticResource WorkspaceLog}" AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="JSON 配置"/>
+      <ui:TextBox x:Name="Config" Style="{StaticResource WorkspaceLog}" FontFamily="Consolas, Microsoft YaHei UI" FontWeight="Normal" AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="JSON 配置"/>
      </DockPanel>
     </TabItem>
    </TabControl>
