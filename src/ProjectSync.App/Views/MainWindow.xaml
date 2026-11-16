@@ -94,9 +94,6 @@
        </ui:DropDownButton.Flyout>
       </ui:DropDownButton>
      </StackPanel>
-    <TextBlock x:Name="SelectionSummary" Style="{StaticResource WorkspaceSecondaryText}" TextTrimming="CharacterEllipsis"
-               ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" AutomationProperties.LiveSetting="Polite"
-               VerticalAlignment="Center"/>
    </local:HomeToolbarPanel>
    <Border x:Name="BatchProgressPanel" DockPanel.Dock="Top" Style="{StaticResource WorkspacePanel}"
            Margin="0,0,0,8" Padding="12,6" Visibility="Collapsed">

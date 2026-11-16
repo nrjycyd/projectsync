@@ -9,7 +9,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Automation;
-using System.Windows.Automation.Peers;
 using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
@@ -188,7 +187,6 @@ public partial class MainWindow
         var projectVisibility = hasProjects ? Visibility.Visible : Visibility.Collapsed;
         ProjectTableFrame.Visibility = projectVisibility;
         BatchActions.Visibility = projectVisibility;
-        SelectionSummary.Visibility = projectVisibility;
         EmptyProjects.Visibility = hasProjects ? Visibility.Collapsed : Visibility.Visible;
         UpdateHomeActions();
     }
@@ -540,7 +538,7 @@ public partial class MainWindow
 
     private void UpdateHomeActions()
     {
-        if (Projects is null || PreviewBatchButton is null || SelectionSummary is null)
+        if (Projects is null || PreviewBatchButton is null)
             return;
 
         var selected = savedProjects.Where(project => project.Checked).ToArray();
@@ -560,13 +558,6 @@ public partial class MainWindow
         foreach (var button in batchButtons)
             button.Appearance = button == primaryAction ? ControlAppearance.Primary : ControlAppearance.Secondary;
         NewProjectButton.Appearance = primaryAction is null ? ControlAppearance.Primary : ControlAppearance.Secondary;
-
-        string summary = selected.Length == 0 ? "勾选项目后开始" : $"已勾选 {selected.Length} 项";
-        if (SelectionSummary.Text != summary)
-        {
-            SelectionSummary.Text = summary;
-            UIElementAutomationPeer.FromElement(SelectionSummary)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
-        }
     }
 
     private void UpdateBatchButton(Wpf.Ui.Controls.Button button, string label, int eligible, int selected, string selectionHint)
