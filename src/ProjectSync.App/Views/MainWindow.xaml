@@ -7,6 +7,19 @@
  Background="{DynamicResource ApplicationBackgroundBrush}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" UseLayoutRounding="True" FontFamily="{StaticResource WorkspaceTypeface}" Icon="/ProjectSync.App;component/Assets/ProjectSync.ico">
 
  <ui:FluentWindow.Resources>
+  <DataTemplate x:Key="ThemeChoiceLabel">
+   <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+    <TextBlock.Style>
+     <Style TargetType="TextBlock">
+      <Style.Triggers>
+       <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ComboBoxItem}, FallbackValue={x:Null}}" Value="{x:Null}">
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+       </DataTrigger>
+      </Style.Triggers>
+     </Style>
+    </TextBlock.Style>
+   </TextBlock>
+  </DataTemplate>
   <Style x:Key="ProjectCellText" TargetType="TextBlock">
    <Setter Property="Margin" Value="12,0,6,0"/>
    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
@@ -67,8 +80,9 @@
         </ContextMenu>
        </ui:SplitButton.Flyout>
       </ui:SplitButton>
-      <ui:DropDownButton x:Name="ToolsButton" Content="工具" Appearance="Secondary" MinWidth="116" Height="34"
+      <ui:DropDownButton x:Name="ToolsButton" AutomationProperties.Name="工具" Appearance="Secondary" MinWidth="116" Height="34"
                          HorizontalContentAlignment="Stretch" Padding="10,0" PreviewKeyDown="MenuKeyDown">
+       <TextBlock Text="工具" HorizontalAlignment="Center" VerticalAlignment="Center"/>
        <ui:DropDownButton.Flyout>
         <ContextMenu>
          <ui:MenuItem Header="文件复制" Icon="{ui:SymbolIcon Copy24}" Click="OpenFileCopy"/>
@@ -90,9 +104,9 @@
       <ui:Button Appearance="Secondary" x:Name="ExportDiagnosticsButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="导出诊断" Click="ExportDiagnostics"/>
       <ComboBox x:Name="ThemeChoice" Width="112" Height="34" Margin="0,0,12,0" FontSize="13" SelectedIndex="0"
                 SelectionChanged="ChooseTheme" AutomationProperties.Name="应用主题">
-       <ComboBoxItem Content="浅色" Tag="Light"/>
-       <ComboBoxItem Content="深色" Tag="Dark"/>
-       <ComboBoxItem Content="跟随系统" Tag="System"/>
+       <ComboBoxItem Content="浅色" Tag="Light" ContentTemplate="{StaticResource ThemeChoiceLabel}"/>
+       <ComboBoxItem Content="深色" Tag="Dark" ContentTemplate="{StaticResource ThemeChoiceLabel}"/>
+       <ComboBoxItem Content="跟随系统" Tag="System" ContentTemplate="{StaticResource ThemeChoiceLabel}"/>
       </ComboBox>
       <ui:Button Appearance="Secondary" x:Name="CheckUpdatesButton" MinWidth="112" Height="34" Padding="8,0"
                  FontSize="13" Click="CheckUpdates" AutomationProperties.Name="{Binding Text, ElementName=UpdateActionText}">
