@@ -73,9 +73,9 @@
        </ui:SplitButton.Style>
        <ui:SplitButton.Flyout>
         <ContextMenu Opened="ProjectMenuOpened">
-         <ui:MenuItem Header="导入 JSON" Icon="{ui:SymbolIcon DocumentArrowDown24}" Click="ImportProject"/>
+         <ui:MenuItem Header="导入 JSON" Icon="{ui:SymbolIcon FolderOpen16, FontSize=16}" Click="ImportProject"/>
          <Separator/>
-         <ui:MenuItem x:Name="RemoveProjectItem" Header="移除" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+         <ui:MenuItem x:Name="RemoveProjectItem" Header="移除" Icon="{ui:SymbolIcon SubtractCircle16, FontSize=16}" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                       Click="RemoveProject" IsEnabled="False"/>
         </ContextMenu>
        </ui:SplitButton.Flyout>
