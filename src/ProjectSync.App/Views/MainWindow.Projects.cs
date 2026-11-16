@@ -176,7 +176,6 @@ public partial class MainWindow
         BatchActions.Visibility = projectVisibility;
         SelectionSummary.Visibility = projectVisibility;
         EmptyProjects.Visibility = hasProjects ? Visibility.Collapsed : Visibility.Visible;
-        NewProjectButton.Appearance = hasProjects ? Wpf.Ui.Controls.ControlAppearance.Secondary : Wpf.Ui.Controls.ControlAppearance.Primary;
         UpdateHomeActions();
     }
 

@@ -33,14 +33,17 @@
   <DockPanel x:Name="HomePage" Margin="26,20,26,16" Background="Transparent" TextElement.FontSize="14">
    <local:HomeToolbarPanel DockPanel.Dock="Top" Margin="0,0,0,12">
     <StackPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
-     <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="勾选要构建并预览的项目"/>
+     <StackPanel.Resources>
+      <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{DynamicResource TextFillColorPrimary}"/>
+     </StackPanel.Resources>
+     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="勾选要构建并预览的项目"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowSync24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="对预览成功且已勾选的项目应用同步"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUpload24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="提交并推送已应用同步且已勾选的项目"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,6,0" Padding="10,4" Height="34" x:Name="RetryPushButton" Content="重试推送"
              Visibility="Collapsed" Click="RetryPushSelected"/>
     </StackPanel>
      <StackPanel x:Name="HomeActions" Orientation="Horizontal">
-      <ui:SplitButton x:Name="NewProjectButton" Content="新建项目" Appearance="Secondary"
+      <ui:SplitButton x:Name="NewProjectButton" Content="新建项目" Appearance="Primary"
                       MinWidth="116" Height="34" Margin="0,0,8,0" Click="NewProject" PreviewKeyDown="MenuKeyDown">
        <ui:SplitButton.Style>
         <Style TargetType="ui:SplitButton" BasedOn="{StaticResource {x:Type ui:SplitButton}}">
