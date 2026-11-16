@@ -37,6 +37,22 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private bool followingSystemTheme;
 
+    private void ThemeMenuOpened(object? sender, EventArgs e)
+    {
+        if (sender is not ComboBox comboBox) return;
+
+        // The template starts its storyboard after DropDownOpened.
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            if (comboBox.IsDropDownOpen &&
+                comboBox.Template.FindName("DropDownBorder", comboBox) is Border border &&
+                border.RenderTransform is System.Windows.Media.TranslateTransform)
+            {
+                border.SetCurrentValue(RenderTransformProperty, new System.Windows.Media.TranslateTransform());
+            }
+        }, System.Windows.Threading.DispatcherPriority.Send);
+    }
+
     private void ChooseTheme(object sender, SelectionChangedEventArgs e)
     {
         if (sender is not ComboBox { SelectedItem: ComboBoxItem item } || item.Tag is not string theme) return;

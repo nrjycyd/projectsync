@@ -90,10 +90,11 @@
       <TextBlock x:Name="ThemeChoiceCaption" Text="主题" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"
                  Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
       <ComboBox x:Name="ThemeChoice" Width="112" Height="34" Margin="0,0,12,0" FontSize="13" SelectedIndex="1"
-                SelectionChanged="ChooseTheme" AutomationProperties.LabeledBy="{Binding ElementName=ThemeChoiceCaption}">
+                SelectionChanged="ChooseTheme" DropDownOpened="ThemeMenuOpened" AutomationProperties.LabeledBy="{Binding ElementName=ThemeChoiceCaption}">
        <ComboBox.Style>
         <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
          <Setter Property="Popup.Placement" Value="Top"/>
+         <Setter Property="Popup.PopupAnimation" Value="{DynamicResource {x:Static SystemParameters.MenuPopupAnimationKey}}"/>
         </Style>
        </ComboBox.Style>
        <ComboBoxItem Content="跟随系统" Tag="System"/>
