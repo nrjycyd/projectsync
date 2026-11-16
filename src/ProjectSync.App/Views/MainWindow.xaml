@@ -16,12 +16,6 @@
    <Setter Property="Width" Value="18"/>
    <Setter Property="Height" Value="18"/>
   </Style>
-  <Style x:Key="ProjectCellText" TargetType="TextBlock">
-   <Setter Property="Margin" Value="12,0,6,0"/>
-   <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-   <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-   <Setter Property="VerticalAlignment" Value="Center"/>
-  </Style>
   <ControlTemplate x:Key="SettingsTabsLayout" TargetType="TabControl">
    <Grid>
     <Grid.ColumnDefinitions>
@@ -109,10 +103,10 @@
            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
     <DockPanel>
      <StackPanel x:Name="FooterActions" HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Center">
-      <ui:Button Appearance="Secondary" x:Name="ExportDiagnosticsButton" Width="88" Height="34" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="导出诊断" Click="ExportDiagnostics"/>
+      <ui:Button Appearance="Secondary" x:Name="ExportDiagnosticsButton" MinWidth="88" MinHeight="34" VerticalAlignment="Stretch" Padding="12,0" FontSize="13" Margin="0,0,12,0" Content="导出诊断" Click="ExportDiagnostics"/>
       <TextBlock x:Name="ThemeChoiceCaption" Text="主题" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"
                  Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-      <ComboBox x:Name="ThemeChoice" Width="112" Margin="0,0,12,0" FontSize="13" SelectedIndex="1"
+      <ComboBox x:Name="ThemeChoice" MinWidth="112" VerticalAlignment="Stretch" Margin="0,0,12,0" FontSize="13" SelectedIndex="1"
                 SelectionChanged="ChooseTheme" AutomationProperties.LabeledBy="{Binding ElementName=ThemeChoiceCaption}">
        <ComboBox.Style>
         <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
@@ -123,7 +117,7 @@
        <ComboBoxItem Content="浅色" Tag="Light"/>
        <ComboBoxItem Content="深色" Tag="Dark"/>
       </ComboBox>
-      <ui:Button Appearance="Secondary" x:Name="CheckUpdatesButton" MinWidth="112" Height="34" Padding="8,0"
+      <ui:Button Appearance="Secondary" x:Name="CheckUpdatesButton" MinWidth="112" MinHeight="34" VerticalAlignment="Stretch" Padding="8,0"
                  FontSize="13" Click="CheckUpdates" AutomationProperties.Name="{Binding Text, ElementName=UpdateActionText}">
        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
         <TextBlock x:Name="UpdateActionText" Text="检查更新" MinWidth="52" VerticalAlignment="Center"/>
@@ -170,17 +164,17 @@
       </Style>
      </DataGrid.RowStyle>
      <DataGrid.Columns>
-      <DataGridTemplateColumn Header="勾选" Width="66" MinWidth="66" CanUserSort="False">
+      <DataGridTemplateColumn Header="勾选" Width="66" MinWidth="66" CanUserSort="False" HeaderStyle="{StaticResource WorkspaceCenteredColumnHeader}">
        <DataGridTemplateColumn.CellTemplate><DataTemplate>
         <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
                   IsChecked="{Binding Checked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                   Click="ProjectCheckChanged" AutomationProperties.Name="{Binding Name}"/>
        </DataTemplate></DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
-      <DataGridTextColumn Header="项目名称" Width="1.5*" MinWidth="98" Binding="{Binding Name}" ElementStyle="{StaticResource ProjectCellText}"/>
-      <DataGridTextColumn Header="Git 远端仓库" Width="2.65*" MinWidth="118" Binding="{Binding RemoteRepository}" ElementStyle="{StaticResource ProjectCellText}"/>
-      <DataGridTextColumn Header="Git 本地仓库" Width="2.8*" MinWidth="118" Binding="{Binding Repository}" ElementStyle="{StaticResource ProjectCellText}"/>
-      <DataGridTemplateColumn Header="快捷访问" Width="198" MinWidth="192" CanUserSort="False">
+      <DataGridTextColumn Header="项目名称" Width="1.5*" MinWidth="98" Binding="{Binding Name}" ElementStyle="{StaticResource WorkspaceTableText}"/>
+      <DataGridTextColumn Header="Git 远端仓库" Width="2.65*" MinWidth="118" Binding="{Binding RemoteRepository}" ElementStyle="{StaticResource WorkspaceTableText}"/>
+      <DataGridTextColumn Header="Git 本地仓库" Width="2.8*" MinWidth="118" Binding="{Binding Repository}" ElementStyle="{StaticResource WorkspaceTableText}"/>
+      <DataGridTemplateColumn Header="快捷访问" Width="198" MinWidth="192" CanUserSort="False" HeaderStyle="{StaticResource WorkspaceCenteredColumnHeader}">
        <DataGridTemplateColumn.CellTemplate><DataTemplate>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
          <ui:Button Appearance="Transparent" Width="29" Height="28" Padding="0" BorderThickness="0" Tag="Local" Click="OpenRepositoryShortcut"
@@ -290,9 +284,9 @@
          </GroupStyle>
         </DataGrid.GroupStyle>
         <DataGrid.Columns>
-         <DataGridTextColumn Header="项目" Width="1.15*" MinWidth="100" Binding="{Binding Project}"/>
-         <DataGridTextColumn Header="操作" Width="0.6*" MinWidth="85" Binding="{Binding Action}"/>
-         <DataGridTextColumn Header="路径" Width="2.75*" MinWidth="160" Binding="{Binding Path}"/>
+         <DataGridTextColumn Header="项目" Width="1.15*" MinWidth="100" Binding="{Binding Project}" ElementStyle="{StaticResource WorkspaceTableText}"/>
+         <DataGridTextColumn Header="操作" Width="0.6*" MinWidth="85" Binding="{Binding Action}" ElementStyle="{StaticResource WorkspaceTableText}"/>
+         <DataGridTextColumn Header="路径" Width="2.75*" MinWidth="160" Binding="{Binding Path}" ElementStyle="{StaticResource WorkspaceTableText}"/>
         </DataGrid.Columns>
        </ui:DataGrid>
        </Border>

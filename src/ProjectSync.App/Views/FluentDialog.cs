@@ -1,5 +1,9 @@
+using System;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Media;
 using Wpf.Ui.Controls;
 using Button = Wpf.Ui.Controls.Button;
 using MessageBoxResult = System.Windows.MessageBoxResult;
@@ -35,6 +39,45 @@ internal static class FluentDialog
         window.SetResourceReference(Window.BackgroundProperty, "ApplicationBackgroundBrush");
         window.SetResourceReference(Window.ForegroundProperty, "TextFillColorPrimaryBrush");
         return window;
+    }
+
+    internal static void LimitToWorkArea(Window dialog, Window owner)
+    {
+        Size available = SystemParameters.WorkArea.Size;
+        IntPtr monitor = MonitorFromWindow(new WindowInteropHelper(owner).Handle, 2); // MONITOR_DEFAULTTONEAREST
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref info))
+        {
+            var dpi = VisualTreeHelper.GetDpi(owner);
+            available = new Size((info.Work.Right - info.Work.Left) / dpi.DpiScaleX,
+                (info.Work.Bottom - info.Work.Top) / dpi.DpiScaleY);
+        }
+
+        const double edgeMargin = 24;
+        dialog.MaxWidth = Math.Max(1, available.Width - edgeMargin);
+        dialog.MaxHeight = Math.Max(1, available.Height - edgeMargin);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect Work;
+        public uint Flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left, Top, Right, Bottom;
     }
 
     internal static MessageBoxResult Ask(Window? owner, string title, string message,

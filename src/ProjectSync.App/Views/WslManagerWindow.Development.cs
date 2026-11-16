@@ -18,7 +18,7 @@ public partial class WslManagerWindow
     private void ConfigureDevelopmentClick(object sender, RoutedEventArgs e)
     {
         if (busy || Row(sender) is not { } instance) return;
-        var (dialog, form) = CreateDialog("配置开发环境");
+        var (dialog, form, footer) = CreateDialog("配置开发环境");
         form.Children.Add(new TextBlock
         {
             Text = $"实例：{instance.Name}\n适用于 Ubuntu、Debian、Kali 等 APT 发行版。安装在 WSL 终端运行，可输入 sudo 密码。",
@@ -102,7 +102,7 @@ public partial class WslManagerWindow
                 (!node.Selected || Regex.IsMatch(node.Version, @"\A(?:latest|lts/\*|v?[0-9]+(?:\.[0-9]+){0,2})\z")) &&
                 (!pnpm.Selected || pnpm.Version == "latest" || Regex.IsMatch(pnpm.Version, @"\A[0-9]+(?:\.[0-9]+){0,2}(?:-[A-Za-z0-9.-]+)?\z"));
         }
-        if (!Confirm(dialog, form, "在终端安装", Valid, "请至少勾选一项，并检查用户名及版本格式。")) return;
+        if (!Confirm(dialog, footer, "在终端安装", Valid, "请至少勾选一项，并检查用户名及版本格式。")) return;
 
         try
         {

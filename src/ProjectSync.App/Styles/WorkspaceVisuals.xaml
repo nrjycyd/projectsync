@@ -10,8 +10,18 @@
   <Setter Property="CornerRadius" Value="4"/>
  </Style>
  <Style x:Key="WorkspaceColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource DefaultUiDataGridColumnHeaderStyle}">
+  <Setter Property="Padding" Value="12,0"/>
   <Setter Property="FontWeight" Value="Normal"/>
   <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+ </Style>
+ <Style x:Key="WorkspaceCenteredColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource WorkspaceColumnHeader}">
+  <Setter Property="HorizontalContentAlignment" Value="Center"/>
+ </Style>
+ <Style x:Key="WorkspaceTableText" TargetType="TextBlock">
+  <Setter Property="Margin" Value="12,0"/>
+  <Setter Property="VerticalAlignment" Value="Center"/>
+  <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+  <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
  </Style>
  <Style x:Key="WorkspaceSecondaryText" TargetType="TextBlock">
   <Setter Property="FontSize" Value="13"/>

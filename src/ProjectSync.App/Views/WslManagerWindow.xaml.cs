@@ -307,7 +307,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
                 return;
             }
             const ulong gib = 1UL << 30;
-            var (dialog, form) = CreateDialog("调整虚拟磁盘上限");
+            var (dialog, form, footer) = CreateDialog("调整虚拟磁盘上限");
             form.Children.Add(new TextBlock
             {
                 Text = $"实例：{instance.Name}\n当前上限：{VirtualDiskCapacity.Format(current)}\n应用前会停止所有 WSL 实例及其中运行的程序。",
@@ -321,7 +321,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
                 requested = amount * gib;
                 return requested != current && requested <= (64UL << 40);
             }
-            if (!Confirm(dialog, form, "停止 WSL 并调整", ValidCapacity,
+            if (!Confirm(dialog, footer, "停止 WSL 并调整", ValidCapacity,
                 $"请输入与当前上限不同的正整数 GiB 值，最大 64 TiB。")) return;
             if (requested < current && FluentDialog.Ask(this, "确认缩小磁盘上限",
                 $"将「{instance.Name}」从 {VirtualDiskCapacity.Format(current)} 缩小到 {VirtualDiskCapacity.Format(requested)}。WSL 会检查文件系统能否缩到目标容量。继续吗？",
@@ -340,7 +340,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         if (Row(sender) is not { } instance) return;
         await RunAsync(async () =>
         {
-            var (dialog, form) = CreateDialog($"注销并删除 {instance.Name}");
+            var (dialog, form, footer) = CreateDialog($"注销并删除 {instance.Name}");
             string[] projects = projectsUsing(instance.Name).Distinct().ToArray();
             form.Children.Add(new TextBlock
             {
@@ -349,7 +349,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
                 TextWrapping = TextWrapping.Wrap
             });
             var input = AddInput(form, "输入实例名称确认");
-            if (Confirm(dialog, form, "注销并删除", () => input.Text == instance.Name, "请输入完整的实例名称。", destructive: true))
+            if (Confirm(dialog, footer, "注销并删除", () => input.Text == instance.Name, "请输入完整的实例名称。", destructive: true))
                 await ExecuteAsync("--unregister", instance.Name);
         });
     }
@@ -362,7 +362,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             .Select(line => Regex.Match(line, @"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s{2,}\S"))
             .Where(match => match.Success && match.Groups[1].Value != "NAME")
             .Select(match => match.Groups[1].Value).Distinct().ToArray() : Array.Empty<string>();
-        var (dialog, form) = CreateDialog("安装发行版");
+        var (dialog, form, footer) = CreateDialog("安装发行版");
         var distribution = new ComboBox { IsEditable = true, ItemsSource = names };
         AddField(form, "发行版（留空安装默认发行版）", distribution);
         if (names.Length == 0) form.Children.Add(new TextBlock { Text = "可手动填写发行版名称，例如 Ubuntu。", TextWrapping = TextWrapping.Wrap });
@@ -393,7 +393,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
                     string.Equals(row.Name, name.Text.Trim(), StringComparison.OrdinalIgnoreCase))) &&
             (location.Text.Trim().Length == 0 || ValidInstallFolder(location.Text.Trim())) &&
             (size.Text.Trim().Length == 0 || PositiveSize(size.Text));
-        if (!Confirm(dialog, form, "开始安装", Valid, "请检查发行版名称、未占用的实例名称、空安装目录和正整数容量。"))
+        if (!Confirm(dialog, footer, "开始安装", Valid, "请检查发行版名称、未占用的实例名称、空安装目录和正整数容量。"))
         {
             Status.ShowFeedback("已取消安装。");
             return;
@@ -425,11 +425,22 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException) { return false; }
     }
 
-    private (Window Dialog, StackPanel Form) CreateDialog(string title)
+    private (Window Dialog, StackPanel Form, StackPanel Footer) CreateDialog(string title)
     {
-        var form = new StackPanel { Margin = new Thickness(20) };
-        var dialog = FluentDialog.Create(this, title, form, 510);
-        return (dialog, form);
+        var form = new StackPanel();
+        var footer = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
+        var body = new DockPanel { Margin = new Thickness(20) };
+        DockPanel.SetDock(footer, Dock.Bottom);
+        body.Children.Add(footer);
+        body.Children.Add(new ScrollViewer
+        {
+            Content = form,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        });
+        var dialog = FluentDialog.Create(this, title, body, 510);
+        FluentDialog.LimitToWorkArea(dialog, this);
+        return (dialog, form, footer);
     }
 
     private static TextBox AddInput(StackPanel form, string label)
@@ -445,20 +456,19 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         form.Children.Add(field);
     }
 
-    private bool Confirm(Window dialog, StackPanel form, string action, Func<bool> validate,
+    private bool Confirm(Window dialog, StackPanel footer, string action, Func<bool> validate,
         string invalidMessage, bool destructive = false)
     {
         var message = new TextBlock { TextWrapping = TextWrapping.Wrap };
         message.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
-        form.Children.Add(message);
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 14, 0, 0) };
-        form.Children.Add(footer);
+        footer.Children.Add(message);
+        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        footer.Children.Add(actions);
         var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0) };
         var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 100, Padding = new Thickness(14, 5, 14, 5) };
         confirm.Appearance = destructive ? Wpf.Ui.Controls.ControlAppearance.Danger : Wpf.Ui.Controls.ControlAppearance.Primary;
-        footer.Children.Add(cancel);
-        footer.Children.Add(confirm);
+        actions.Children.Add(cancel);
+        actions.Children.Add(confirm);
         confirm.Click += (_, _) =>
         {
             if (validate()) dialog.DialogResult = true;

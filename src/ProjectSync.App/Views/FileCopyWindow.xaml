@@ -44,9 +44,9 @@
       </DockPanel>
       <Label Content="来源文件或目录" Target="{Binding ElementName=SourcePath}" Style="{StaticResource CopyPathLabel}"/>
       <DockPanel Margin="0,0,0,8">
-       <ComboBox x:Name="SourceLocation" DockPanel.Dock="Left" Width="156" Margin="0,0,8,0"
+       <ComboBox x:Name="SourceLocation" DockPanel.Dock="Left" Width="156" Margin="0,0,8,0" VerticalAlignment="Stretch"
                  SelectionChanged="EndpointChanged" AutomationProperties.Name="来源位置" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-       <ui:DropDownButton x:Name="BrowseSource" DockPanel.Dock="Right" Width="84" Height="34" Margin="8,0,0,0"
+       <ui:DropDownButton x:Name="BrowseSource" DockPanel.Dock="Right" MinWidth="84" MinHeight="34" Margin="8,0,0,0" VerticalAlignment="Stretch"
                           Content="浏览" AutomationProperties.Name="浏览来源" PreviewKeyDown="BrowseSourceKeyDown">
         <ui:DropDownButton.Flyout>
          <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}">
@@ -55,15 +55,15 @@
          </local:RightAlignedContextMenu>
         </ui:DropDownButton.Flyout>
        </ui:DropDownButton>
-       <ui:TextBox x:Name="SourcePath" Height="34" TextChanged="OptionsChanged"/>
+       <ui:TextBox x:Name="SourcePath" MinHeight="34" VerticalAlignment="Stretch" TextChanged="OptionsChanged"/>
       </DockPanel>
       <Label Content="目标目录" Target="{Binding ElementName=TargetPath}" Style="{StaticResource CopyPathLabel}"/>
       <DockPanel>
-       <ComboBox x:Name="TargetLocation" DockPanel.Dock="Left" Width="156" Margin="0,0,8,0"
+       <ComboBox x:Name="TargetLocation" DockPanel.Dock="Left" Width="156" Margin="0,0,8,0" VerticalAlignment="Stretch"
                  SelectionChanged="EndpointChanged" AutomationProperties.Name="目标位置" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-       <ui:Button x:Name="BrowseTarget" DockPanel.Dock="Right" Width="84" Height="34" Margin="8,0,0,0"
+       <ui:Button x:Name="BrowseTarget" DockPanel.Dock="Right" MinWidth="84" MinHeight="34" Margin="8,0,0,0" VerticalAlignment="Stretch"
                   Content="浏览" AutomationProperties.Name="浏览目标目录" Click="BrowseTargetFolder"/>
-       <ui:TextBox x:Name="TargetPath" Height="34" TextChanged="OptionsChanged"/>
+       <ui:TextBox x:Name="TargetPath" MinHeight="34" VerticalAlignment="Stretch" TextChanged="OptionsChanged"/>
       </DockPanel>
       <TextBlock Margin="0,4,0,0" Style="{StaticResource WorkspaceSecondaryText}" TextWrapping="Wrap"
                  Text="复制目录时，目标下会保留来源目录名。"/>
@@ -89,8 +89,8 @@
                    HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                    BorderThickness="0" Background="Transparent" RowHeight="29" AutomationProperties.Name="复制清单">
        <DataGrid.Columns>
-        <DataGridTextColumn Header="操作" Width="104" Binding="{Binding Action}"/>
-        <DataGridTextColumn Header="目标相对路径" Width="*" MinWidth="160" Binding="{Binding Path}"/>
+        <DataGridTextColumn Header="操作" Width="104" Binding="{Binding Action}" ElementStyle="{StaticResource WorkspaceTableText}"/>
+        <DataGridTextColumn Header="目标相对路径" Width="*" MinWidth="160" Binding="{Binding Path}" ElementStyle="{StaticResource WorkspaceTableText}"/>
        </DataGrid.Columns>
       </ui:DataGrid>
      </Border>
