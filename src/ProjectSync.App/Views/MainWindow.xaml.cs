@@ -118,7 +118,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             WslUserChoice.ItemsSource = null;
             distro.Clear();
             wslUser.Clear();
-            Status.Text = "仓库路径已修改，请检测环境。";
+            ShowEnvironmentFeedback("仓库路径已修改，请检测环境。");
         };
         PreviewAfterBuild.Checked += (_, _) => FormChanged();
         PreviewAfterBuild.Unchecked += (_, _) => FormChanged();
@@ -183,6 +183,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             field.Value.Text = values[field.Key];
         RemoteDetectionStatus.Text = "";
         RemoteTestStatus.Text = "";
+        EnvironmentFeedback.IsOpen = false;
         JsonStatus.Text = "应用到表单后，点击「保存项目」写入项目列表。";
         RemoteConnectionOptions.IsExpanded = !string.IsNullOrWhiteSpace(githubUsername.Text) ||
             !string.IsNullOrWhiteSpace(gitSshCommand.Text);

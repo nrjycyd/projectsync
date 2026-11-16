@@ -394,7 +394,19 @@
         <ui:TextBox x:Name="wslUser" Visibility="Collapsed"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=NodeVersion}" Content="Node.js 版本"/>
         <ComboBox x:Name="NodeVersion" Width="248" HorizontalAlignment="Left" DisplayMemberPath="Label" SelectionChanged="ChooseNodeVersion"/>
-        <TextBlock x:Name="NodeHint" Style="{StaticResource WorkspaceSecondaryText}" TextWrapping="Wrap"/>
+        <TextBlock x:Name="NodeHint" TextWrapping="Wrap">
+         <TextBlock.Style>
+          <Style TargetType="TextBlock" BasedOn="{StaticResource WorkspaceSecondaryText}">
+           <Style.Triggers>
+            <Trigger Property="Text" Value="">
+             <Setter Property="Visibility" Value="Collapsed"/>
+            </Trigger>
+           </Style.Triggers>
+          </Style>
+         </TextBlock.Style>
+        </TextBlock>
+        <ui:InfoBar x:Name="EnvironmentFeedback" IsOpen="False" IsClosable="False" Margin="0,8,0,0"
+                    AutomationProperties.LiveSetting="Polite"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=nodeBin}" Content="额外 PATH 目录（可选）"/>
         <ui:TextBox x:Name="nodeBin"/>
 
