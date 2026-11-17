@@ -29,7 +29,7 @@
       <ui:SymbolIcon Symbol="ArrowClockwise16" Style="{StaticResource WorkspaceActionIcon}"/>
      </ui:Button.Icon>
     </ui:Button>
-    <ui:Button x:Name="InstallDistributionButton" Style="{StaticResource WorkspaceIconButton}" Content="安装发行版" Appearance="Primary" Margin="0,0,8,0" IsEnabled="False" Click="InstallClick">
+    <ui:Button x:Name="InstallDistributionButton" Style="{StaticResource WorkspaceIconButton}" Content="安装发行版" Appearance="Secondary" Margin="0,0,8,0" IsEnabled="False" Click="InstallClick">
      <ui:Button.Icon>
       <ui:SymbolIcon Symbol="Add16" Style="{StaticResource WorkspaceActionIcon}"/>
      </ui:Button.Icon>

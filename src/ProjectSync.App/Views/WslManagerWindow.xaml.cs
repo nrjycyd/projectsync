@@ -166,7 +166,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     {
         hostReady = ready;
         InstallDistributionButton.IsEnabled = UpdateWslButton.IsEnabled = ready;
-        InstallDistributionButton.Visibility = UpdateWslButton.Visibility = showSetup ? Visibility.Collapsed : Visibility.Visible;
+        InstallDistributionButton.Appearance = ready ? Wpf.Ui.Controls.ControlAppearance.Primary : Wpf.Ui.Controls.ControlAppearance.Secondary;
+        UpdateWslButton.Visibility = showSetup ? Visibility.Collapsed : Visibility.Visible;
         WslSetupButton.Visibility = showSetup ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -248,7 +249,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             ShowHostSetup(result.Output, command);
             return null;
         }
-        if (result.Code == QueryTimeout)
+        // WSL can write the empty-list result before its process or redirected streams finish.
+        if (result.Code == QueryTimeout && !IsEmptyDistributionList(result.Output))
         {
             ShowHostSetup(result.Output, command, timedOut: true);
             return null;
