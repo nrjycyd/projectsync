@@ -94,9 +94,17 @@
            Margin="0,0,0,8" Padding="12,6" Visibility="Collapsed">
     <DockPanel>
      <ui:Button x:Name="StopBatchButton" DockPanel.Dock="Right" Appearance="Secondary"
-                Margin="12,0,0,0" Content="停止" Click="StopBatch"
-                ToolTip="取消当前构建或打开预览，或在当前同步或推送结束后停止批量操作"/>
+                Margin="12,0,0,0" Content="停止批量操作" Click="StopBatch"/>
      <TextBlock x:Name="BatchProgressText" VerticalAlignment="Center" TextWrapping="Wrap"
+                AutomationProperties.LiveSetting="Polite"/>
+    </DockPanel>
+   </Border>
+   <Border x:Name="PreviewStatusPanel" DockPanel.Dock="Top" Style="{StaticResource WorkspacePanel}"
+           Margin="0,0,0,8" Padding="12,6" Visibility="Collapsed">
+    <DockPanel>
+     <ui:Button x:Name="StopPreviewButton" DockPanel.Dock="Right" Appearance="Secondary"
+                Margin="12,0,0,0" Content="停止预览" Click="StopPreviews"/>
+     <TextBlock x:Name="PreviewStatusText" VerticalAlignment="Center" TextWrapping="Wrap"
                 AutomationProperties.LiveSetting="Polite"/>
     </DockPanel>
    </Border>

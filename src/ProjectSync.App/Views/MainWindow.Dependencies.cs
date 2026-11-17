@@ -45,14 +45,8 @@ public partial class MainWindow
 
         try
         {
-            if (previewServers.Remove(project.Id, out var preview))
-            {
-                using (preview)
-                {
-                    preview.StandardInput.Close();
-                    await preview.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
-                }
-            }
+            if (stoppingPreviews is { } stopping) await stopping;
+            await StopPreviewServerAsync(project.Id);
 
             const string script = """if [[ -n $1 ]]; then export PATH="$1:$PATH"; fi; exec bash -e -o pipefail -s""";
             var start = new ProcessStartInfo("wsl.exe")

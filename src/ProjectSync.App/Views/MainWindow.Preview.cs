@@ -2,12 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Automation.Peers;
+using System.Windows.Controls;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -15,6 +20,72 @@ public partial class MainWindow
 {
     private readonly Dictionary<Guid, Process> previewServers = new();
     private readonly Dictionary<Guid, string> successfulBuilds = new();
+    private Task? stoppingPreviews;
+
+    private static void SetActivityText(TextBlock label, string text)
+    {
+        if (label.Text == text) return;
+        label.Text = text;
+        UIElementAutomationPeer.FromElement(label)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+    }
+
+    private void UpdatePreviewStatus()
+    {
+        int count = previewServers.Count;
+        bool stopping = stoppingPreviews is not null;
+        PreviewStatusPanel.Visibility = count > 0 || stopping ? Visibility.Visible : Visibility.Collapsed;
+        StopPreviewButton.IsEnabled = !stopping;
+        if (!stopping)
+            StopPreviewButton.Content = count > 1 ? "停止全部预览" : "停止预览";
+        string? name = count == 1
+            ? savedProjects.Find(project => project.Id == previewServers.Keys.First())?.Name
+            : null;
+        SetActivityText(PreviewStatusText, stopping ? "正在停止预览…" :
+            name is not null ? $"正在预览「{name}」" : $"正在预览 · {count} 个项目");
+    }
+
+    private async void StopPreviews(object sender, RoutedEventArgs e)
+    {
+        if (stoppingPreviews is not null || previewServers.Count == 0) return;
+        stoppingPreviews = Task.WhenAll(previewServers.Keys.ToArray().Select(StopPreviewServerAsync));
+        UpdatePreviewStatus();
+        try { await stoppingPreviews; }
+        catch (Exception error)
+        {
+            WriteHomeLog($"无法停止预览：{error.Message}");
+            HomeStatus.ShowFeedback("部分预览未停止，详情见运行日志。", InfoBarSeverity.Warning);
+        }
+        finally
+        {
+            stoppingPreviews = null;
+            UpdatePreviewStatus();
+        }
+    }
+
+    private async Task StopPreviewServerAsync(Guid projectId)
+    {
+        if (!previewServers.Remove(projectId, out var server)) return;
+        try
+        {
+            server.StandardInput.Close();
+            await server.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            if (server.HasExited) server.Dispose();
+            else previewServers[projectId] = server;
+            UpdatePreviewStatus();
+        }
+    }
+
+    private async Task WatchPreviewExitAsync(Guid projectId, Process server, Task exit)
+    {
+        await exit;
+        if (!previewServers.TryGetValue(projectId, out var currentServer) || currentServer != server) return;
+        previewServers.Remove(projectId);
+        server.Dispose();
+        UpdatePreviewStatus();
+    }
 
     private static string? BuildFingerprint(ProjectEntry project)
     {
@@ -98,21 +169,35 @@ public partial class MainWindow
             if (string.IsNullOrWhiteSpace(command))
                 throw new InvalidOperationException("请在本地构建环境中填写预览命令。");
 
-            if (previewServers.Remove(project.Id, out var previous))
+            if (stoppingPreviews is { } stopping)
             {
-                using var previousServer = previous;
-                previous.StandardInput.Close();
-                await previous.WaitForExitAsync(cancellation).WaitAsync(TimeSpan.FromSeconds(5));
+                try { await stopping.WaitAsync(cancellation); }
+                catch when (!cancellation.IsCancellationRequested)
+                {
+                    // Retry stopping this project's server below.
+                }
             }
+            await StopPreviewServerAsync(project.Id);
+            cancellation.ThrowIfCancellationRequested();
 
-            // Close stdin to stop the WSL process group when the window closes or a preview is replaced.
+            // Closing stdin signals the WSL process group owned by this preview.
             const string script = """
                 if [[ -n $1 ]]; then export PATH="$1:$PATH"; fi
                 setsid bash -c "$2" </dev/null &
                 server=$!
-                ( while IFS= read -r line; do :; done; kill -TERM -- "-$server" 2>/dev/null ) <&3 &
+                (
+                    while IFS= read -r line; do :; done
+                    kill -TERM -- "-$server" 2>/dev/null || kill -TERM "$server" 2>/dev/null || true
+                ) <&3 &
                 watcher=$!
-                trap 'kill "$watcher" 2>/dev/null || true' EXIT
+                cleanup() {
+                    kill "$watcher" 2>/dev/null || true
+                    if kill -TERM -- "-$server" 2>/dev/null; then
+                        sleep 1
+                        kill -KILL -- "-$server" 2>/dev/null || true
+                    fi
+                }
+                trap cleanup EXIT
                 wait "$server"
                 """;
             var start = new ProcessStartInfo("wsl.exe")
@@ -169,6 +254,8 @@ public partial class MainWindow
             cancellation.ThrowIfCancellationRequested();
             using var browser = Process.Start(new ProcessStartInfo(target.AbsoluteUri) { UseShellExecute = true });
             previewServers[project.Id] = server;
+            _ = WatchPreviewExitAsync(project.Id, server, exit);
+            UpdatePreviewStatus();
             server = null;
             return true;
         }

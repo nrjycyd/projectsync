@@ -673,11 +673,25 @@ public partial class MainWindow
     private CancellationTokenSource? batchCancellation;
     private bool closeAfterBatch;
 
+    private void ShowBatchProgress(Operation operation, string detail)
+    {
+        var (activity, stopLabel) = operation switch
+        {
+            Operation.Build => ("构建", "停止构建"),
+            Operation.BrowserPreview => ("启动预览", "取消打开预览"),
+            Operation.Apply => ("应用同步", "停止批量操作"),
+            Operation.RetryPush => ("重试推送", "停止批量操作"),
+            _ => ("提交并推送", "停止批量操作")
+        };
+        StopBatchButton.Content = stopLabel;
+        SetActivityText(BatchProgressText, $"正在{activity}{detail}");
+    }
+
     private void StopBatch(object sender, RoutedEventArgs e)
     {
         batchCancellation?.Cancel();
         StopBatchButton.IsEnabled = false;
-        BatchProgressText.Text = "正在停止批量操作…";
+        SetActivityText(BatchProgressText, $"正在{StopBatchButton.Content}…");
     }
 
     private async Task RunSelectedAsync(Operation operation)
@@ -704,7 +718,7 @@ public partial class MainWindow
         using var cancellation = new CancellationTokenSource();
         batchCancellation = cancellation;
         StopBatchButton.IsEnabled = true;
-        BatchProgressText.Text = $"正在准备处理 {selected.Length} 个项目…";
+        ShowBatchProgress(operation, $" · {selected.Length} 个项目");
         BatchProgressPanel.Visibility = Visibility.Visible;
         HomeStatus.IsOpen = false;
         running = true;
@@ -755,7 +769,8 @@ public partial class MainWindow
             foreach (var project in selected)
             {
                 if (cancellation.IsCancellationRequested) break;
-                BatchProgressText.Text = $"正在处理「{project.Name}」 · {++position}/{selected.Length}";
+                string progress = $"「{project.Name}」 · {++position}/{selected.Length}";
+                ShowBatchProgress(operation, progress);
                 WriteHomeLog($"[{project.Name}] {operation switch { Operation.Build => "构建", Operation.BrowserPreview => "打开预览", Operation.Apply => "应用同步", Operation.RetryPush => "重试推送", _ => "提交并推送" }}");
                 if (operation == Operation.BrowserPreview)
                 {
@@ -823,7 +838,10 @@ public partial class MainWindow
                     {
                         RememberSuccessfulBuild(project);
                         if (ShouldAutoOpenPreview(project) && !cancellation.IsCancellationRequested)
+                        {
+                            ShowBatchProgress(Operation.BrowserPreview, progress);
                             autoPreviewFailed |= !await TryStartSitePreviewAsync(project, cancellation.Token);
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
