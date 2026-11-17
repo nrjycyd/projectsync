@@ -88,7 +88,8 @@ public partial class MainWindow
         }
         catch (Exception error)
         {
-            string details = messages.Count == 0 ? error.Message : string.Join(Environment.NewLine, messages);
+            string details = error is SyncScriptException || messages.Count == 0
+                ? error.Message : string.Join(Environment.NewLine, messages);
             LocalGitStatus.ShowFeedback($"Git 初始化未完成。{Environment.NewLine}{details}", InfoBarSeverity.Error);
         }
         finally
