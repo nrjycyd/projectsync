@@ -105,6 +105,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         windowsRepo.TextChanged += (_, _) =>
         {
             LocalGitStatus.IsOpen = false;
+            UpdateLocalGitAction();
             if (loading) return;
             string text = remote.Text;
             loading = true;
@@ -548,7 +549,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     private static async Task<(string? Plan, string? Synced, bool Pushed)> RunProjectAsync(
-        string configuration, bool preview, bool publish, string? expected, Action<string> writeLog, bool testConnection = false, bool listRemotes = false, Func<string>? failureMessage = null, Action<string>? savePending = null, string? commitSummary = null, string? initializeRepository = null, bool allowCleanup = false, CancellationToken cancellation = default)
+        string configuration, bool preview, bool publish, string? expected, Action<string> writeLog, bool testConnection = false, bool listRemotes = false, Func<string>? failureMessage = null, Action<string>? savePending = null, string? commitSummary = null, string? initializeRepository = null, bool allowCleanup = false, CancellationToken cancellation = default, bool checkWindowsGit = false)
     {
         string? temporary = null;
         string? summaryFile = null;
@@ -578,7 +579,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 scriptPath, "-Config", temporary,
                 "-ResultFile", resultFile })
                 start.ArgumentList.Add(argument);
-            if (listRemotes)
+            if (checkWindowsGit)
+                start.ArgumentList.Add("-CheckWindowsGit");
+            else if (listRemotes)
                 start.ArgumentList.Add("-ListRemotes");
             else if (testConnection)
                 start.ArgumentList.Add("-TestConnection");
@@ -674,12 +677,12 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             }
             if (process.ExitCode != 0 || (preview && result is null) ||
                 (publish && (kind != "PUBLISHED" || value is not ("pushed" or "no_changes"))) ||
-                (!listRemotes && !testConnection && !preview && !publish && initializeRepository is null && verified is null))
+                (!checkWindowsGit && !listRemotes && !testConnection && !preview && !publish && initializeRepository is null && verified is null))
                 throw new InvalidOperationException(failureMessage?.Invoke() is { Length: > 0 } message ? message : errorCode switch
                 {
                     "REPOSITORY_BUSY" => "此 Windows 仓库正在执行另一项 ProjectSync 操作。",
                     "CONFIG" => "项目配置缺少必填项。请打开项目设置，按日志列出的字段补齐。",
-                    "WINDOWS_REPO" => "Windows Git 仓库不可用。请在「Git 本地仓库」选择正确目录，或点击「初始化 Git…」。",
+                    "WINDOWS_REPO" => "Windows Git 仓库不可用。请在「Git 本地仓库」选择正确目录，并检查仓库操作。",
                     "WSL_DIRECTORY" => "无法进入 WSL 源目录。请在项目设置中重新检测环境。",
                     "SOURCE_MISSING" => "WSL 缺少配置中指定的同步文件。请核对日志里的路径。",
                     "WSL_INDEX" => "WSL 暂存区与当前文件不一致，或 Git 索引不可读。请查看日志并核对暂存内容。",

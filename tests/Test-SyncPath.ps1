@@ -30,7 +30,7 @@ try {
     $result = Join-Path $testDir 'result.json'
     '{"remoteUrl":"https://example.invalid/repo","windowsRepo":""}' | Set-Content -LiteralPath $config -Encoding UTF8
     $env:Path = $testDir
-    foreach ($mode in '-ListRemotes', '-TestConnection', '-InitializeRepository') {
+    foreach ($mode in '-CheckWindowsGit', '-ListRemotes', '-TestConnection', '-InitializeRepository') {
         $arguments = @($mode)
         if ($mode -eq '-InitializeRepository') { $arguments += 'empty' }
         $output = & (Join-Path $PSHOME 'powershell.exe') -NoProfile -File $script -Config $config -ResultFile $result @arguments
