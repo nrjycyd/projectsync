@@ -38,18 +38,47 @@
     <WrapPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
      <WrapPanel.Resources>
       <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{DynamicResource TextFillColorSecondary}"/>
+      <Style x:Key="BatchActionIcon" TargetType="{x:Type ui:SymbolIcon}">
+       <Setter Property="Width" Value="20"/>
+       <Setter Property="Height" Value="20"/>
+       <Setter Property="FontSize" Value="16"/>
+       <Setter Property="RenderTransform">
+        <Setter.Value>
+         <TranslateTransform Y="1.6"/>
+        </Setter.Value>
+       </Setter>
+      </Style>
       <Style x:Key="BatchActionButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
        <Setter Property="Margin" Value="0,0,8,0"/>
        <Setter Property="MinHeight" Value="34"/>
        <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
       </Style>
      </WrapPanel.Resources>
-     <ui:Button Style="{StaticResource BatchActionButton}" Icon="{ui:SymbolIcon Box16}" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False"/>
-     <ui:Button Style="{StaticResource BatchActionButton}" Icon="{ui:SymbolIcon Window16}" x:Name="BrowserPreviewButton" Content="预览" Click="OpenPreviewSelected" IsEnabled="False"/>
-     <ui:Button Style="{StaticResource BatchActionButton}" Icon="{ui:SymbolIcon ArrowSync16}" x:Name="ApplyBatchButton" Content="同步" Click="ApplySelected" IsEnabled="False"/>
-     <ui:Button Style="{StaticResource BatchActionButton}" Icon="{ui:SymbolIcon ArrowUpload16}" x:Name="PublishBatchButton" Content="推送" Click="PublishSelected" IsEnabled="False"/>
-     <ui:Button Style="{StaticResource BatchActionButton}" Icon="{ui:SymbolIcon ArrowClockwise16}" x:Name="RetryPushButton" Content="重试"
-             Visibility="Collapsed" Click="RetryPushSelected"/>
+     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="Box16" Style="{StaticResource BatchActionIcon}"/>
+      </ui:Button.Icon>
+     </ui:Button>
+     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BrowserPreviewButton" Content="预览" Click="OpenPreviewSelected" IsEnabled="False">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="Window16" Style="{StaticResource BatchActionIcon}"/>
+      </ui:Button.Icon>
+     </ui:Button>
+     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="ApplyBatchButton" Content="同步" Click="ApplySelected" IsEnabled="False">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="ArrowSync16" Style="{StaticResource BatchActionIcon}"/>
+      </ui:Button.Icon>
+     </ui:Button>
+     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="PublishBatchButton" Content="推送" Click="PublishSelected" IsEnabled="False">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource BatchActionIcon}"/>
+      </ui:Button.Icon>
+     </ui:Button>
+     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="RetryPushButton" Content="重试" Visibility="Collapsed" Click="RetryPushSelected">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="ArrowClockwise16" Style="{StaticResource BatchActionIcon}"/>
+      </ui:Button.Icon>
+     </ui:Button>
     </WrapPanel>
      <WrapPanel x:Name="HomeActions" Orientation="Horizontal">
       <ui:SplitButton x:Name="NewProjectButton" Content="新建项目" Appearance="Primary"
