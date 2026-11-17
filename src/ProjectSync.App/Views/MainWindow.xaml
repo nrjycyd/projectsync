@@ -53,12 +53,12 @@
   <ControlTemplate x:Key="SettingsTabsLayout" TargetType="TabControl">
    <Grid>
     <Grid.ColumnDefinitions>
-     <ColumnDefinition Width="192"/>
+     <ColumnDefinition Width="208"/>
      <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
     <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0"
             Background="{DynamicResource LayerOnMicaBaseAltFillColorSecondaryBrush}" Padding="12">
-     <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="0"/>
+     <ItemsPresenter KeyboardNavigation.TabIndex="0"/>
     </Border>
     <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent"/>
    </Grid>
@@ -392,6 +392,11 @@
    <TabControl x:Name="SettingsTabs" TabStripPlacement="Left" Template="{StaticResource SettingsTabsLayout}"
                ItemContainerStyle="{StaticResource SettingsNavigationItem}"
                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+    <TabControl.ItemsPanel>
+     <ItemsPanelTemplate>
+      <StackPanel Orientation="Vertical"/>
+     </ItemsPanelTemplate>
+    </TabControl.ItemsPanel>
     <TabItem x:Name="RemoteSettingsTab" Header="Git 远端仓库">
      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <Border Style="{StaticResource SettingsForm}">
