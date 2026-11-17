@@ -29,16 +29,17 @@
       <ui:SymbolIcon Symbol="ArrowClockwise16" Style="{StaticResource WorkspaceActionIcon}"/>
      </ui:Button.Icon>
     </ui:Button>
-    <ui:Button Style="{StaticResource WorkspaceIconButton}" Content="安装发行版" Appearance="Primary" Margin="0,0,8,0" Click="InstallClick">
+    <ui:Button x:Name="InstallDistributionButton" Style="{StaticResource WorkspaceIconButton}" Content="安装发行版" Appearance="Secondary" Margin="0,0,8,0" IsEnabled="False" Click="InstallClick">
      <ui:Button.Icon>
       <ui:SymbolIcon Symbol="Add16" Style="{StaticResource WorkspaceActionIcon}"/>
      </ui:Button.Icon>
     </ui:Button>
-    <ui:Button Style="{StaticResource WorkspaceIconButton}" Content="更新 WSL" Click="UpdateClick">
+    <ui:Button x:Name="UpdateWslButton" Style="{StaticResource WorkspaceIconButton}" Content="更新 WSL" IsEnabled="False" Click="UpdateClick">
      <ui:Button.Icon>
       <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource WorkspaceActionIcon}"/>
      </ui:Button.Icon>
     </ui:Button>
+    <ui:Button x:Name="WslSetupButton" Content="WSL 安装与修复" Appearance="Primary" MinHeight="34" Visibility="Collapsed" Click="SetupWslClick"/>
    </StackPanel>
    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
     <TextBlock Text="发行版" FontSize="16" FontWeight="SemiBold"/>
