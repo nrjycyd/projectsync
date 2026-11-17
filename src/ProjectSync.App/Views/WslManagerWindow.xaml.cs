@@ -70,7 +70,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     {
         this.projectsUsing = projectsUsing;
         this.queryHost = queryHost ?? (args => InvokeAsync(args,
-            timeout: TimeSpan.FromSeconds(args is ["--list", "--verbose"] ? 20 : 8)));
+            timeout: TimeSpan.FromSeconds(args is ["--status"] or ["--list", "--verbose"] ? 20 : 8)));
         InitializeComponent();
         Loaded += async (_, _) => await RunAsync(RefreshAsync);
     }
@@ -191,7 +191,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             LogArea.IsExpanded = true;
         }
         Status.ShowFeedback(timedOut
-            ? "WSL 查询超时。请在 Windows 终端运行 wsl --status，或打开「WSL 安装与修复」排查。"
+            ? "WSL 检测超时。可以刷新重试，或打开「WSL 安装与修复」排查。"
             : "Windows 的 WSL 组件不可用。请先安装或修复 WSL，再刷新检测。", InfoBarSeverity.Warning);
     }
 
@@ -244,33 +244,46 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    private async Task RefreshAsync()
+    private async Task<(int Code, string Output)?> CheckHostAsync(params string[] args)
     {
-        Status.ShowFeedback("正在检测 WSL…");
-        SetHostReady(false);
-        (int Code, string Output) list;
-        try { list = await queryHost(new[] { "--list", "--verbose" }); }
+        string command = string.Join(" ", args);
+        (int Code, string Output) result;
+        try { result = await queryHost(args); }
         catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode is 2 or 3)
         {
-            ShowHostSetup(error.Message, "--list --verbose");
-            return;
+            ShowHostSetup(error.Message, command);
+            return null;
         }
-        if (HostNeedsSetup(list.Output))
+        if (HostNeedsSetup(result.Output))
         {
-            ShowHostSetup(list.Output, "--list --verbose");
-            return;
+            ShowHostSetup(result.Output, command);
+            return null;
         }
-        if (list.Code == QueryTimeout)
+        if (result.Code == QueryTimeout)
         {
-            ShowHostSetup(list.Output, "--list --verbose", timedOut: true);
-            return;
+            ShowHostSetup(result.Output, command, timedOut: true);
+            return null;
         }
+        return result;
+    }
+
+    private async Task RefreshAsync()
+    {
+        SetHostReady(false);
+        Status.ShowFeedback("正在检测 Windows WSL 组件…");
+        if (await CheckHostAsync("--status") is not { } host) return;
+        if (host.Code != 0 && !IsEmptyDistributionList(host.Output))
+            RecordHostQueryFailure("--status", host.Output);
+
+        // Older WSL versions may reject --status while still supporting the distribution list.
+        Status.ShowFeedback("正在读取已安装的发行版…");
+        if (await CheckHostAsync("--list", "--verbose") is not { } list) return;
         if (list.Code != 0 && !IsEmptyDistributionList(list.Output))
         {
             VersionText.Text = "";
             Instances.ItemsSource = Array.Empty<Instance>();
             RecordHostQueryFailure("--list --verbose", list.Output);
-            Status.ShowFeedback("无法读取 WSL 状态，请查看日志后刷新检测。", InfoBarSeverity.Error);
+            Status.ShowFeedback("无法读取 WSL 发行版列表，请查看日志后刷新检测。", InfoBarSeverity.Error);
             return;
         }
         var results = await Task.WhenAll(queryHost(new[] { "--version" }), queryHost(new[] { "--help" }));
