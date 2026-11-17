@@ -345,14 +345,27 @@ if [[ -n $build_lease ]]; then build_lease=$(wslpath -u "$build_lease"); fi
 check_lease() { [[ -z $build_lease || -f $build_lease ]] || exit 130; }
 check_lease
 site_paths=("$@")
-for path in "${site_paths[@]}"; do
-    [[ $path == ':('* ]] && continue
-    if [[ ! -e $path ]]; then
+require_source() {
+    if [[ ! -e $1 ]]; then
         echo 'PROJECTSYNC_ERROR=SOURCE_MISSING'
-        printf 'Missing required source: %s\n' "$path" >&2
+        printf 'Missing required source: %s\n' "$2" >&2
         exit 1
     fi
-    printf 'Source present: %s\n' "$path"
+    printf 'Source present: %s\n' "$2"
+}
+for path in "${site_paths[@]}"; do
+    [[ $path == ':('* ]] && continue
+    if [[ -z $verified_snapshot ]]; then
+        supplied_by_pull=false
+        for pull in "${pull_paths[@]}"; do
+            if [[ $path == "$pull" || $path == "$pull/"* || $pull == "$path/"* ]]; then
+                supplied_by_pull=true
+                break
+            fi
+        done
+        if $supplied_by_pull; then continue; fi
+    fi
+    require_source "$path" "$path"
 done
 if [[ ! -e .git && -n $verified_snapshot ]]; then
     echo 'PROJECTSYNC_ERROR=PREVIEW_EXPIRED'
@@ -367,6 +380,95 @@ flock -n 9 || { echo 'A site build is already running.' >&2; exit 1; }
 if [[ -n $node_bin ]]; then export PATH="$node_bin:$PATH"; fi
 tmp=$(mktemp -d)
 trap 'rm -rf -- "$tmp"' EXIT
+
+mirror_pull_directories() (
+    roots=()
+    for path in "${pull_paths[@]}"; do
+        covered=false
+        for candidate in "${pull_paths[@]}"; do
+            if [[ $path == "$candidate/"* ]]; then covered=true; break; fi
+        done
+        if $covered; then continue; fi
+        parent=$path
+        while [[ $parent == */* ]]; do
+            parent=${parent%/*}
+            if [[ -L $parent || ( -e $parent && ! -d $parent ) ]]; then
+                printf 'Unsafe WSL mirror parent: %s\n' "$parent" >&2
+                exit 1
+            fi
+        done
+        roots+=("$path")
+    done
+
+    # Prepare the remote tree separately. The real WSL Git index stays intact.
+    stage=$(mktemp -d ./.projectsync-mirror.XXXXXXXX)
+    moved=()
+    committed=false
+    finish_mirror() {
+        local result=$? i path recovered=true
+        if ! $committed; then
+            for ((i=${#moved[@]}-1; i>=0; i--)); do
+                path=${moved[i]}
+                if [[ ! -e $stage/next/$path ]]; then
+                    mv -T -- "$path" "$stage/next/$path" || { recovered=false; continue; }
+                fi
+                if [[ -e $stage/previous/$i || -L $stage/previous/$i ]]; then
+                    mv -T -- "$stage/previous/$i" "$path" || recovered=false
+                fi
+            done
+        fi
+        if $recovered; then
+            rm -rf --one-file-system -- "$stage"
+        else
+            printf 'WSL mirror rollback failed. Backups were kept in %s/%s\n' "$PWD" "$stage" >&2
+        fi
+        return "$result"
+    }
+    trap finish_mirror EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    mkdir -- "$stage/next" "$stage/previous"
+    (
+        export GIT_INDEX_FILE="$tmp/mirror-index"
+        git read-tree "$remote_commit"
+        git --literal-pathspecs ls-files --stage -- "${roots[@]}" > "$tmp/mirror-entries"
+        if grep '^160000 ' "$tmp/mirror-entries" >/dev/null; then
+            echo 'WSL mirror directories cannot contain Git submodules.' >&2
+            exit 1
+        fi
+        git --literal-pathspecs ls-files -z -- "${roots[@]}" |
+            git -c core.symlinks=true checkout-index --prefix="$stage/next/" --stdin -z
+    )
+    for path in "${roots[@]}"; do
+        mkdir -p -- "$stage/next/$path"
+    done
+    for path in "${site_paths[@]}"; do
+        [[ $path == ':('* ]] && continue
+        for pull in "${roots[@]}"; do
+            if [[ $path == "$pull" || $path == "$pull/"* ]]; then
+                require_source "$stage/next/$path" "$path"
+                break
+            fi
+            if [[ $pull == "$path/"* && ! -e $path ]]; then
+                require_source "$stage/next/$path" "$path"
+                break
+            fi
+        done
+    done
+
+    for path in "${roots[@]}"; do
+        check_lease
+        mkdir -p -- "$(dirname -- "$path")"
+        i=${#moved[@]}
+        moved+=("$path")
+        if [[ -e $path || -L $path ]]; then
+            mv -T -- "$path" "$stage/previous/$i"
+        fi
+        mv -T -- "$stage/next/$path" "$path"
+    done
+    committed=true
+)
+
 if [[ -z $verified_snapshot ]]; then
     git -c safe.directory="$windows_repo" fetch --no-tags "$windows_repo" "$remote_commit"
     for path in "${pull_paths[@]}"; do
@@ -375,6 +477,10 @@ if [[ -z $verified_snapshot ]]; then
             exit 1
         fi
     done
+    if (( pull_count > 0 )) && [[ . -ef $windows_repo ]]; then
+        echo 'WSL mirror requires a repository separate from the Windows repository.' >&2
+        exit 1
+    fi
     if ! git rev-parse --verify -q 'HEAD^{commit}' >/dev/null; then
         if ! git symbolic-ref -q HEAD >/dev/null || ! staged_tree=$(git write-tree); then
             echo 'PROJECTSYNC_ERROR=WSL_INDEX'
@@ -394,35 +500,7 @@ if [[ -z $verified_snapshot ]]; then
         echo 'Initialized WSL Git history from the configured remote branch.'
     fi
     if (( pull_count > 0 )); then
-        git --literal-pathspecs diff --cached --quiet HEAD -- "${pull_paths[@]}" || {
-            echo 'PROJECTSYNC_ERROR=WSL_PULL_CHANGES'
-            echo 'WSL pull directories contain staged edits.' >&2
-            exit 1
-        }
-        pull_state=$(printf '%s\0' "${pull_paths[@]}" | git hash-object --stdin)
-        pull_ref="refs/projectsync/pulled/$pull_state"
-        pull_status=$(git --literal-pathspecs status --porcelain --untracked-files=all -- "${pull_paths[@]}") || exit 1
-        if [[ -n $pull_status ]]; then
-            (
-                export GIT_INDEX_FILE="$tmp/pull-index"
-                git read-tree HEAD || exit 1
-                git --literal-pathspecs add -A -- "${pull_paths[@]}" || exit 1
-                previous=$(git rev-parse -q --verify "$pull_ref" || true)
-                matches_pull_base() {
-                    git --literal-pathspecs diff --cached --exit-code --ignore-cr-at-eol \
-                        --no-ext-diff --no-textconv --no-renames "$1" -- "${pull_paths[@]}" >/dev/null
-                }
-                if matches_pull_base "$remote_commit"; then exit 0; fi
-                if [[ -n $previous ]] && matches_pull_base "$previous"; then exit 0; fi
-                echo 'PROJECTSYNC_ERROR=WSL_PULL_CHANGES'
-                echo 'WSL pull directories contain local changes. Review them before fetching:' >&2
-                git --literal-pathspecs -c core.quotepath=false diff --cached --name-status \
-                    --ignore-cr-at-eol --no-ext-diff --no-textconv --no-renames "${previous:-HEAD}" -- "${pull_paths[@]}" >&2
-                exit 1
-            ) || exit 1
-        fi
-        git --literal-pathspecs restore --source="$remote_commit" --worktree -- "${pull_paths[@]}"
-        git update-ref "$pull_ref" "$remote_commit"
+        mirror_pull_directories
     fi
 
     # Build with the current WSL sources.

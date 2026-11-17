@@ -410,7 +410,8 @@
         <Border Style="{StaticResource SettingsSectionDivider}"/>
         <TextBlock Text="构建与预览" Style="{StaticResource SettingsSectionTitle}"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=pullPath}" Content="从远端拉入 WSL 的目录（每行一项）"/>
-        <ui:TextBox x:Name="pullPath" AcceptsReturn="True" Height="72" VerticalScrollBarVisibility="Visible"/>
+          <ui:TextBox x:Name="pullPath" AcceptsReturn="True" Height="72" VerticalScrollBarVisibility="Visible"
+                      ToolTip="构建前以远端分支为准替换这些目录。仅存在于 WSL 的内容会被删除。"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=buildCommand}" Content="构建命令"/>
         <ui:TextBox x:Name="buildCommand"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=previewCommand}" Content="预览命令（可选）"/>
