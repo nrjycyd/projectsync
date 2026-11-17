@@ -7,7 +7,8 @@
     [switch]$Publish,
     [switch]$TestConnection,
     [switch]$ListRemotes,
-    [ValidateSet('empty', 'existing')]
+    [switch]$CheckWindowsGit,
+    [ValidateSet('empty', 'existing', 'reset')]
     [string]$InitializeRepository,
     [string]$ExpectedPlan,
     [string]$CommitSummaryFile
@@ -33,13 +34,17 @@ function Stop-Sync([string]$Code, [string]$Detail) {
     exit 1
 }
 $c = Get-Content -LiteralPath $Config -Raw -Encoding UTF8 | ConvertFrom-Json
-if (!$ListRemotes -and !$TestConnection -and !$InitializeRepository) {
+if (!$CheckWindowsGit -and !$ListRemotes -and !$TestConnection -and !$InitializeRepository) {
     $missing = @('windowsRepo', 'wslRepo', 'distro', 'wslUser', 'buildCommand', 'branch', 'include' |
         Where-Object { !$c.$_ })
     if ($missing.Count -gt 0) { Stop-Sync 'CONFIG' "Missing fields: $($missing -join ', ')" }
 }
 if (!(Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue)) {
     Stop-Sync 'WINDOWS_GIT_MISSING' 'Git for Windows (git.exe) was not found on the Windows PATH.'
+}
+if ($CheckWindowsGit) {
+    git.exe --version
+    exit $LASTEXITCODE
 }
 $remoteUrl = ([string]$c.remoteUrl).Trim()
 $gitOptions = @()
@@ -65,7 +70,7 @@ if ($InitializeRepository -or ($TestConnection -and !$ListRemotes -and $remoteUr
         if ($TestConnection) {
             Stop-Sync 'CONFIG' 'Enter a remote repository URL to test a connection without a local Git repository.'
         }
-        Stop-Sync 'WINDOWS_REPO' '请打开项目设置 → Git 本地仓库，选择仓库根目录，或点击「初始化 Git…」。'
+        Stop-Sync 'WINDOWS_REPO' '请在「Git 本地仓库」选择仓库根目录，并检查仓库操作。'
     }
     $gitOptions = @('-C', $repo)
 }
@@ -115,7 +120,7 @@ if ($InitializeRepository) {
     }
     $directory = Get-Item -LiteralPath $c.windowsRepo -Force
     $repo = $directory.FullName
-    if ($repo -notmatch '^[A-Za-z]:\\' -or !$directory.Parent) {
+    if ($repo -notmatch '^[A-Za-z]:\\' -or !$directory.Parent -or ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
         Stop-Sync 'CONFIG' '请选择 Windows 磁盘上的项目目录。'
     }
     $metadata = Join-Path $repo '.git'
@@ -127,11 +132,18 @@ if ($InitializeRepository) {
     } finally {
         $ErrorActionPreference = $savedErrorPreference
     }
-    if ($existingRepo -or (Get-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue)) {
+    $reset = $InitializeRepository -eq 'reset'
+    $gitData = Get-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue
+    if ($reset) {
+        if (!$gitData -or !$gitData.PSIsContainer -or ($gitData.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+            (Test-Path -LiteralPath (Join-Path $metadata 'commondir'), (Join-Path $metadata 'worktrees'), (Join-Path $metadata 'modules') | Where-Object { $_ })) {
+            Stop-Sync 'WINDOWS_REPO' '重置仅支持含普通 .git 目录的独立仓库。请检查工作树、子模块或 Git 元数据链接。'
+        }
+    } elseif ($existingRepo -or $gitData) {
         Stop-Sync 'WINDOWS_REPO' '此目录已有 Git 元数据，或位于其他 Git 仓库内。请选择仓库根目录或修复现有仓库。'
     }
-    $hasFiles = [bool](Get-ChildItem -LiteralPath $repo -Force | Select-Object -First 1)
-    if ($hasFiles -ne ($InitializeRepository -eq 'existing')) {
+    $hasFiles = $reset -or [bool](Get-ChildItem -LiteralPath $repo -Force | Select-Object -First 1)
+    if (!$reset -and $hasFiles -ne ($InitializeRepository -eq 'existing')) {
         Stop-Sync 'WINDOWS_REPO' '目录内容已变化，请重新确认初始化方式。'
     }
     $remoteName = ([string]$c.remote).Trim()
@@ -144,6 +156,7 @@ if ($InitializeRepository) {
     $destination = $repo
     $staging = $null
     $owned = $null
+    $backup = $null
     try {
         if ($hasFiles) {
             $staging = Join-Path $directory.Parent.FullName ('.projectsync-init-' + [Guid]::NewGuid().ToString('N'))
@@ -160,7 +173,27 @@ if ($InitializeRepository) {
         if ($hasFiles) {
             git -C $destination read-tree HEAD
             if ($LASTEXITCODE -ne 0) { throw '无法建立远端分支的暂存区基线。' }
-            [IO.Directory]::Move((Join-Path $destination '.git'), $metadata)
+            if ($reset) {
+                try {
+                    $resetLock = [IO.File]::Open((Join-Path $metadata 'projectsync.lock'),
+                        [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+                    # Windows rejects the directory rename while this handle is open.
+                    $resetLock.Dispose()
+                } catch [IO.IOException] {
+                    Stop-Sync 'REPOSITORY_BUSY' '此仓库正在被使用，请稍后重试。'
+                }
+                $backup = Join-Path $directory.Parent.FullName ('.projectsync-git-backup-' + [Guid]::NewGuid().ToString('N'))
+                [IO.Directory]::Move($metadata, $backup)
+            }
+            try {
+                [IO.Directory]::Move((Join-Path $destination '.git'), $metadata)
+            } catch {
+                if ($backup) {
+                    try { [IO.Directory]::Move($backup, $metadata) }
+                    catch { throw "重置失败，无法自动恢复。旧 Git 数据保存在：$backup" }
+                }
+                throw
+            }
         }
     } finally {
         if ($staging -and $owned -and $owned.FullName -eq $staging -and
@@ -168,6 +201,7 @@ if ($InitializeRepository) {
             Remove-Item -LiteralPath $owned.FullName -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
+    if ($backup) { Write-Host "LOCAL_BACKUP=$backup" }
     Write-Host 'LOCAL_INIT=complete'
     if ($hasFiles) {
         git --no-optional-locks -C $repo -c core.quotepath=false status --short --untracked-files=normal |

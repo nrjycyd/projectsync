@@ -445,8 +445,12 @@
          <ui:Button Appearance="Secondary" DockPanel.Dock="Right" Content="浏览…" Click="Browse" Margin="8,0,0,0" VerticalAlignment="Stretch" MinHeight="34"/>
          <ui:TextBox x:Name="windowsRepo" VerticalAlignment="Stretch" MinHeight="34"/>
         </DockPanel>
-        <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Margin="0,12,0,0" Content="初始化 Git…" Click="InitializeLocalGit"/>
+        <ui:Button x:Name="LocalGitAction" Appearance="Secondary" HorizontalAlignment="Left" Margin="0,12,0,0" MinHeight="34" Content="连接 Git 仓库" IsEnabled="False" Click="ConfigureLocalRepository"/>
         <ui:InfoBar x:Name="LocalGitStatus" IsOpen="False" IsClosable="False" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
+        <Border Style="{StaticResource SettingsSectionDivider}"/>
+        <TextBlock Text="Windows Git 环境" Style="{StaticResource SettingsSectionTitle}"/>
+        <ui:Button Appearance="Secondary" HorizontalAlignment="Left" Margin="0,8,0,0" MinHeight="34" Content="检测 Git 环境" Click="CheckWindowsGit"/>
+        <ui:InfoBar x:Name="WindowsGitStatus" IsOpen="False" IsClosable="True" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
        </StackPanel>
       </Border>
      </ScrollViewer>

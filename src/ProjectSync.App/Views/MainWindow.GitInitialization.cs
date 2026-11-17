@@ -9,7 +9,40 @@ namespace ProjectSync.App.Views;
 
 public partial class MainWindow
 {
-    private async void InitializeLocalGit(object sender, RoutedEventArgs e)
+    private static bool HasGitMetadata(string path)
+    {
+        string metadata = Path.Combine(path, ".git");
+        return Directory.Exists(metadata) || File.Exists(metadata);
+    }
+
+    private void UpdateLocalGitAction()
+    {
+        string path = windowsRepo.Text.Trim();
+        LocalGitAction.IsEnabled = Path.IsPathFullyQualified(path) && Directory.Exists(path);
+        LocalGitAction.Content = LocalGitAction.IsEnabled && HasGitMetadata(path) ? "重置 Git 数据" : "连接 Git 仓库";
+    }
+
+    private async void CheckWindowsGit(object sender, RoutedEventArgs e)
+    {
+        if (running || detectingWsl) return;
+        running = true;
+        SettingsTabs.IsEnabled = Actions.IsEnabled = false;
+        WindowsGitStatus.ShowFeedback("正在检测 Windows Git…");
+        try
+        {
+            await RunProjectAsync("{}", false, false, null, _ => { }, checkWindowsGit: true);
+            WindowsGitStatus.ShowFeedback("已检测到 Git，可以继续。", InfoBarSeverity.Success);
+        }
+        catch (WindowsGitMissingException error) { ShowWindowsGitMissing(WindowsGitStatus, error); }
+        catch (Exception error) { WindowsGitStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
+        finally
+        {
+            running = false;
+            SettingsTabs.IsEnabled = Actions.IsEnabled = true;
+        }
+    }
+
+    private async void ConfigureLocalRepository(object sender, RoutedEventArgs e)
     {
         if (running || detectingWsl || jsonDraft)
             return;
@@ -21,15 +54,11 @@ public partial class MainWindow
             return;
         }
 
+        bool reset;
         bool hasFiles;
         try
         {
-            var metadata = Path.Combine(path, ".git");
-            if (Directory.Exists(metadata) || File.Exists(metadata))
-            {
-                LocalGitStatus.ShowFeedback("此目录已有 Git 元数据。如仓库不可用，请检查现有仓库。");
-                return;
-            }
+            reset = HasGitMetadata(path);
             using var entries = Directory.EnumerateFileSystemEntries(path).GetEnumerator();
             hasFiles = entries.MoveNext();
         }
@@ -44,25 +73,29 @@ public partial class MainWindow
         if (address.Length == 0 || targetBranch.Length == 0)
         {
             SettingsTabs.SelectedItem = RemoteSettingsTab;
-            RemoteDetectionStatus.ShowFeedback("请填写远端仓库地址和目标分支，再回到「Git 本地仓库」初始化。", InfoBarSeverity.Warning);
+            RemoteDetectionStatus.ShowFeedback("请填写远端仓库地址和目标分支，再回到「Git 本地仓库」继续。", InfoBarSeverity.Warning);
             return;
         }
 
-        string confirmation = hasFiles
+        string operation = reset ? "重置 Git 数据" : "连接 Git 仓库";
+        string confirmation = reset
+            ? "按所选远端分支重建 Git 元数据，保留工作目录中的文件。原有本地提交、分支、暂存区和仓库设置会保存在原 .git 的备份中。"
+            : hasFiles
             ? "接入所选远端分支的历史，保留现有文件。完成后将显示本地差异。"
             : "将所选远端分支克隆到此空目录。";
-        if (FluentDialog.Ask(this, "初始化 Git", $"{confirmation}\n\n本地目录：{path}\n远端：{address}\n目标分支：{targetBranch}",
-            "确定", "取消") != MessageBoxResult.Yes)
+        if (FluentDialog.Ask(this, operation, $"{confirmation}\n\n本地目录：{path}\n远端：{address}\n目标分支：{targetBranch}",
+            reset ? "重置" : "连接", "取消", destructive: reset) != MessageBoxResult.Yes)
             return;
 
         running = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         Status.IsOpen = false;
-        LocalGitStatus.ShowFeedback("正在初始化 Git。如弹出浏览器，请完成登录。");
+        LocalGitStatus.ShowFeedback(reset ? "正在重置 Git 数据…" : "正在连接 Git 仓库…");
         var changes = new List<string>();
         var messages = new List<string>();
         bool completed = false;
         bool statusUnavailable = false;
+        string? backup = null;
         try
         {
             await RunProjectAsync(SerializeConfig(), false, false, null, line =>
@@ -73,16 +106,20 @@ public partial class MainWindow
                     completed = true;
                 else if (line == "LOCAL_STATUS=unavailable")
                     statusUnavailable = true;
+                else if (line.StartsWith("LOCAL_BACKUP=", StringComparison.Ordinal))
+                    backup = line["LOCAL_BACKUP=".Length..];
                 else
                     messages.Add(line);
-            }, initializeRepository: hasFiles ? "existing" : "empty");
+            }, initializeRepository: reset ? "reset" : hasFiles ? "existing" : "empty");
             if (!completed)
-                throw new InvalidOperationException("未收到 Git 初始化完成状态。");
+                throw new InvalidOperationException("未收到 Git 仓库操作的完成状态。");
 
-            if (hasFiles && statusUnavailable)
-                LocalGitStatus.ShowFeedback("Git 已初始化，但无法读取差异。请在本地仓库查看 Git 状态。", InfoBarSeverity.Warning);
-            else
-                LocalGitStatus.ShowFeedback(hasFiles ? "Git 已初始化，现有文件已保留。" : "克隆完成，可以构建。", InfoBarSeverity.Success);
+            InvalidateLocalRepositoryPlans(path);
+            string result = reset ? $"Git 数据已重置，工作文件已保留。原 .git 备份：{backup}" :
+                hasFiles ? "Git 仓库已连接，现有文件已保留。" : "克隆完成，可以构建。";
+            if (statusUnavailable)
+                result += "\n无法读取差异。请在本地仓库查看 Git 状态。";
+            LocalGitStatus.ShowFeedback(result, statusUnavailable ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
             if (hasFiles && !statusUnavailable)
                 ShowInitializedChanges(changes);
         }
@@ -91,13 +128,43 @@ public partial class MainWindow
         {
             string details = error is SyncScriptException || messages.Count == 0
                 ? error.Message : string.Join(Environment.NewLine, messages);
-            LocalGitStatus.ShowFeedback($"Git 初始化未完成。{Environment.NewLine}{details}", InfoBarSeverity.Error);
+            LocalGitStatus.ShowFeedback($"{operation}未完成。{Environment.NewLine}{details}", InfoBarSeverity.Error);
         }
         finally
         {
             running = false;
             SettingsTabs.IsEnabled = Actions.IsEnabled = true;
+            UpdateLocalGitAction();
         }
+    }
+
+    private void InvalidateLocalRepositoryPlans(string path)
+    {
+        string repository = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        foreach (var project in savedProjects)
+        {
+            if (string.IsNullOrWhiteSpace(project.Repository) || !Path.IsPathFullyQualified(project.Repository))
+                continue;
+
+            string savedPath;
+            try { savedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(project.Repository)); }
+            catch (Exception error) when (error is ArgumentException or IOException or NotSupportedException)
+            {
+                continue;
+            }
+            if (!string.Equals(repository, savedPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            projectRuns.Remove(project.Id);
+            DeletePreview(project);
+            try { File.Delete(PendingPushPath(project)); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                WriteHomeLog($"无法清除旧的待推送记录：{error.Message}");
+            }
+        }
+        ShowSavedChanges();
+        RefreshProjects();
     }
 
     private void ShowInitializedChanges(IReadOnlyList<string> changes)
@@ -114,7 +181,7 @@ public partial class MainWindow
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             Margin = new Thickness(0, 0, 0, 10)
         });
-        var dialog = FluentDialog.Create(this, "初始化完成 · 本地差异", panel, 680, 350);
+        var dialog = FluentDialog.Create(this, "Git 仓库 · 本地差异", panel, 680, 350);
         dialog.ShowDialog();
     }
 }
