@@ -294,6 +294,18 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             windowsRepo.Text = dialog.FolderName;
     }
 
+    private void ClearConfiguration(object sender, RoutedEventArgs e)
+    {
+        if (ConfirmProjectAction("清空配置",
+            "将当前项目的表单和 JSON 恢复为空白配置？重新填写项目名称并保存后，才会替换已保存的配置。",
+            "清空配置", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
+            return;
+
+        restoreDetectedOptions = false;
+        LoadConfig("{}");
+        LocalGitStatus.IsOpen = false;
+    }
+
     private void ApplyJson(object sender, RoutedEventArgs e)
     {
         try

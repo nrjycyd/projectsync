@@ -449,12 +449,16 @@
       </Border>
      </ScrollViewer>
     </TabItem>
-    <TabItem Header="快速配置（JSON）" x:Name="JsonSettingsTab">
+    <TabItem Header="快速配置" x:Name="JsonSettingsTab">
      <DockPanel Margin="24,16,24,20">
-      <WrapPanel DockPanel.Dock="Top" HorizontalAlignment="Right" Margin="0,0,0,8">
-       <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
-       <ui:Button x:Name="ApplyJsonButton" Appearance="Secondary" Content="应用到表单" Click="ApplyJson"/>
-      </WrapPanel>
+      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+       <ui:Button DockPanel.Dock="Left" Appearance="Secondary" Margin="0,0,8,0"
+                  Content="清空配置" Click="ClearConfiguration"/>
+       <WrapPanel HorizontalAlignment="Right">
+        <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
+        <ui:Button x:Name="ApplyJsonButton" Appearance="Secondary" Content="应用到表单" Click="ApplyJson"/>
+       </WrapPanel>
+      </DockPanel>
       <ScrollViewer DockPanel.Dock="Top" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
        <ui:InfoBar x:Name="JsonStatus" IsOpen="False" IsClosable="False" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
       </ScrollViewer>
