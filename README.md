@@ -4,7 +4,7 @@
 
 ## 快速开始
 
-1. 从 [GitHub Releases](https://github.com/nrjycyd/projectsync/releases/latest) 下载 Windows x64 ZIP，解压后运行 `ProjectSync.App.exe`。需要 [.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/8.0)、Windows Git 和 WSL。
+1. 从 [GitHub Releases](https://github.com/nrjycyd/projectsync/releases/latest) 下载 Windows x64 ZIP，解压后运行 `ProjectSync.App.exe`。需要 [.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/8.0)、[Git for Windows](https://git-scm.com/install/windows) 和 WSL。安装 Git 后，在新开的 Windows PowerShell 中运行 `git --version` 确认命令可用，再启动 ProjectSync。
 2. 点击「新建项目」，或从旁边的下拉菜单导入 JSON。填写远端地址和分支、Windows 仓库路径、WSL 项目路径、构建命令和同步范围。Windows 目录还没有 Git 时，先配置远端，再点「初始化 Git…」。
 3. 保存后勾选项目，依次执行 **构建 → 同步 → 推送**。同步前先核对变更清单。「推送」会先提交改动。构建成功且项目已配置预览命令时，可随时用「预览」查看已有产物，也可在项目设置中开启构建成功后自动打开浏览器。导入含可执行命令的配置时，请逐条核对命令。双击项目行可以修改设置。新建表单从空白开始，已保存的项目会继续显示在首页。
 

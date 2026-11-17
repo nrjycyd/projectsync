@@ -38,6 +38,9 @@ if (!$ListRemotes -and !$TestConnection -and !$InitializeRepository) {
         Where-Object { !$c.$_ })
     if ($missing.Count -gt 0) { Stop-Sync 'CONFIG' "Missing fields: $($missing -join ', ')" }
 }
+if (!(Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue)) {
+    Stop-Sync 'WINDOWS_GIT_MISSING' 'Git for Windows (git.exe) was not found on the Windows PATH.'
+}
 $remoteUrl = ([string]$c.remoteUrl).Trim()
 $gitOptions = @()
 if ($InitializeRepository -or ($TestConnection -and !$ListRemotes -and $remoteUrl)) {

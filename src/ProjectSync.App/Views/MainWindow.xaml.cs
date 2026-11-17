@@ -429,6 +429,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             RemoteDetectionStatus.ShowFeedback(cacheError ?? (output.Count == 0 ? "本地仓库没有配置远端名称，可以直接填写远端仓库地址。" :
                 $"已读取 {output.Count} 个远端名称。可从下拉列表选择。"), cacheError is not null || output.Count == 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         }
+        catch (WindowsGitMissingException error) { ShowWindowsGitMissing(RemoteDetectionStatus, error); }
         catch (Exception error) { RemoteDetectionStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
@@ -481,6 +482,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 branches.Contains(text) ? $"连接成功，已读取 {branches.Count} 个分支。" :
                 $"连接成功，已读取 {branches.Count} 个分支。请从下拉列表选择目标分支。"), cacheError is not null ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         }
+        catch (WindowsGitMissingException error) { ShowWindowsGitMissing(RemoteTestStatus, error); }
         catch (Exception error)
         {
             RemoteTestStatus.ShowFeedback(error is SyncScriptException || output.Length == 0
@@ -494,6 +496,28 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     private sealed class SyncScriptException(string message) : InvalidOperationException(message);
+
+    private sealed class WindowsGitMissingException() : InvalidOperationException(
+        "找不到 Windows Git。请安装 Git for Windows，确认 git 可从 Windows 命令行运行，然后重启 ProjectSync 并重试。");
+
+    private static void ShowWindowsGitMissing(Wpf.Ui.Controls.InfoBar status, WindowsGitMissingException error)
+    {
+        const string downloadUrl = "https://git-scm.com/install/windows";
+        var action = new Wpf.Ui.Controls.Button { Content = "下载 Git for Windows" };
+        action.Click += (_, _) =>
+        {
+            try
+            {
+                using var browser = Process.Start(new ProcessStartInfo(downloadUrl) { UseShellExecute = true });
+            }
+            catch (System.ComponentModel.Win32Exception failed)
+            {
+                ProjectSync.App.App.AppendDiagnostic(failed.Message);
+                status.ShowFeedback($"{error.Message} 下载地址：{downloadUrl}", InfoBarSeverity.Warning);
+            }
+        };
+        status.ShowFeedback(error.Message, InfoBarSeverity.Warning, action);
+    }
 
     private static FileStream OpenVerifiedSyncScript(string path)
     {
@@ -643,6 +667,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             string? result = kind == "PLAN" ? value : null;
             string? verified = kind == "SYNCED" ? value : null;
             string? errorCode = kind == "PROJECTSYNC_ERROR" ? value : null;
+            if (errorCode == "WINDOWS_GIT_MISSING")
+            {
+                ProjectSync.App.App.AppendDiagnostic("Git for Windows (git.exe) was not found on the Windows PATH.");
+                throw new WindowsGitMissingException();
+            }
             if (process.ExitCode != 0 || (preview && result is null) ||
                 (publish && (kind != "PUBLISHED" || value is not ("pushed" or "no_changes"))) ||
                 (!listRemotes && !testConnection && !preview && !publish && initializeRepository is null && verified is null))
