@@ -294,6 +294,29 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             windowsRepo.Text = dialog.FolderName;
     }
 
+    private void ClearConfiguration(object sender, RoutedEventArgs e)
+    {
+        string message = activeProject is null
+            ? "将当前表单和 JSON 恢复到新建项目的初始状态？"
+            : $"清空「{activeProject.Name}」的配置？将保留项目名称，点击「保存项目」后生效。";
+        if (ConfirmProjectAction("清空配置",
+            message,
+            "清空配置", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
+            return;
+
+        restoreDetectedOptions = false;
+        var initialConfig = new JsonObject();
+        if (activeProject is not null)
+            initialConfig["name"] = activeProject.Name;
+        LoadConfig(initialConfig.ToJsonString());
+        if (activeProject is null)
+        {
+            originalConfig = (JsonObject)current.DeepClone();
+            UpdateSaveProjectAction();
+        }
+        LocalGitStatus.IsOpen = false;
+    }
+
     private void ApplyJson(object sender, RoutedEventArgs e)
     {
         try
@@ -579,9 +602,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     "WSL_DIRECTORY" => "无法进入 WSL 源目录。请在项目设置中重新检测环境。",
                     "SOURCE_MISSING" => "WSL 缺少配置中指定的同步文件。请核对日志里的路径。",
                     "WSL_INDEX" => "WSL 暂存区与当前文件不一致，或 Git 索引不可读。请查看日志并核对暂存内容。",
-                    "WSL_PULL_CHANGES" => "WSL 拉取目录中有本地改动。为避免覆盖，请先核对日志列出的文件。",
                     "BUILD" => "构建命令执行失败。请查看上方的构建输出。",
-                    "PREVIEW_EXPIRED" => "预览已过期，请重新构建并预览。",
+                    "PREVIEW_EXPIRED" => "变更清单已过期，请重新构建。",
                     "PUSH" => "本地提交已生成。请查看推送错误，然后重试推送。",
                     _ => "操作失败，详情见日志。"
                 });

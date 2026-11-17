@@ -24,9 +24,21 @@
   <DockPanel Margin="20,16,20,16">
   <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
    <StackPanel x:Name="Toolbar" Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-    <ui:Button Content="刷新检测" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,8,0" Click="RefreshClick"/>
-    <ui:Button Content="安装发行版" Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Margin="0,0,8,0" Click="InstallClick"/>
-    <ui:Button Content="更新 WSL" Icon="{ui:SymbolIcon ArrowUpload24}" Click="UpdateClick"/>
+    <ui:Button Style="{StaticResource WorkspaceIconButton}" Content="刷新检测" Margin="0,0,8,0" Click="RefreshClick">
+     <ui:Button.Icon>
+      <ui:SymbolIcon Symbol="ArrowClockwise16" Style="{StaticResource WorkspaceActionIcon}"/>
+     </ui:Button.Icon>
+    </ui:Button>
+    <ui:Button Style="{StaticResource WorkspaceIconButton}" Content="安装发行版" Appearance="Primary" Margin="0,0,8,0" Click="InstallClick">
+     <ui:Button.Icon>
+      <ui:SymbolIcon Symbol="Add16" Style="{StaticResource WorkspaceActionIcon}"/>
+     </ui:Button.Icon>
+    </ui:Button>
+    <ui:Button Style="{StaticResource WorkspaceIconButton}" Content="更新 WSL" Click="UpdateClick">
+     <ui:Button.Icon>
+      <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource WorkspaceActionIcon}"/>
+     </ui:Button.Icon>
+    </ui:Button>
    </StackPanel>
    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
     <TextBlock Text="发行版" FontSize="16" FontWeight="SemiBold"/>
@@ -166,7 +178,11 @@
         <ColumnDefinition Width="8"/>
         <ColumnDefinition Width="*"/>
        </Grid.ColumnDefinitions>
-       <ui:Button Height="30" HorizontalAlignment="Stretch" Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Icon="{ui:SymbolIcon WindowConsole20, FontSize=14}" Padding="4,0" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+       <ui:Button Style="{StaticResource WorkspaceCompactIconButton}" Height="30" HorizontalAlignment="Stretch" Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Padding="4,0" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+        <ui:Button.Icon>
+         <ui:SymbolIcon Symbol="WindowConsole20" Style="{StaticResource WorkspaceActionIcon}"/>
+        </ui:Button.Icon>
+       </ui:Button>
        <ui:DropDownButton Grid.Column="2" Height="30" HorizontalAlignment="Stretch" Padding="6,0" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
         <ui:DropDownButton.Flyout>
          <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}"

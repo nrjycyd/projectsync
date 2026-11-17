@@ -16,15 +16,49 @@
    <Setter Property="Width" Value="18"/>
    <Setter Property="Height" Value="18"/>
   </Style>
+  <Style x:Key="SettingsNavigationItem" TargetType="TabItem">
+   <Setter Property="MinHeight" Value="40"/>
+   <Setter Property="Margin" Value="0,0,0,4"/>
+   <Setter Property="Padding" Value="12,6"/>
+   <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+   <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="TabItem">
+      <Border x:Name="ItemBackground" Background="Transparent" CornerRadius="4">
+       <Grid>
+        <Border x:Name="SelectionIndicator" Width="3" Height="16" CornerRadius="1.5"
+                HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed"
+                Background="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+        <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"
+                          Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/>
+       </Grid>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="ItemBackground" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+       </Trigger>
+       <Trigger Property="IsSelected" Value="True">
+        <Setter TargetName="ItemBackground" Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+        <Setter TargetName="SelectionIndicator" Property="Visibility" Value="Visible"/>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
   <ControlTemplate x:Key="SettingsTabsLayout" TargetType="TabControl">
    <Grid>
     <Grid.ColumnDefinitions>
-     <ColumnDefinition Width="168"/>
+     <ColumnDefinition Width="208"/>
      <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
     <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0"
-            Background="{DynamicResource LayerOnMicaBaseAltFillColorSecondaryBrush}" Padding="8,8,8,0">
-     <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="0"/>
+            Background="{DynamicResource LayerOnMicaBaseAltFillColorSecondaryBrush}" Padding="12">
+     <ItemsPresenter KeyboardNavigation.TabIndex="0"/>
     </Border>
     <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent"/>
    </Grid>
@@ -37,13 +71,48 @@
    <local:HomeToolbarPanel DockPanel.Dock="Top" Margin="0,0,0,12">
     <WrapPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
      <WrapPanel.Resources>
-      <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{DynamicResource TextFillColorPrimary}"/>
+      <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{DynamicResource TextFillColorPrimary}" Opacity="0.8"/>
+      <Style x:Key="BatchActionButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource WorkspaceIconButton}">
+       <Setter Property="Margin" Value="0,0,8,0"/>
+      </Style>
      </WrapPanel.Resources>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowSync24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUpload24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="RetryPushButton" Content="重试推送"
-             Visibility="Collapsed" Click="RetryPushSelected"/>
+     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="Box16" Style="{StaticResource WorkspaceActionIcon}"/>
+      </ui:Button.Icon>
+     </ui:Button>
+     <ui:Button Style="{StaticResource BatchActionButton}" Padding="9.4,5,12.6,6" x:Name="BrowserPreviewButton" Content="预览" Click="OpenPreviewSelected" IsEnabled="False">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="Window16" Style="{StaticResource WorkspaceActionIcon}">
+        <ui:SymbolIcon.RenderTransform>
+         <TranslateTransform X="1.3" Y="1.6"/>
+        </ui:SymbolIcon.RenderTransform>
+       </ui:SymbolIcon>
+      </ui:Button.Icon>
+     </ui:Button>
+     <ui:Button Style="{StaticResource BatchActionButton}" Padding="9.4,5,12.6,6" x:Name="ApplyBatchButton" Content="同步" Click="ApplySelected" IsEnabled="False">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="ArrowSync16" Style="{StaticResource WorkspaceActionIcon}">
+        <ui:SymbolIcon.RenderTransform>
+         <TranslateTransform X="2.6" Y="1.6"/>
+        </ui:SymbolIcon.RenderTransform>
+       </ui:SymbolIcon>
+      </ui:Button.Icon>
+     </ui:Button>
+     <ui:Button Style="{StaticResource BatchActionButton}" Padding="8.6,5,13.4,6" x:Name="PublishBatchButton" Content="推送" Click="PublishSelected" IsEnabled="False">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource WorkspaceActionIcon}">
+        <ui:SymbolIcon.RenderTransform>
+         <TranslateTransform X="2" Y="1.6"/>
+        </ui:SymbolIcon.RenderTransform>
+       </ui:SymbolIcon>
+      </ui:Button.Icon>
+     </ui:Button>
+     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="RetryPushButton" Content="重试" Visibility="Collapsed" Click="RetryPushSelected">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="ArrowClockwise16" Style="{StaticResource WorkspaceActionIcon}"/>
+      </ui:Button.Icon>
+     </ui:Button>
     </WrapPanel>
      <WrapPanel x:Name="HomeActions" Orientation="Horizontal">
       <ui:SplitButton x:Name="NewProjectButton" Content="新建项目" Appearance="Primary"
@@ -93,9 +162,17 @@
            Margin="0,0,0,8" Padding="12,6" Visibility="Collapsed">
     <DockPanel>
      <ui:Button x:Name="StopBatchButton" DockPanel.Dock="Right" Appearance="Secondary"
-                Margin="12,0,0,0" Content="停止" Click="StopBatch"
-                ToolTip="取消构建和预览，或在当前同步或推送结束后停止批量操作"/>
+                Margin="12,0,0,0" Content="停止批量操作" Click="StopBatch"/>
      <TextBlock x:Name="BatchProgressText" VerticalAlignment="Center" TextWrapping="Wrap"
+                AutomationProperties.LiveSetting="Polite"/>
+    </DockPanel>
+   </Border>
+   <Border x:Name="PreviewStatusPanel" DockPanel.Dock="Top" Style="{StaticResource WorkspacePanel}"
+           Margin="0,0,0,8" Padding="12,6" Visibility="Collapsed">
+    <DockPanel>
+     <ui:Button x:Name="StopPreviewButton" DockPanel.Dock="Right" Appearance="Secondary"
+                Margin="12,0,0,0" Content="停止预览" Click="StopPreviews"/>
+     <TextBlock x:Name="PreviewStatusText" VerticalAlignment="Center" TextWrapping="Wrap"
                 AutomationProperties.LiveSetting="Polite"/>
     </DockPanel>
    </Border>
@@ -261,7 +338,7 @@
     <TabControl Grid.Row="2" x:Name="HomeResults" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
      <TabItem Header="变更清单" x:Name="HomeChangesTab">
       <DockPanel Margin="10,12,10,10" TextElement.FontWeight="Normal">
-       <TextBlock x:Name="HomeChangesSummary" Style="{StaticResource WorkspaceSecondaryText}" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建并预览后显示待同步变更。"/>
+       <TextBlock x:Name="HomeChangesSummary" Style="{StaticResource WorkspaceSecondaryText}" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建后显示待同步变更。"/>
        <Border Style="{StaticResource WorkspacePanel}">
        <ui:DataGrid x:Name="HomeChanges" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" Background="Transparent" BorderThickness="0" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36">
         <DataGrid.GroupStyle>
@@ -312,7 +389,14 @@
    </ScrollViewer>
    </StackPanel>
   </Border>
-   <TabControl x:Name="SettingsTabs" TabStripPlacement="Left" Template="{StaticResource SettingsTabsLayout}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+   <TabControl x:Name="SettingsTabs" TabStripPlacement="Left" Template="{StaticResource SettingsTabsLayout}"
+               ItemContainerStyle="{StaticResource SettingsNavigationItem}"
+               BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+    <TabControl.ItemsPanel>
+     <ItemsPanelTemplate>
+      <StackPanel Orientation="Vertical"/>
+     </ItemsPanelTemplate>
+    </TabControl.ItemsPanel>
     <TabItem x:Name="RemoteSettingsTab" Header="Git 远端仓库">
      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <Border Style="{StaticResource SettingsForm}">
@@ -410,7 +494,8 @@
         <Border Style="{StaticResource SettingsSectionDivider}"/>
         <TextBlock Text="构建与预览" Style="{StaticResource SettingsSectionTitle}"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=pullPath}" Content="从远端拉入 WSL 的目录（每行一项）"/>
-        <ui:TextBox x:Name="pullPath" AcceptsReturn="True" Height="72" VerticalScrollBarVisibility="Visible"/>
+          <ui:TextBox x:Name="pullPath" AcceptsReturn="True" Height="72" VerticalScrollBarVisibility="Visible"
+                      ToolTip="构建前以远端分支为准替换这些目录。仅存在于 WSL 的内容会被删除。"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=buildCommand}" Content="构建命令"/>
         <ui:TextBox x:Name="buildCommand"/>
         <Label Style="{StaticResource SettingsFieldLabel}" Target="{Binding ElementName=previewCommand}" Content="预览命令（可选）"/>
@@ -449,12 +534,16 @@
       </Border>
      </ScrollViewer>
     </TabItem>
-    <TabItem Header="快速配置（JSON）" x:Name="JsonSettingsTab">
+    <TabItem Header="快速配置" x:Name="JsonSettingsTab">
      <DockPanel Margin="24,16,24,20">
-      <WrapPanel DockPanel.Dock="Top" HorizontalAlignment="Right" Margin="0,0,0,8">
-       <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
-       <ui:Button x:Name="ApplyJsonButton" Appearance="Secondary" Content="应用到表单" Click="ApplyJson"/>
-      </WrapPanel>
+      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+       <ui:Button DockPanel.Dock="Left" Appearance="Secondary" Margin="0,0,8,0"
+                  Content="清空配置" Click="ClearConfiguration"/>
+       <WrapPanel HorizontalAlignment="Right">
+        <ui:Button Appearance="Secondary" Margin="0,0,8,0" Content="导入文件" Click="Open"/>
+        <ui:Button x:Name="ApplyJsonButton" Appearance="Secondary" Content="应用到表单" Click="ApplyJson"/>
+       </WrapPanel>
+      </DockPanel>
       <ScrollViewer DockPanel.Dock="Top" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
        <ui:InfoBar x:Name="JsonStatus" IsOpen="False" IsClosable="False" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
       </ScrollViewer>

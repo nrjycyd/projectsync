@@ -82,7 +82,7 @@ public partial class MainWindow
             if (hasFiles && statusUnavailable)
                 LocalGitStatus.ShowFeedback("Git 已初始化，但无法读取差异。请在本地仓库查看 Git 状态。", InfoBarSeverity.Warning);
             else
-                LocalGitStatus.ShowFeedback(hasFiles ? "Git 已初始化，现有文件已保留。" : "克隆完成，可以构建并预览。", InfoBarSeverity.Success);
+                LocalGitStatus.ShowFeedback(hasFiles ? "Git 已初始化，现有文件已保留。" : "克隆完成，可以构建。", InfoBarSeverity.Success);
             if (hasFiles && !statusUnavailable)
                 ShowInitializedChanges(changes);
         }
