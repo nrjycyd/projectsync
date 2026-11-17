@@ -59,7 +59,7 @@
        <ui:SymbolIcon Symbol="Box16" Style="{StaticResource BatchActionIcon}"/>
       </ui:Button.Icon>
      </ui:Button>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BrowserPreviewButton" Content="预览" Click="OpenPreviewSelected" IsEnabled="False">
+     <ui:Button Style="{StaticResource BatchActionButton}" Padding="9.4,5,12.6,6" x:Name="BrowserPreviewButton" Content="预览" Click="OpenPreviewSelected" IsEnabled="False">
       <ui:Button.Icon>
        <ui:SymbolIcon Symbol="Window16" Style="{StaticResource BatchActionIcon}">
         <ui:SymbolIcon.RenderTransform>
@@ -68,7 +68,7 @@
        </ui:SymbolIcon>
       </ui:Button.Icon>
      </ui:Button>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="ApplyBatchButton" Content="同步" Click="ApplySelected" IsEnabled="False">
+     <ui:Button Style="{StaticResource BatchActionButton}" Padding="9.4,5,12.6,6" x:Name="ApplyBatchButton" Content="同步" Click="ApplySelected" IsEnabled="False">
       <ui:Button.Icon>
        <ui:SymbolIcon Symbol="ArrowSync16" Style="{StaticResource BatchActionIcon}">
         <ui:SymbolIcon.RenderTransform>
@@ -77,7 +77,7 @@
        </ui:SymbolIcon>
       </ui:Button.Icon>
      </ui:Button>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="PublishBatchButton" Content="推送" Click="PublishSelected" IsEnabled="False">
+     <ui:Button Style="{StaticResource BatchActionButton}" Padding="8.6,5,13.4,6" x:Name="PublishBatchButton" Content="推送" Click="PublishSelected" IsEnabled="False">
       <ui:Button.Icon>
        <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource BatchActionIcon}">
         <ui:SymbolIcon.RenderTransform>
