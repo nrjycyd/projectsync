@@ -21,8 +21,11 @@
            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
      <ui:Button x:Name="CancelCopy" Content="取消" Click="CancelClick" Height="34" Visibility="Collapsed" Margin="0,0,8,0"/>
-     <ui:Button x:Name="StartCopy" Content="开始复制" Appearance="Secondary" Height="34" IsEnabled="False"
-                Icon="{ui:SymbolIcon Copy24, FontSize=16}" Click="CopyClick"/>
+     <ui:Button Style="{StaticResource WorkspaceIconButton}" x:Name="StartCopy" Content="开始复制" Appearance="Secondary" Height="34" IsEnabled="False" Click="CopyClick">
+      <ui:Button.Icon>
+       <ui:SymbolIcon Symbol="Copy16" Style="{StaticResource WorkspaceActionIcon}"/>
+      </ui:Button.Icon>
+     </ui:Button>
     </StackPanel>
    </Border>
    <ScrollViewer DockPanel.Dock="Bottom" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -36,10 +39,13 @@
     <ScrollViewer x:Name="CopyFormScroller" MaxHeight="280" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
      <StackPanel x:Name="CopyOptions" Margin="0,0,0,6">
       <DockPanel Margin="0,0,0,4">
-       <ui:Button x:Name="SwapEndpoints" DockPanel.Dock="Right" Height="30" Content="交换路径" IsEnabled="False"
-                  Icon="{ui:SymbolIcon ArrowSwap24, FontSize=16}" Click="SwapClick"
-                  ToolTip="仅在来源和目标均为现有目录时交换" ToolTipService.ShowOnDisabled="True"
-                  AutomationProperties.Name="交换来源和目标" VerticalAlignment="Center"/>
+       <ui:Button Style="{StaticResource WorkspaceCompactIconButton}" x:Name="SwapEndpoints" DockPanel.Dock="Right" Height="30" Content="交换路径" IsEnabled="False" Click="SwapClick"
+                  ToolTip="仅在来源和目标均为现有目录时交换"
+                  AutomationProperties.Name="交换来源和目标" VerticalAlignment="Center">
+        <ui:Button.Icon>
+         <ui:SymbolIcon Symbol="ArrowSwap16" Style="{StaticResource WorkspaceActionIcon}"/>
+        </ui:Button.Icon>
+       </ui:Button>
        <TextBlock Text="复制路径" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
       </DockPanel>
       <Label Content="来源文件或目录" Target="{Binding ElementName=SourcePath}" Style="{StaticResource CopyPathLabel}"/>
