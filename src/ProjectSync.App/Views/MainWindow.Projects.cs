@@ -556,12 +556,12 @@ public partial class MainWindow
         int canApply = selected.Count(project => CanRunBatchOperation(project, Operation.Apply));
         int canPublish = selected.Count(project => CanRunBatchOperation(project, Operation.Publish));
         int canRetry = selected.Count(project => CanRunBatchOperation(project, Operation.RetryPush));
-        UpdateBatchButton(BuildBatchButton, "开始构建", canBuild, selected.Length, "请勾选可构建的项目");
-        UpdateBatchButton(BrowserPreviewButton, "打开预览", canPreview, selected.Length,
+        UpdateBatchButton(BuildBatchButton, "构建", "开始构建", canBuild, selected.Length, "请勾选可构建的项目");
+        UpdateBatchButton(BrowserPreviewButton, "预览", "打开浏览器预览", canPreview, selected.Length,
             selected.Any(HasSuccessfulBuild) ? "请填写并保存预览命令" : "请勾选已成功构建的项目");
-        UpdateBatchButton(ApplyBatchButton, "应用同步", canApply, selected.Length, "请勾选已构建的项目");
-        UpdateBatchButton(PublishBatchButton, "提交并推送", canPublish, selected.Length, "请勾选已同步的项目");
-        UpdateBatchButton(RetryPushButton, "重试推送", canRetry, selected.Length, "请勾选待推送的项目");
+        UpdateBatchButton(ApplyBatchButton, "同步", "应用同步", canApply, selected.Length, "请勾选已构建的项目");
+        UpdateBatchButton(PublishBatchButton, "推送", "提交并推送", canPublish, selected.Length, "请勾选已同步的项目");
+        UpdateBatchButton(RetryPushButton, "重试", "重试推送", canRetry, selected.Length, "请勾选待推送的项目");
         RetryPushButton.Visibility = canRetry > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // Prefer finishing work that has already reached a later stage.
@@ -572,13 +572,13 @@ public partial class MainWindow
         NewProjectButton.Appearance = primaryAction is null ? ControlAppearance.Primary : ControlAppearance.Secondary;
     }
 
-    private void UpdateBatchButton(Wpf.Ui.Controls.Button button, string label, int eligible, int selected, string selectionHint)
+    private void UpdateBatchButton(Wpf.Ui.Controls.Button button, string label, string action, int eligible, int selected, string selectionHint)
     {
         bool partial = eligible > 0 && eligible < selected;
         button.Content = partial ? $"{label} · {eligible}" : label;
         button.IsEnabled = !running && eligible > 0;
-        string hint = partial ? $"处理 {eligible}/{selected} 项" :
-            eligible > 0 ? $"处理 {eligible} 项" : selectionHint;
+        string hint = partial ? $"{action} · {eligible}/{selected} 项" :
+            eligible > 0 ? $"{action} · {eligible} 项" : selectionHint;
         button.ToolTip = hint;
         AutomationProperties.SetHelpText(button, hint);
     }
