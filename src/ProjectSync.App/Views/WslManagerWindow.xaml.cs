@@ -59,6 +59,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 
     private readonly Func<string, IEnumerable<string>> projectsUsing;
     private readonly Func<string[], Task<(int Code, string Output)>> queryHost;
+    private const int QueryTimeout = -1;
     private bool busy;
     private bool hostReady;
     private string help = "";
@@ -68,7 +69,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         Func<string[], Task<(int Code, string Output)>>? queryHost = null)
     {
         this.projectsUsing = projectsUsing;
-        this.queryHost = queryHost ?? (args => InvokeAsync(args, timeout: TimeSpan.FromSeconds(8)));
+        this.queryHost = queryHost ?? (args => InvokeAsync(args,
+            timeout: TimeSpan.FromSeconds(args is ["--list", "--verbose"] ? 20 : 8)));
         InitializeComponent();
         Loaded += async (_, _) => await RunAsync(RefreshAsync);
     }
@@ -148,7 +150,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             catch (TimeoutException) { }
             string output = (stdout.IsCompletedSuccessfully ? stdout.Result : "") +
                 (stderr.IsCompletedSuccessfully ? stderr.Result : "");
-            return (-1, $"{output}WSL 查询超时。");
+            return (QueryTimeout, $"{output}WSL 查询超时（{timeout!.Value.TotalSeconds:0} 秒）。");
         }
     }
 
@@ -168,14 +170,29 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         WslSetupButton.Visibility = showSetup ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void ShowHostSetup(string output)
+    private void RecordHostQueryFailure(string command, string output)
+    {
+        Log.Text = $"wsl.exe {command}{Environment.NewLine}{output}";
+        LogArea.IsExpanded = true;
+        string details = output.ReplaceLineEndings(" | ");
+        ProjectSync.App.App.AppendDiagnostic($"WSL 管理查询失败：wsl.exe {command} · {details[..Math.Min(details.Length, 1600)]}");
+    }
+
+    private void ShowHostSetup(string output, string? command = null, bool timedOut = false)
     {
         SetHostReady(false, showSetup: true);
         VersionText.Text = "";
         Instances.ItemsSource = Array.Empty<Instance>();
-        Log.Text = output;
-        LogArea.IsExpanded = true;
-        Status.ShowFeedback("Windows 的 WSL 组件不可用。请先安装或修复 WSL，再刷新检测。", InfoBarSeverity.Warning);
+        if (command is not null)
+            RecordHostQueryFailure(command, output);
+        else
+        {
+            Log.Text = output;
+            LogArea.IsExpanded = true;
+        }
+        Status.ShowFeedback(timedOut
+            ? "WSL 查询超时。请在 Windows 终端运行 wsl --status，或打开「WSL 安装与修复」排查。"
+            : "Windows 的 WSL 组件不可用。请先安装或修复 WSL，再刷新检测。", InfoBarSeverity.Warning);
     }
 
     private void OpenWslSetupGuide(object sender, RoutedEventArgs e)
@@ -235,27 +252,32 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         try { list = await queryHost(new[] { "--list", "--verbose" }); }
         catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode is 2 or 3)
         {
-            ShowHostSetup(error.Message);
+            ShowHostSetup(error.Message, "--list --verbose");
             return;
         }
         if (HostNeedsSetup(list.Output))
         {
-            ShowHostSetup(list.Output);
+            ShowHostSetup(list.Output, "--list --verbose");
+            return;
+        }
+        if (list.Code == QueryTimeout)
+        {
+            ShowHostSetup(list.Output, "--list --verbose", timedOut: true);
             return;
         }
         if (list.Code != 0 && !IsEmptyDistributionList(list.Output))
         {
             VersionText.Text = "";
             Instances.ItemsSource = Array.Empty<Instance>();
-            Log.Text = list.Output;
-            LogArea.IsExpanded = true;
+            RecordHostQueryFailure("--list --verbose", list.Output);
             Status.ShowFeedback("无法读取 WSL 状态，请查看日志后刷新检测。", InfoBarSeverity.Error);
             return;
         }
         var results = await Task.WhenAll(queryHost(new[] { "--version" }), queryHost(new[] { "--help" }));
-        if (results.FirstOrDefault(result => HostNeedsSetup(result.Output)).Output is { } setupError)
+        int setupErrorIndex = Array.FindIndex(results, result => HostNeedsSetup(result.Output));
+        if (setupErrorIndex >= 0)
         {
-            ShowHostSetup(setupError);
+            ShowHostSetup(results[setupErrorIndex].Output, setupErrorIndex == 0 ? "--version" : "--help");
             return;
         }
         string version = Regex.Match(results[0].Output, @"\d+(?:\.\d+){2,3}").Value;
@@ -462,13 +484,12 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         var list = await queryHost(new[] { "--list", "--online" });
         if (HostNeedsSetup(list.Output))
         {
-            ShowHostSetup(list.Output);
+            ShowHostSetup(list.Output, "--list --online");
             return;
         }
         if (list.Code != 0)
         {
-            Log.Text = list.Output;
-            LogArea.IsExpanded = true;
+            RecordHostQueryFailure("--list --online", list.Output);
             Status.ShowFeedback("无法获取在线目录，可手动输入发行版名称。", InfoBarSeverity.Warning);
         }
         else
