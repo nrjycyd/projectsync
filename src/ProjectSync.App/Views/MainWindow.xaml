@@ -39,7 +39,8 @@
      <WrapPanel.Resources>
       <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{DynamicResource TextFillColorPrimary}"/>
      </WrapPanel.Resources>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="PreviewBatchButton" MinWidth="122" Content="构建并预览" Click="PreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
+     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
+     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Globe24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="BrowserPreviewButton" Content="打开预览" Click="OpenPreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowSync24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUpload24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="RetryPushButton" Content="重试推送"
@@ -94,7 +95,7 @@
     <DockPanel>
      <ui:Button x:Name="StopBatchButton" DockPanel.Dock="Right" Appearance="Secondary"
                 Margin="12,0,0,0" Content="停止" Click="StopBatch"
-                ToolTip="取消构建和预览，或在当前同步或推送结束后停止批量操作"/>
+                ToolTip="取消当前构建或打开预览，或在当前同步或推送结束后停止批量操作"/>
      <TextBlock x:Name="BatchProgressText" VerticalAlignment="Center" TextWrapping="Wrap"
                 AutomationProperties.LiveSetting="Polite"/>
     </DockPanel>
@@ -261,7 +262,7 @@
     <TabControl Grid.Row="2" x:Name="HomeResults" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
      <TabItem Header="变更清单" x:Name="HomeChangesTab">
       <DockPanel Margin="10,12,10,10" TextElement.FontWeight="Normal">
-       <TextBlock x:Name="HomeChangesSummary" Style="{StaticResource WorkspaceSecondaryText}" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建并预览后显示待同步变更。"/>
+       <TextBlock x:Name="HomeChangesSummary" Style="{StaticResource WorkspaceSecondaryText}" DockPanel.Dock="Top" Margin="12,0,0,12" Text="构建后显示待同步变更。"/>
        <Border Style="{StaticResource WorkspacePanel}">
        <ui:DataGrid x:Name="HomeChanges" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" Background="Transparent" BorderThickness="0" SizeChanged="DashboardTableSizeChanged" RowHeight="36" GridLinesVisibility="Horizontal" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36">
         <DataGrid.GroupStyle>

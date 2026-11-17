@@ -603,7 +603,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     "SOURCE_MISSING" => "WSL 缺少配置中指定的同步文件。请核对日志里的路径。",
                     "WSL_INDEX" => "WSL 暂存区与当前文件不一致，或 Git 索引不可读。请查看日志并核对暂存内容。",
                     "BUILD" => "构建命令执行失败。请查看上方的构建输出。",
-                    "PREVIEW_EXPIRED" => "预览已过期，请重新构建并预览。",
+                    "PREVIEW_EXPIRED" => "变更清单已过期，请重新构建。",
                     "PUSH" => "本地提交已生成。请查看推送错误，然后重试推送。",
                     _ => "操作失败，详情见日志。"
                 });
