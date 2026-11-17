@@ -556,7 +556,7 @@ public partial class MainWindow
         int canApply = selected.Count(project => CanRunBatchOperation(project, Operation.Apply));
         int canPublish = selected.Count(project => CanRunBatchOperation(project, Operation.Publish));
         int canRetry = selected.Count(project => CanRunBatchOperation(project, Operation.RetryPush));
-        UpdateBatchButton(BuildBatchButton, "构建", canBuild, selected.Length, "请勾选可构建的项目");
+        UpdateBatchButton(BuildBatchButton, "开始构建", canBuild, selected.Length, "请勾选可构建的项目");
         UpdateBatchButton(BrowserPreviewButton, "打开预览", canPreview, selected.Length,
             selected.Any(HasSuccessfulBuild) ? "请填写并保存预览命令" : "请勾选已成功构建的项目");
         UpdateBatchButton(ApplyBatchButton, "应用同步", canApply, selected.Length, "请勾选已构建的项目");

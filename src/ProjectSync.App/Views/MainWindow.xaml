@@ -39,7 +39,7 @@
      <WrapPanel.Resources>
       <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{DynamicResource TextFillColorPrimary}"/>
      </WrapPanel.Resources>
-     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
+     <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Play24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="BuildBatchButton" Content="开始构建" Click="BuildSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon Globe24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="BrowserPreviewButton" Content="打开预览" Click="OpenPreviewSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowSync24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="ApplyBatchButton" MinWidth="99" Content="应用同步" Click="ApplySelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
      <ui:Button Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUpload24}" Margin="0,0,6,0" Padding="10,4" MinHeight="34" x:Name="PublishBatchButton" MinWidth="112" Content="提交并推送" Click="PublishSelected" IsEnabled="False" ToolTipService.ShowOnDisabled="True"/>
