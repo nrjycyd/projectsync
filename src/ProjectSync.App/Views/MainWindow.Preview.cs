@@ -48,7 +48,8 @@ public partial class MainWindow
                 RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
                 StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
             };
-            const string wrapper = "exec 3<&0; " + script;
+            // Windows source checkouts can give raw string literals CRLF line endings.
+            string wrapper = "exec 3<&0; " + script.ReplaceLineEndings("\n");
             foreach (string arg in new[] { "-d", Read("distro"), "-u", Read("wslUser"),
                 "--cd", Read("wslRepo"), "--exec", "bash", "-c", wrapper, "projectsync-preview", Read("nodeBin"), command })
                 start.ArgumentList.Add(arg);
