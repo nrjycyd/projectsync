@@ -47,3 +47,5 @@ try {
     Remove-Item -LiteralPath $testDir
 }
 Write-Output 'BuildSync syntax, PowerShell path, and Windows Git prerequisite checks passed.'
+# The last child process deliberately exits 1. Report the test script's own success to CI.
+exit 0
