@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Wpf.Ui.Controls;
 
 namespace ProjectSync.App.Views;
 
@@ -15,15 +16,14 @@ public partial class MainWindow
 
     private async void DetectWsl(object sender, RoutedEventArgs e)
     {
-        if (detectingWsl || running || !TryGetWslPath(out _, out _))
+        if (detectingWsl || running || !TryGetWslPath(out string path, out string namedDistro))
             return;
 
         detectingWsl = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         try
         {
-            TryGetWslPath(out string path, out string namedDistro);
-            Status.Text = "正在查找 WSL 项目目录…";
+            EnvironmentFeedback.ShowFeedback("正在查找 WSL 项目目录…");
             string[] distributions = namedDistro.Length > 0 ? new[] { namedDistro } :
                 Lines(await QueryWslAsync(Encoding.Unicode, "-l", "-q"));
             var matches = new List<string>();
@@ -53,11 +53,12 @@ public partial class MainWindow
                 distro.Clear();
                 wslUser.Clear();
                 WslUserChoice.ItemsSource = null;
-                Status.Text = "多个发行版包含此仓库，请选择一个发行版。";
+                EnvironmentFeedback.ShowFeedback("多个发行版包含此仓库，请选择一个发行版。");
             }
-            if (cacheError is not null) Status.Text = cacheError;
+            if (cacheError is not null)
+                EnvironmentFeedback.ShowFeedback(EnvironmentFeedback.Message + Environment.NewLine + cacheError, InfoBarSeverity.Warning);
         }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { EnvironmentFeedback.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
             detectingWsl = false;
@@ -71,8 +72,9 @@ public partial class MainWindow
             return;
         detectingWsl = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
+        EnvironmentFeedback.ShowFeedback("正在读取 WSL 用户…");
         try { await LoadWslUsersAsync(name, path); }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { EnvironmentFeedback.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
             detectingWsl = false;
@@ -98,7 +100,9 @@ public partial class MainWindow
         WslUserChoice.ItemsSource = users;
         WslUserChoice.SelectedItem = users.Contains(previousUser) ? previousUser :
             defaultUser == "root" && owner != "root" && users.Contains(owner) ? owner : defaultUser;
-        Status.Text = SaveChoices(UserChoiceKey(name), users) ?? "已读取 WSL 用户。点击「检测环境」刷新 Node.js 版本。";
+        string? cacheError = SaveChoices(UserChoiceKey(name), users);
+        EnvironmentFeedback.ShowFeedback(cacheError ?? "已读取 WSL 用户。点击「检测环境」刷新 Node.js 版本。",
+            cacheError is null ? InfoBarSeverity.Informational : InfoBarSeverity.Warning);
     }
 
     private void ChooseWslUser(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -106,6 +110,7 @@ public partial class MainWindow
         if (loading || WslUserChoice.SelectedItem is not string name) return;
         wslUser.Text = name;
         RestoreSavedNodeOption();
+        if (!detectingWsl) EnvironmentFeedback.ShowFeedback("WSL 用户已修改，请重新检测 Node.js 版本。");
     }
 
     private sealed record NodeOption(string Label, string? Directory);
@@ -147,6 +152,7 @@ public partial class MainWindow
     private async Task DetectNodeAsync(string distribution, string user, string path)
     {
         if (user.Length == 0) return;
+        EnvironmentFeedback.ShowFeedback("正在检测 Node.js 版本…");
 
         const string probe = """
             cd -- "$1" || exit
@@ -199,8 +205,11 @@ public partial class MainWindow
             NodeVersion.SelectedItem = existing ?? options[0];
 
         NodeHint.Text = hint;
-        Status.Text = cacheError ?? (detectedCount == 0 ? "未检测到 Node.js，可手动填写额外 PATH。" :
-            $"检测到 {detectedCount} 个 Node.js 选项。确认后保存项目。");
+        string message = detectedCount == 0
+            ? "未检测到 Node.js。可在下方手动填写额外 PATH 目录。"
+            : $"检测到 {detectedCount} 个 Node.js 选项。请核对所选版本，版本设置随项目保存。";
+        if (cacheError is not null) message += Environment.NewLine + cacheError;
+        EnvironmentFeedback.ShowFeedback(message, detectedCount == 0 || cacheError is not null ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
     }
 
     private void ChooseNodeVersion(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -219,19 +228,12 @@ public partial class MainWindow
         }
         if (path.StartsWith("/", StringComparison.Ordinal) && !path.StartsWith("//", StringComparison.Ordinal))
             return true;
-        Status.Text = "请输入 Linux 绝对路径或 WSL 网络路径。";
+        EnvironmentFeedback.ShowFeedback("请输入 Linux 绝对路径或 WSL 网络路径。", InfoBarSeverity.Warning);
         return false;
     }
 
-    private static bool TryParseWslNetworkPath(string value, out string path, out string distribution)
-    {
-        var match = System.Text.RegularExpressions.Regex.Match(value.Replace('\\', '/'),
-            @"^/{2,}(?:wsl\.localhost|wsl\$)/([^/]+)(/.+)$",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        distribution = match.Groups[1].Value;
-        path = match.Groups[2].Value;
-        return match.Success;
-    }
+    private static bool TryParseWslNetworkPath(string value, out string path, out string distribution) =>
+        ProjectSync.Core.SyncPath.TryParseWslNetworkPath(value, out path, out distribution);
 
     private static string[] Lines(string text) =>
         text.TrimStart('\uFEFF').Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

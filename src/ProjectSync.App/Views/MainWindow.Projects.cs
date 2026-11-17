@@ -3,10 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Automation;
+using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -14,11 +18,21 @@ public partial class MainWindow
 {
     private readonly string projectFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ProjectSync", "projects.json");
+        ProjectSync.App.App.DataDirectoryName, "projects.json");
     private readonly List<ProjectEntry> savedProjects = new();
     private ProjectEntry? activeProject;
     private int settingsOpenSequence;
-    private string? originalConfig;
+    private JsonObject? originalConfig;
+
+    private bool HasConfigChanges => !JsonNode.DeepEquals(current, originalConfig);
+
+    private void UpdateSaveProjectAction()
+    {
+        bool canSave = !jsonDraft && HasConfigChanges;
+        SaveProjectButton.Appearance = canSave ? ControlAppearance.Primary : ControlAppearance.Secondary;
+        SaveProjectButton.IsEnabled = canSave;
+        ApplyJsonButton.Appearance = jsonDraft ? ControlAppearance.Primary : ControlAppearance.Secondary;
+    }
 
     private sealed record ProjectEntry(Guid Id, string Name, string Repository, string Branch, string Configuration)
     {
@@ -62,17 +76,10 @@ public partial class MainWindow
             if (File.Exists(projectFile))
                 savedProjects.AddRange(JsonSerializer.Deserialize<List<ProjectEntry>>(File.ReadAllText(projectFile))
                     ?? throw new JsonException("项目列表必须是 JSON 数组。"));
-            else
-            {
-                LoadConfig(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "examples", "edusprout.build-sync.json")));
-                ProjectName.Text = "EduSprout";
-                savedProjects.Add(CreateEntry());
-                PersistProjects();
-            }
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"无法加载项目列表：{error.Message}";
+            HomeStatus.ShowFeedback($"无法加载项目列表：{error.Message}", InfoBarSeverity.Error);
         }
         foreach (var project in savedProjects)
         {
@@ -85,17 +92,68 @@ public partial class MainWindow
                     if (System.Text.RegularExpressions.Regex.IsMatch(pending, @"\A[0-9a-f]{40}(?::[0-9a-f]{40}){2}\z"))
                         projectRuns[project.Id] = new RunState(null, pending, "已提交，待推送");
                 }
+                if (!projectRuns.ContainsKey(project.Id) && File.Exists(PreviewStatePath(project)))
+                {
+                    var preview = JsonSerializer.Deserialize<SavedPreview>(File.ReadAllText(PreviewStatePath(project)));
+                    if (preview is not null && preview.ConfigurationHash == ConfigurationHash(project) &&
+                        System.Text.RegularExpressions.Regex.IsMatch(preview.Plan, @"\A[0-9a-f]{40}:[0-9A-F]{64}\z"))
+                    {
+                        projectRuns[project.Id] = new RunState(preview.Plan, null, "可同步", preview.Changes);
+                    }
+                }
             }
-            catch (Exception error) { HomeStatus.Text = $"无法读取「{project.Name}」的待推送记录：{error.Message}"; }
+            catch (Exception error) { HomeStatus.ShowFeedback($"无法读取「{project.Name}」的待推送记录：{error.Message}", InfoBarSeverity.Error); }
         }
+        HomeChanges.Items.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(BatchChange.Group)));
+        ShowSavedChanges();
         RefreshProjects();
     }
 
-    private string PendingPushPath(ProjectEntry project)
-    {
-        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+    private static string ConfigurationHash(ProjectEntry project) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(project.Configuration)));
-        return Path.Combine(Path.GetDirectoryName(projectFile)!, $"pending-{project.Id:N}-{hash}.txt");
+
+    private string PendingPushPath(ProjectEntry project) =>
+        Path.Combine(Path.GetDirectoryName(projectFile)!, $"pending-{project.Id:N}-{ConfigurationHash(project)}.txt");
+
+    private string PreviewStatePath(ProjectEntry project) =>
+        Path.Combine(Path.GetDirectoryName(projectFile)!, $"preview-{project.Id:N}.json");
+
+    private void SavePreview(ProjectEntry project, string plan, BatchChange[] changes)
+    {
+        string path = PreviewStatePath(project);
+        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(temporary, JsonSerializer.Serialize(new SavedPreview(ConfigurationHash(project), plan, changes)));
+            File.Move(temporary, path, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
+    }
+
+    private void DeletePreview(ProjectEntry project)
+    {
+        try { File.Delete(PreviewStatePath(project)); }
+        catch (IOException error) { WriteHomeLog($"无法删除预览记录：{error.Message}"); }
+        catch (UnauthorizedAccessException error) { WriteHomeLog($"无法删除预览记录：{error.Message}"); }
+    }
+
+    private void ShowSavedChanges()
+    {
+        HomeChanges.Items.Clear();
+        foreach (var project in savedProjects)
+            if (projectRuns.TryGetValue(project.Id, out var state) && state.Changes is { } changes)
+                foreach (var change in changes)
+                    HomeChanges.Items.Add(change);
+        if (HomeChanges.Items.Count > 0)
+            HomeChangesSummary.Text = $"预览列出 {HomeChanges.Items.Count} 项变更";
+        else
+            HomeChangesSummary.Text = projectRuns.Values.Any(state => state.Plan is not null)
+                ? "预览未列出文件变更。" : "构建并预览后显示待同步变更。";
     }
 
     private ProjectEntry CreateEntry() => new(activeProject?.Id ?? Guid.NewGuid(), ProjectName.Text.Trim(),
@@ -125,15 +183,24 @@ public partial class MainWindow
         Projects.ItemsSource = null;
         Projects.ItemsSource = savedProjects;
         Projects.SelectedItem = savedProjects.Find(project => project.Id == selected);
+        bool hasProjects = savedProjects.Count > 0;
+        var projectVisibility = hasProjects ? Visibility.Visible : Visibility.Collapsed;
+        ProjectTableFrame.Visibility = projectVisibility;
+        BatchActions.Visibility = projectVisibility;
+        EmptyProjects.Visibility = hasProjects ? Visibility.Collapsed : Visibility.Visible;
         UpdateHomeActions();
     }
 
-    private async Task ShowProjectAsync(string configuration, ProjectEntry? entry)
+    private async Task ShowProjectAsync(string configuration, ProjectEntry? entry, bool isBlankProject = false)
     {
         int openSequence = ++settingsOpenSequence;
+        restoreDetectedOptions = !isBlankProject;
         LoadConfig(configuration);
+        LocalGitStatus.IsOpen = false;
+        Status.IsOpen = false;
         activeProject = entry;
-        originalConfig = entry is null ? null : SerializeConfig();
+        originalConfig = entry is not null || isBlankProject ? (JsonObject)current.DeepClone() : null;
+        UpdateSaveProjectAction();
         var selectedTab = RemoteSettingsTab;
         if (!string.IsNullOrWhiteSpace(branch.Text))
         {
@@ -170,7 +237,15 @@ public partial class MainWindow
 
     private async void NewProject(object sender, RoutedEventArgs e)
     {
-        await ShowProjectAsync("""{"name":"","remote":"origin","branch":"main","cleanUntracked":false}""", null);
+        if (e.OriginalSource is System.Windows.Controls.Primitives.ToggleButton &&
+            sender is Wpf.Ui.Controls.SplitButton { Flyout: System.Windows.Controls.ContextMenu menu } button)
+        {
+            e.Handled = true;
+            FlyoutKeyboard.Open(menu, button);
+            return;
+        }
+
+        await ShowProjectAsync("{}", null, isBlankProject: true);
     }
 
     private async void ImportProject(object sender, RoutedEventArgs e)
@@ -180,14 +255,16 @@ public partial class MainWindow
             return;
         try
         {
-            await ShowProjectAsync(File.ReadAllText(dialog.FileName), null);
+            string configuration = File.ReadAllText(dialog.FileName);
+            if (!ConfirmExternalConfiguration(configuration)) return;
+            await ShowProjectAsync(configuration, null);
             if (string.IsNullOrWhiteSpace(ProjectName.Text))
                 ProjectName.Text = Path.GetFileNameWithoutExtension(dialog.FileName);
-            Status.Text = "已导入配置。点击「保存项目」加入列表。";
+            Status.ShowFeedback("已导入配置。点击「保存项目」加入列表。");
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"无法导入项目：{error.Message}";
+            HomeStatus.ShowFeedback($"无法导入项目：{error.Message}", InfoBarSeverity.Error);
         }
     }
 
@@ -196,20 +273,30 @@ public partial class MainWindow
         if (Projects.SelectedItem is not ProjectEntry entry)
             return;
         try { await ShowProjectAsync(entry.Configuration, entry); }
-        catch (Exception error) { HomeStatus.Text = $"无法打开项目：{error.Message}"; }
+        catch (Exception error) { HomeStatus.ShowFeedback($"无法打开项目：{error.Message}", InfoBarSeverity.Error); }
     }
 
     private void SaveProject(object sender, RoutedEventArgs e) => TrySaveProject();
 
     private bool TrySaveProject()
     {
-        if (jsonDraft || string.IsNullOrWhiteSpace(ProjectName.Text))
+        if (jsonDraft)
         {
-            Status.Text = jsonDraft ? "请先应用待处理的 JSON 改动。" : "请填写项目名称。";
+            ShowPendingJson("请先应用到表单，再保存项目。");
+            return false;
+        }
+        if (!HasConfigChanges) return true;
+
+        if (string.IsNullOrWhiteSpace(ProjectName.Text))
+        {
+            SettingsTabs.SelectedItem = LocalSettingsTab;
+            ProjectName.Focus();
+            Status.ShowFeedback("请填写项目名称。", InfoBarSeverity.Warning);
             return false;
         }
 
         if (!TryNormalizeSyncPaths(include, exclude)) return false;
+        if (!HasConfigChanges) return true;
 
         ProjectEntry entry = CreateEntry();
         int index = savedProjects.FindIndex(item => item.Id == entry.Id);
@@ -224,20 +311,27 @@ public partial class MainWindow
         {
             if (previous is null) savedProjects.Remove(entry);
             else savedProjects[index] = previous;
-            Status.Text = $"保存失败：{error.Message}";
+            Status.ShowFeedback($"保存失败：{error.Message}", InfoBarSeverity.Error);
             return false;
         }
 
         activeProject = entry;
-        if (previous?.Configuration != entry.Configuration) projectRuns.Remove(entry.Id);
-        originalConfig = entry.Configuration;
-        Status.Text = $"已保存项目「{entry.Name}」。";
+        if (previous is not null && previous.Configuration != entry.Configuration)
+        {
+            projectRuns.Remove(entry.Id);
+            DeletePreview(entry);
+            ShowSavedChanges();
+        }
+        originalConfig = (JsonObject)current.DeepClone();
+        UpdateSaveProjectAction();
+        Status.IsOpen = false;
+        JsonStatus.IsOpen = false;
         return true;
     }
 
     private bool CanLeaveProject()
     {
-        if (ProjectPage.Visibility != Visibility.Visible || (!jsonDraft && SerializeConfig() == originalConfig))
+        if (ProjectPage.Visibility != Visibility.Visible || (!jsonDraft && !HasConfigChanges))
             return true;
 
         var choice = ConfirmProjectAction("未保存的项目", "保存当前项目的配置改动？", "保存", "放弃", canCancel: true);
@@ -251,35 +345,50 @@ public partial class MainWindow
         ResetPreview();
         ProjectPage.Visibility = Visibility.Collapsed;
         HomePage.Visibility = Visibility.Visible;
-        HomeStatus.Text = "";
+        HomeStatus.IsOpen = false;
         RefreshProjects();
         Projects.SelectedItem = activeProject;
     }
 
+    private void ProjectRowMenuOpening(object sender, System.Windows.Controls.ContextMenuEventArgs e)
+    {
+        if (running) e.Handled = true;
+    }
+
     private void RemoveProject(object sender, RoutedEventArgs e)
     {
-        if (Projects.SelectedItem is not ProjectEntry entry ||
-            ConfirmProjectAction("移除项目", $"从列表移除「{entry.Name}」？仓库文件会保留。", "移除", "取消", canCancel: false) != MessageBoxResult.Yes)
+        if (running || sender is not System.Windows.Controls.MenuItem { DataContext: ProjectEntry row })
             return;
 
-        int index = savedProjects.IndexOf(entry);
+        int index = savedProjects.FindIndex(project => project.Id == row.Id);
+        if (index < 0) return;
+        var entry = savedProjects[index];
+        if (ConfirmProjectAction("移除项目", $"从列表移除「{entry.Name}」？仓库文件会保留。", "移除", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
+            return;
+
         savedProjects.RemoveAt(index);
         try { PersistProjects(); }
         catch (Exception error)
         {
             savedProjects.Insert(index, entry);
-            HomeStatus.Text = $"移除失败：{error.Message}";
+            HomeStatus.ShowFeedback($"移除失败：{error.Message}", InfoBarSeverity.Error);
             return;
         }
 
         RefreshProjects();
         projectRuns.Remove(entry.Id);
-        HomeStatus.Text = $"已移除「{entry.Name}」。";
+        DeletePreview(entry);
+        ShowSavedChanges();
+        HomeStatus.ShowFeedback($"已移除「{entry.Name}」。", InfoBarSeverity.Success);
     }
 
-    private sealed record BatchChange(string Project, string Action, string Path);
-    private enum Operation { Preview, Apply, Publish }
-    private sealed record RunState(string? Plan, string? Synced, string Progress);
+    private sealed record BatchChange(string Project, string Action, string Path)
+    {
+        public string Group => Action == "目标清理" ? "目标清理（永久删除）" : "同步变更";
+    }
+    private enum Operation { Preview, Apply, Publish, RetryPush }
+    private sealed record RunState(string? Plan, string? Synced, string Progress, BatchChange[]? Changes = null);
+    private sealed record SavedPreview(string ConfigurationHash, string Plan, BatchChange[] Changes);
     private readonly Dictionary<Guid, RunState> projectRuns = new();
 
     private void ProjectSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => UpdateHomeActions();
@@ -364,7 +473,7 @@ public partial class MainWindow
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"无法打开「{project.Name}」的快捷访问目标：{error.Message}";
+            HomeStatus.ShowFeedback($"无法打开「{project.Name}」的快捷访问目标：{error.Message}", InfoBarSeverity.Error);
         }
     }
 
@@ -410,66 +519,91 @@ public partial class MainWindow
         OpenProject(sender, e);
     }
 
-    private void OpenHomeMenu(object sender, RoutedEventArgs e)
-    {
-        if (running || sender is not System.Windows.Controls.Button { ContextMenu: { } menu } button)
-            return;
+    private void MenuKeyDown(object sender, System.Windows.Input.KeyEventArgs e) =>
+        FlyoutKeyboard.Handle(sender, e);
 
-        RemoveProjectItem.IsEnabled = Projects.SelectedItem is ProjectEntry;
-        menu.PlacementTarget = menu.Items.Contains(RemoveProjectItem) ? NewProjectGroup : button;
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-        menu.IsOpen = true;
-    }
-
-    private void HomeToolbarSizeChanged(object sender, SizeChangedEventArgs e)
+    private bool CanRunBatchOperation(ProjectEntry project, Operation operation)
     {
-        if (HomeActions is null || BatchActions is null) return;
-        bool wrap = e.NewSize.Width < BatchActions.DesiredSize.Width + HomeActions.DesiredSize.Width + 16;
-        System.Windows.Controls.Grid.SetRow(HomeActions, wrap ? 1 : 0);
-        System.Windows.Controls.Grid.SetColumn(HomeActions, wrap ? 0 : 2);
-        System.Windows.Controls.Grid.SetColumnSpan(HomeActions, wrap ? 3 : 1);
-        HomeActions.Margin = new Thickness(0, wrap ? 6 : 0, 0, 0);
+        projectRuns.TryGetValue(project.Id, out var state);
+        bool pending = state?.Progress == "已提交，待推送";
+        return operation switch
+        {
+            Operation.Preview => !pending,
+            Operation.Apply => !pending && state?.Plan is not null,
+            Operation.Publish => !pending && state?.Synced is not null,
+            Operation.RetryPush => pending && state?.Synced is not null,
+            _ => false
+        };
     }
 
     private void UpdateHomeActions()
     {
-        if (Projects is null || PreviewBatchButton is null || SelectionSummary is null)
+        if (Projects is null || PreviewBatchButton is null)
             return;
 
         var selected = savedProjects.Where(project => project.Checked).ToArray();
-        int canApply = selected.Count(project => projectRuns.TryGetValue(project.Id, out var state) && state.Plan is not null);
-        int canPublish = selected.Count(project => projectRuns.TryGetValue(project.Id, out var state) && state.Synced is not null);
-        PreviewBatchButton.IsEnabled = !running && selected.Length > 0;
-        ApplyBatchButton.IsEnabled = !running && canApply > 0;
-        PublishBatchButton.IsEnabled = !running && canPublish > 0;
-        PublishBatchButton.Content = canPublish > 0 && selected.Any(project =>
-            projectRuns.TryGetValue(project.Id, out var state) && state.Progress == "已提交，待推送")
-            ? "提交／重试推送" : "提交并推送";
+        int canPreview = selected.Count(project => CanRunBatchOperation(project, Operation.Preview));
+        int canApply = selected.Count(project => CanRunBatchOperation(project, Operation.Apply));
+        int canPublish = selected.Count(project => CanRunBatchOperation(project, Operation.Publish));
+        int canRetry = selected.Count(project => CanRunBatchOperation(project, Operation.RetryPush));
+        UpdateBatchButton(PreviewBatchButton, "构建并预览", canPreview, selected.Length, "请勾选可预览的项目");
+        UpdateBatchButton(ApplyBatchButton, "应用同步", canApply, selected.Length, "请勾选已预览的项目");
+        UpdateBatchButton(PublishBatchButton, "提交并推送", canPublish, selected.Length, "请勾选已同步的项目");
+        UpdateBatchButton(RetryPushButton, "重试推送", canRetry, selected.Length, "请勾选待推送的项目");
+        RetryPushButton.Visibility = canRetry > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        SelectionSummary.Text = selected.Length == 0 ? "勾选项目后开始" :
-            $"已勾选 {selected.Length} 个";
-        SelectionSummary.ToolTip = selected.Length == 0 ? null : $"可同步 {canApply} 个 · 可推送 {canPublish} 个";
+        // Prefer finishing work that has already reached a later stage.
+        var batchButtons = new[] { RetryPushButton, PublishBatchButton, ApplyBatchButton, PreviewBatchButton };
+        var primaryAction = Array.Find(batchButtons, button => button.IsEnabled);
+        foreach (var button in batchButtons)
+            button.Appearance = button == primaryAction ? ControlAppearance.Primary : ControlAppearance.Secondary;
+        NewProjectButton.Appearance = primaryAction is null ? ControlAppearance.Primary : ControlAppearance.Secondary;
+    }
+
+    private void UpdateBatchButton(Wpf.Ui.Controls.Button button, string label, int eligible, int selected, string selectionHint)
+    {
+        bool partial = eligible > 0 && eligible < selected;
+        button.Content = partial ? $"{label} · {eligible}" : label;
+        button.IsEnabled = !running && eligible > 0;
+        string hint = partial ? $"处理 {eligible}/{selected} 项" :
+            eligible > 0 ? $"处理 {eligible} 项" : selectionHint;
+        button.ToolTip = hint;
+        AutomationProperties.SetHelpText(button, hint);
     }
 
     private async void PreviewSelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.Preview);
     private async void ApplySelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.Apply);
     private async void PublishSelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.Publish);
 
-    private string? RequestCommitSummary(ProjectEntry[] projects)
+    private async void RetryPushSelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.RetryPush);
+
+    private static async Task<string[]> ReadWorkingTreeAsync(ProjectEntry project)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("git")
+        {
+            UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true, RedirectStandardError = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8
+        };
+        foreach (string argument in new[] { "--no-optional-locks", "-C", project.Repository,
+            "-c", "core.quotepath=false", "status", "--short", "--untracked-files=all", "--no-renames" })
+            start.ArgumentList.Add(argument);
+
+        using var process = System.Diagnostics.Process.Start(start)
+            ?? throw new IOException("无法启动 Git。");
+        Task<string> output = process.StandardOutput.ReadToEndAsync();
+        Task<string> errors = process.StandardError.ReadToEndAsync();
+        await Task.WhenAll(output, errors, process.WaitForExitAsync());
+        if (process.ExitCode != 0) throw new IOException(errors.Result.Trim());
+        return output.Result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private string? RequestCommitSummary(ProjectEntry project, string[] changes)
     {
         var body = new System.Windows.Controls.DockPanel { Margin = new Thickness(20) };
-        var dialog = new Window
-        {
-            Title = "提交并推送", Owner = this, Icon = Icon, FontFamily = FontFamily, FontSize = 14,
-            Width = 480, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
-            Background = System.Windows.Media.Brushes.White, Content = body
-        };
-        string[] targets = projects.Select(project =>
-        {
-            var branch = JsonNode.Parse(project.Configuration)?["branch"]?.GetValue<string>();
-            return $"{project.Name} → {branch}\n{project.Repository}";
-        }).ToArray();
+        var dialog = FluentDialog.Create(this, "提交并推送", body, 480);
+        var branch = JsonNode.Parse(project.Configuration)?["branch"]?.GetValue<string>();
+        string target = $"{project.Name} → {branch}\n{project.Repository}\n\n当前工作区有 {changes.Length} 项变更。";
         var scope = new System.Windows.Controls.TextBlock
         {
             Text = "将暂存并提交整个 Windows 工作区的新增、修改和删除。Git 已忽略的未跟踪文件会跳过。",
@@ -479,8 +613,12 @@ public partial class MainWindow
         body.Children.Add(scope);
         var targetsView = new System.Windows.Controls.ScrollViewer
         {
-            MaxHeight = 110, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-            Content = new System.Windows.Controls.TextBlock { Text = string.Join(Environment.NewLine, targets), TextWrapping = TextWrapping.Wrap },
+            MaxHeight = 245, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            Content = new System.Windows.Controls.TextBlock
+            {
+                Text = target + "\n" + string.Join("\n", changes),
+                TextWrapping = TextWrapping.Wrap
+            },
             Margin = new Thickness(0, 0, 0, 12)
         };
         System.Windows.Controls.DockPanel.SetDock(targetsView, System.Windows.Controls.Dock.Top);
@@ -493,20 +631,20 @@ public partial class MainWindow
         };
         System.Windows.Controls.DockPanel.SetDock(actions, System.Windows.Controls.Dock.Bottom);
         body.Children.Add(actions);
-        var cancel = new System.Windows.Controls.Button { Content = "取消", IsCancel = true, Style = (Style)FindResource("DashboardButton") };
-        var accept = new System.Windows.Controls.Button
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Appearance = ControlAppearance.Secondary, Margin = new Thickness(0, 0, 8, 0) };
+        var accept = new Wpf.Ui.Controls.Button
         {
             Content = "提交并推送", IsDefault = true, IsEnabled = false,
-            Style = (Style)FindResource("DashboardPrimaryButton")
+            Appearance = ControlAppearance.Primary
         };
         actions.Children.Add(cancel);
         actions.Children.Add(accept);
 
         var row = new System.Windows.Controls.DockPanel();
-        var input = new System.Windows.Controls.TextBox { Style = (Style)FindResource(typeof(System.Windows.Controls.TextBox)) };
+        var input = new Wpf.Ui.Controls.TextBox();
         var label = new System.Windows.Controls.Label
         {
-            Content = projects.Length > 1 ? "统一提交摘要" : "提交摘要", Target = input,
+            Content = "提交摘要", Target = input,
             VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(0, 0, 10, 0)
         };
         row.Children.Add(label);
@@ -519,29 +657,43 @@ public partial class MainWindow
         return dialog.ShowDialog() == true ? input.Text.Trim() : null;
     }
 
+    private CancellationTokenSource? batchCancellation;
+    private bool closeAfterBatch;
+
+    private void StopBatch(object sender, RoutedEventArgs e)
+    {
+        batchCancellation?.Cancel();
+        StopBatchButton.IsEnabled = false;
+        BatchProgressText.Text = "正在停止批量操作…";
+    }
+
     private async Task RunSelectedAsync(Operation operation)
     {
         if (running) return;
-        var selected = savedProjects.Where(project => project.Checked).ToArray();
+        bool publishing = operation is Operation.Publish or Operation.RetryPush;
+        var selected = savedProjects.Where(project => project.Checked && CanRunBatchOperation(project, operation)).ToArray();
         if (selected.Length == 0)
         {
-            HomeStatus.Text = "请先勾选要操作的项目。";
+            HomeStatus.ShowFeedback("当前勾选的项目中没有可执行此操作的项目。", InfoBarSeverity.Warning);
             return;
         }
 
-        string? summary = null;
-        if (operation == Operation.Publish)
-        {
-            var newCommits = selected.Where(project =>
-                projectRuns.TryGetValue(project.Id, out var state) && state.Synced is { } synced &&
-                synced.Count(ch => ch == ':') == 1).ToArray();
-            if (newCommits.Length > 0)
-            {
-                summary = RequestCommitSummary(newCommits);
-                if (summary is null) return;
-            }
-        }
+        var cleanupProjects = operation == Operation.Apply
+            ? selected.Where(project => projectRuns.TryGetValue(project.Id, out var state) && state.Plan is not null
+                && JsonNode.Parse(project.Configuration)?["cleanUntracked"]?.GetValue<bool>() == true).ToArray()
+            : Array.Empty<ProjectEntry>();
+        if (cleanupProjects.Length > 0 && ConfirmProjectAction("确认永久清理",
+            "以下项目将永久删除预览列出的目标清理项。清理覆盖整个 Windows 工作区，文件不会进入回收站。\n\n" +
+            string.Join("\n", cleanupProjects.Select(project => project.Name + " · " + project.Repository)),
+            "确认清理并同步", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
+            return;
 
+        using var cancellation = new CancellationTokenSource();
+        batchCancellation = cancellation;
+        StopBatchButton.IsEnabled = true;
+        BatchProgressText.Text = $"正在准备处理 {selected.Length} 个项目…";
+        BatchProgressPanel.Visibility = Visibility.Visible;
+        HomeStatus.IsOpen = false;
         running = true;
         HomePage.Tag = true;
         HomeActions.IsEnabled = false;
@@ -554,38 +706,60 @@ public partial class MainWindow
             HomeChangesSummary.Text = "正在生成变更清单…";
         }
         int completed = 0;
-        int skipped = 0;
-        string? lastFailure = null;
+        int failed = 0;
         try
         {
+            var summaries = new Dictionary<Guid, string>();
+            if (operation == Operation.Publish)
+            {
+                foreach (var project in selected)
+                {
+                    if (cancellation.IsCancellationRequested) return;
+                    if (!projectRuns.TryGetValue(project.Id, out var state) || state.Synced is not { } synced ||
+                        synced.Count(ch => ch == ':') != 1) continue;
+                    try
+                    {
+                        string[] changes = await ReadWorkingTreeAsync(project);
+                        if (cancellation.IsCancellationRequested) return;
+                        if (RequestCommitSummary(project, changes) is not { } summary)
+                        {
+                            cancellation.Cancel();
+                            return;
+                        }
+                        summaries.Add(project.Id, summary);
+                    }
+                    catch (Exception error)
+                    {
+                        failed++;
+                        WriteHomeLog($"{project.Name}：无法读取待提交文件：{error.Message}");
+                        return;
+                    }
+                }
+            }
+
+            int position = 0;
             foreach (var project in selected)
             {
-                HomeStatus.Text = $"正在处理「{project.Name}」…";
-                WriteHomeLog($"[{project.Name}] {operation switch { Operation.Preview => "构建并预览", Operation.Apply => "应用同步", _ => "提交并推送" }}");
+                if (cancellation.IsCancellationRequested) break;
+                BatchProgressText.Text = $"正在处理「{project.Name}」 · {++position}/{selected.Length}";
+                WriteHomeLog($"[{project.Name}] {operation switch { Operation.Preview => "构建并预览", Operation.Apply => "应用同步", Operation.RetryPush => "重试推送", _ => "提交并推送" }}");
                 projectRuns.TryGetValue(project.Id, out var state);
-                if (operation != Operation.Publish && state?.Progress == "已提交，待推送")
-                {
-                    WriteHomeLog("已跳过。此项目已有待推送提交，请先重试推送。");
-                    skipped++;
-                    continue;
-                }
-                string? expected = operation == Operation.Publish ? state?.Synced : state?.Plan;
-                if (operation != Operation.Preview && expected is null)
-                {
-                    WriteHomeLog(operation == Operation.Publish ? "已跳过，请先应用同步。" : "已跳过，请先构建并预览。");
-                    skipped++;
-                    continue;
-                }
-                string? pending = operation == Operation.Publish && expected?.Count(ch => ch == ':') == 2 ? expected : null;
+                string? expected = publishing ? state?.Synced : state?.Plan;
+                string? pending = publishing && expected?.Count(ch => ch == ':') == 2 ? expected : null;
                 projectRuns.Remove(project.Id);
+                DeletePreview(project);
+                var changes = new List<BatchChange>();
                 try
                 {
                     var result = await RunProjectAsync(project.Configuration, operation == Operation.Preview,
-                        operation == Operation.Publish, expected, line =>
+                        publishing, expected, line =>
                         {
                             WriteHomeLog(line);
-                            if (operation == Operation.Preview) CaptureHomeChange(project.Name, line);
-                        }, commitSummary: summary, savePending: value =>
+                            if (operation == Operation.Preview && ParseHomeChange(project.Name, line) is { } change)
+                                changes.Add(change);
+                        }, commitSummary: summaries.GetValueOrDefault(project.Id), allowCleanup: cleanupProjects.Contains(project),
+                        cancellation: operation == Operation.Preview ? cancellation.Token : default,
+                        savePending: value =>
                         {
                             pending = value;
                             try
@@ -601,44 +775,69 @@ public partial class MainWindow
                             }
                             catch (Exception error) { WriteHomeLog($"无法保存待推送记录：{error.Message}"); }
                         });
-                    if (operation == Operation.Publish)
+                    if (publishing)
                     {
                         try { File.Delete(PendingPushPath(project)); }
                         catch (Exception error) { WriteHomeLog($"无法清理待推送记录：{error.Message}"); }
                     }
+                    var previewChanges = operation == Operation.Preview ? changes.ToArray() : null;
                     projectRuns[project.Id] = new RunState(result.Plan, result.Synced, operation switch
-                    { Operation.Preview => "可同步", Operation.Apply => "可推送", _ => "推送步骤完成" });
+                    { Operation.Preview => "可同步", Operation.Apply => "可推送", _ => result.Pushed ? "已推送" : "无需推送" }, previewChanges);
+                    if (result.Plan is not null && previewChanges is not null)
+                    {
+                        try { SavePreview(project, result.Plan, previewChanges); }
+                        catch (IOException error) { WriteHomeLog($"无法保存预览记录：{error.Message}"); }
+                        catch (UnauthorizedAccessException error) { WriteHomeLog($"无法保存预览记录：{error.Message}"); }
+                    }
                     completed++;
                     WriteHomeLog("操作完成。");
-                    if (operation == Operation.Preview)
+                    if (operation == Operation.Preview && !cancellation.IsCancellationRequested)
                         await TryStartSitePreviewAsync(project);
+                }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+                {
+                    WriteHomeLog("构建和预览已停止。");
+                    break;
                 }
                 catch (Exception error)
                 {
+                    failed++;
                     projectRuns[project.Id] = new RunState(null, pending, pending is null ? "操作失败" : "已提交，待推送");
-                    lastFailure = $"{project.Name}：{error.Message}";
-                    WriteHomeLog($"失败：{error.Message}");
+                    WriteHomeLog($"{project.Name}：操作失败。{error.Message}");
                 }
             }
         }
         finally
         {
             running = false;
+            batchCancellation = null;
+            BatchProgressPanel.Visibility = Visibility.Collapsed;
             HomePage.Tag = false;
             HomeActions.IsEnabled = true;
             RefreshProjects();
+            ShowSavedChanges();
             if (operation == Operation.Preview)
             {
-                HomeChangesSummary.Text = $"预览列出 {HomeChanges.Items.Count} 项变更";
                 if (completed == selected.Length) HomeResults.SelectedItem = HomeChangesTab;
             }
-            HomeStatus.Text = $"完成 {completed} 个 · 失败 {selected.Length - completed - skipped} 个 · 跳过 {skipped} 个" +
-                (lastFailure is null ? "" : $" · {lastFailure}");
+            string result = (cancellation.IsCancellationRequested ? "已停止 · " : "") +
+                $"完成 {completed} 个 · 失败 {failed} 个";
+            if (failed > 0)
+                HomeStatus.ShowFeedback(result + "。详情见运行日志。", InfoBarSeverity.Warning);
+            else
+                HomeStatus.ShowFeedback(result, cancellation.IsCancellationRequested ? InfoBarSeverity.Informational : InfoBarSeverity.Success);
+            if (closeAfterBatch)
+            {
+                closeAfterBatch = false;
+                Close();
+            }
         }
     }
 
-    private void CaptureHomeChange(string project, string line)
+    private static BatchChange? ParseHomeChange(string project, string line)
     {
+        if (line.StartsWith("CLEANUP=", StringComparison.Ordinal))
+            return new BatchChange(project, "目标清理", line.Substring(8));
         var parts = line.Split('\t', 2);
         if (parts.Length == 2)
         {
@@ -646,71 +845,59 @@ public partial class MainWindow
             {
                 "A" => "新增", "M" => "修改", "D" => "源端删除", "T" => "类型变更", _ => null
             };
-            if (action is not null) HomeChanges.Items.Add(new BatchChange(project, action, parts[1]));
+            if (action is not null) return new BatchChange(project, action, parts[1]);
         }
-        else if (line.StartsWith("Would remove ", StringComparison.Ordinal))
-            HomeChanges.Items.Add(new BatchChange(project, "目标清理", line.Substring(13)));
+        return null;
     }
 
     private void WriteHomeLog(string line)
     {
         if (string.IsNullOrWhiteSpace(line)) return;
         HomeLog.AppendText(line + Environment.NewLine);
+        ProjectSync.App.App.AppendDiagnostic(line);
         HomeLog.ScrollToEnd();
     }
 
-    private MessageBoxResult ConfirmProjectAction(string title, string message, string accept, string decline, bool canCancel)
+    private void ExportDiagnostics(object sender, RoutedEventArgs e)
     {
-        var dialog = new Window
+        var dialog = new SaveFileDialog
         {
-            Title = title, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Width = 420, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false, Background = System.Windows.Media.Brushes.White, FontFamily = FontFamily,
-            Icon = Icon, FontSize = 14, UseLayoutRounding = true
+            Title = "导出诊断（运行日志可能包含路径、命令或其他敏感信息）",
+            Filter = "诊断压缩包 (*.zip)|*.zip",
+            FileName = $"ProjectSync-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.zip"
         };
-        var body = new System.Windows.Controls.StackPanel { Margin = new Thickness(20) };
-        var prompt = new System.Windows.Controls.DockPanel { Margin = new Thickness(0, 0, 0, 20) };
-        var icon = new System.Windows.Controls.Border
+        if (dialog.ShowDialog(this) != true) return;
+        try
         {
-            Width = 30, Height = 30, CornerRadius = new CornerRadius(15),
-            Background = System.Windows.Media.Brushes.RoyalBlue, Margin = new Thickness(0, 0, 14, 0),
-            VerticalAlignment = VerticalAlignment.Top,
-            Child = new System.Windows.Controls.TextBlock
+            using var output = File.Open(dialog.FileName, FileMode.Create);
+            using var archive = new System.IO.Compression.ZipArchive(output, System.IO.Compression.ZipArchiveMode.Create);
+            using (var summary = new StreamWriter(archive.CreateEntry("summary.txt").Open()))
             {
-                Text = "?", FontSize = 20, Foreground = System.Windows.Media.Brushes.White,
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+                summary.WriteLine($"ProjectSync {typeof(MainWindow).Assembly.GetName().Version}");
+                summary.WriteLine($"OS: {Environment.OSVersion}");
+                summary.WriteLine($"Saved projects: {savedProjects.Count}");
+                summary.WriteLine($"Projects with previews: {projectRuns.Values.Count(state => state.Plan is not null)}");
+                summary.WriteLine($"Projects pending push: {projectRuns.Values.Count(state => state.Progress == "已提交，待推送")}");
             }
-        };
-        System.Windows.Controls.DockPanel.SetDock(icon, System.Windows.Controls.Dock.Left);
-        prompt.Children.Add(icon);
-        prompt.Children.Add(new System.Windows.Controls.TextBlock
-        {
-            Text = message, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center
-        });
-        body.Children.Add(prompt);
-        var buttons = new System.Windows.Controls.WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        body.Children.Add(buttons);
-        dialog.Content = body;
-        var result = MessageBoxResult.Cancel;
-
-        void AddButton(string text, MessageBoxResult choice, bool primary, bool cancel)
-        {
-            var button = new System.Windows.Controls.Button
+            if (Directory.Exists(ProjectSync.App.App.DiagnosticsDirectory))
             {
-                Content = text, MinWidth = 84, IsCancel = cancel, IsDefault = canCancel && primary,
-                Style = (Style)FindResource(primary ? "PrimaryButton" : typeof(System.Windows.Controls.Button))
-            };
-            button.Click += (_, _) => { result = choice; dialog.Close(); };
-            buttons.Children.Add(button);
-            if ((!canCancel && cancel) || (canCancel && primary))
-                dialog.Loaded += (_, _) => button.Focus();
+                foreach (string log in Directory.EnumerateFiles(ProjectSync.App.App.DiagnosticsDirectory, "projectsync-*.log")
+                    .OrderByDescending(path => path, StringComparer.Ordinal).Take(7))
+                {
+                    using var input = File.OpenRead(log);
+                    using var entry = archive.CreateEntry(Path.GetFileName(log)).Open();
+                    input.CopyTo(entry);
+                }
+            }
+            HomeStatus.ShowFeedback("已导出诊断。分享前请检查日志是否包含敏感信息。", InfoBarSeverity.Success);
         }
-
-        AddButton(accept, MessageBoxResult.Yes, canCancel, false);
-        AddButton(decline, MessageBoxResult.No, false, !canCancel);
-        if (canCancel) AddButton("取消", MessageBoxResult.Cancel, false, true);
-        dialog.ShowDialog();
-        return result;
+        catch (Exception error)
+        {
+            HomeStatus.ShowFeedback($"无法导出诊断：{error.Message}", InfoBarSeverity.Error);
+        }
     }
 
+    private MessageBoxResult ConfirmProjectAction(string title, string message, string accept, string decline,
+        bool canCancel, bool destructive = false) =>
+        FluentDialog.Ask(this, title, message, accept, decline, canCancel, destructive);
 }

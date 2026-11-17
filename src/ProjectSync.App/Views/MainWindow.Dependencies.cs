@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
@@ -15,7 +16,7 @@ public partial class MainWindow
         if (running) return;
         if (string.IsNullOrWhiteSpace(command))
         {
-            HomeStatus.Text = $"请先在「{project.Name}」的本地构建环境中填写{operation}命令。";
+            HomeStatus.ShowFeedback($"请先在「{project.Name}」的本地构建环境中填写{operation}命令。", InfoBarSeverity.Warning);
             return;
         }
         if (string.IsNullOrWhiteSpace(user) ||
@@ -23,7 +24,7 @@ public partial class MainWindow
             Array.Exists(directory.Split('/'), part => part is "." or "..") ||
             directory.Trim('/') == "")
         {
-            HomeStatus.Text = "请先检测并保存有效的 WSL 用户和项目根目录。";
+            HomeStatus.ShowFeedback("请先检测并保存有效的 WSL 用户和项目根目录。", InfoBarSeverity.Warning);
             return;
         }
 
@@ -36,7 +37,7 @@ public partial class MainWindow
         UpdateHomeActions();
         HomeLog.Clear();
         HomeResults.SelectedItem = HomeLogTab;
-        HomeStatus.Text = $"正在为「{project.Name}」执行{operation}…";
+        HomeStatus.ShowFeedback($"正在为「{project.Name}」执行{operation}…");
         WriteHomeLog($"[{project.Name}] {operation}");
         // Maintenance may change the dependency lockfile, so refresh any cached preview.
         if (projectRuns.TryGetValue(project.Id, out var state) && state.Progress != "已提交，待推送")
@@ -72,13 +73,14 @@ public partial class MainWindow
             await Task.WhenAll(output, errors, process.WaitForExitAsync());
             if (process.ExitCode != 0)
                 throw new InvalidOperationException($"命令返回退出代码 {process.ExitCode}，请查看日志。");
-            HomeStatus.Text = $"「{project.Name}」{operation}完成。";
+            HomeStatus.ShowFeedback($"「{project.Name}」{operation}完成。", InfoBarSeverity.Success);
             WriteHomeLog($"{operation}完成。");
         }
         catch (Exception error)
         {
-            HomeStatus.Text = $"{operation}失败：{error.Message}";
-            WriteHomeLog(HomeStatus.Text);
+            string message = $"{operation}失败：{error.Message}";
+            HomeStatus.ShowFeedback(message, InfoBarSeverity.Error);
+            WriteHomeLog(message);
         }
         finally
         {
@@ -92,25 +94,18 @@ public partial class MainWindow
     private bool ConfirmMaintenanceCommand(string project, string distribution, string user, string directory, string command, string operation, string confirmLabel)
     {
         var panel = new StackPanel { Margin = new Thickness(20) };
-        var dialog = new Window
-        {
-            Title = operation, Owner = this, Icon = Icon, FontFamily = FontFamily, FontSize = 14,
-            Width = 510, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
-            Background = System.Windows.Media.Brushes.White, Content = panel
-        };
+        var dialog = FluentDialog.Create(this, operation, panel, 510);
         panel.Children.Add(new TextBlock
         {
             Text = $"{project}\n{distribution} · {user}\n{directory}",
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
         });
-        panel.Children.Add(new TextBox
+        panel.Children.Add(new Wpf.Ui.Controls.TextBox
         {
             Text = command, IsReadOnly = true, AcceptsReturn = true, MaxHeight = 220,
             FontFamily = new System.Windows.Media.FontFamily("Consolas, Microsoft YaHei UI"),
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Style = (Style)FindResource(typeof(TextBox))
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
         });
         panel.Children.Add(new TextBlock
         {
@@ -123,8 +118,8 @@ public partial class MainWindow
             Margin = new Thickness(0, 16, 0, 0)
         };
         panel.Children.Add(actions);
-        var cancel = new Button { Content = "取消", IsCancel = true, Style = (Style)FindResource("DashboardButton") };
-        var accept = new Button { Content = confirmLabel, Style = (Style)FindResource("DashboardPrimaryButton") };
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Margin = new Thickness(0, 0, 8, 0) };
+        var accept = new Wpf.Ui.Controls.Button { Content = confirmLabel, Appearance = Wpf.Ui.Controls.ControlAppearance.Primary };
         actions.Children.Add(cancel);
         actions.Children.Add(accept);
         accept.Click += (_, _) => dialog.DialogResult = true;

@@ -13,6 +13,7 @@ public partial class MainWindow
 
     private T? ReadChoices<T>(string key) where T : class
     {
+        if (!restoreDetectedOptions) return null;
         try { return ReadChoiceCache()[key]?.Deserialize<T>(); }
         catch (JsonException) { return null; }
     }

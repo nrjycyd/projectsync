@@ -9,12 +9,18 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/ProjectSync.ico" />
+    <Resource Include="Assets/DevelopmentTools/*.png" />
+    <Content Include="Assets/DevelopmentTools/Notices.md" Link="licenses/DevelopmentToolLogos.md" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="../ProjectSync.Core/ProjectSync.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="../ProjectSync.Core/Scripts/BuildSync.ps1" Link="scripts/BuildSync.ps1"
-             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="../../examples/edusprout.build-sync.json" Link="examples/edusprout.build-sync.json"
-             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(PkgWPF-UI)/LICENSE.md" Link="licenses/WPF-UI-LICENSE.md"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(PkgWPF-UI)/ThirdPartyNotices.txt" Link="licenses/WPF-UI-ThirdPartyNotices.txt"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../ProjectSync.Core/Scripts/BuildSync.ps1" Link="scripts/BuildSync.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" GeneratePathProperty="true" />
   </ItemGroup>
 </Project>

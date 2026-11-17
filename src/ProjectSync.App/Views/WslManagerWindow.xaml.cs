@@ -9,14 +9,18 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
-public partial class WslManagerWindow : Window
+public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 {
-    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, System.Windows.Media.ImageSource DistributionIcon)
+    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, ImageSource? DistributionIcon)
     {
         public string DistributionHint => $"{Distribution} · {State}";
+
+        public override string ToString() => $"{Name} · {DistributionHint}";
     }
     private sealed record DiskUsage(string Label, string Hint, double Percent = 0, bool HasMeasurement = false)
     {
@@ -144,7 +148,7 @@ public partial class WslManagerWindow : Window
         busy = true;
         Toolbar.IsEnabled = Instances.IsEnabled = false;
         try { await work(); }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { Status.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
             busy = false;
@@ -154,7 +158,7 @@ public partial class WslManagerWindow : Window
 
     private async Task RefreshAsync()
     {
-        Status.Text = "正在检测 WSL…";
+        Status.ShowFeedback("正在检测 WSL…");
         var results = await Task.WhenAll(InvokeAsync(new[] { "--version" }), InvokeAsync(new[] { "--help" }),
             InvokeAsync(new[] { "--list", "--verbose" }));
         string version = Regex.Match(results[0].Output, @"\d+(?:\.\d+){2,3}").Value;
@@ -187,9 +191,9 @@ public partial class WslManagerWindow : Window
             else if (state is "Stopped" or "已停止" or "停止") state = "已停止";
             var (location, diskFile, flavor, osVersion) = locations.GetValueOrDefault(name);
             bool wsl2 = match.Groups[4].Value == "2";
-            ulong? capacity = wsl2 && location is not null
-                ? await Task.Run(() => VirtualDiskCapacity.Read(location, diskFile))
-                : null;
+            var (capacity, icon) = await Task.Run(() =>
+                (wsl2 && location is not null ? VirtualDiskCapacity.Read(location, diskFile) : null,
+                 ReadDistributionIcon(location, running)));
             string? limit = capacity is ulong bytes ? VirtualDiskCapacity.Format(bytes) : null;
             string unavailable = running ? "未能读取根文件系统剩余空间" : "实例未运行，剩余空间待检测";
             var disk = wsl2
@@ -198,7 +202,7 @@ public partial class WslManagerWindow : Window
                 : new DiskUsage("不适用", "WSL 1 没有独立的虚拟磁盘。");
             string distribution = DistributionLabel(flavor, osVersion);
             rows.Add(new Instance(name, match.Groups[1].Length > 0, state, running,
-                $"WSL {match.Groups[4].Value}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution, DistributionLogo(flavor, running)));
+                $"WSL {match.Groups[4].Value}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution, icon));
         }
         Instances.ItemsSource = rows;
         var checkedRows = await Task.WhenAll(rows.Select(async row =>
@@ -216,7 +220,7 @@ public partial class WslManagerWindow : Window
             Log.Text = results[2].Output;
             LogArea.IsExpanded = true;
         }
-        Status.Text = results[2].Code == 0 ? $"检测到 {rows.Count} 个发行版实例。" : "无法读取实例列表，请查看日志。";
+        Status.ShowFeedback(results[2].Code == 0 ? $"检测到 {rows.Count} 个发行版实例。" : "无法读取实例列表，请查看日志。", results[2].Code == 0 ? InfoBarSeverity.Informational : InfoBarSeverity.Error);
     }
 
     private static string NormalizeInstallLocation(string location)
@@ -234,7 +238,7 @@ public partial class WslManagerWindow : Window
     {
         Log.Clear();
         LogArea.IsExpanded = true;
-        Status.Text = "正在执行 WSL 操作…";
+        Status.ShowFeedback("正在执行 WSL 操作…");
         var result = await InvokeAsync(args, line => { Log.AppendText(line + Environment.NewLine); Log.ScrollToEnd(); });
         if (result.Code != 0)
         {
@@ -248,15 +252,8 @@ public partial class WslManagerWindow : Window
     private async void RefreshClick(object sender, RoutedEventArgs e) => await RunAsync(RefreshAsync);
     private async void UpdateClick(object sender, RoutedEventArgs e) => await RunAsync(() => ExecuteAsync("--update"));
 
-    private void MoreClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { ContextMenu: { } menu } button)
-        {
-            menu.PlacementTarget = button;
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            menu.IsOpen = true;
-        }
-    }
+    private void MenuKeyDown(object sender, System.Windows.Input.KeyEventArgs e) =>
+        FlyoutKeyboard.Handle(sender, e);
 
     private static Instance? Row(object sender) => (sender as FrameworkElement)?.DataContext as Instance;
 
@@ -272,7 +269,7 @@ public partial class WslManagerWindow : Window
             start.ArgumentList.Add("~");
             using var terminal = Process.Start(start);
         }
-        catch (Exception error) { Status.Text = error.Message; }
+        catch (Exception error) { Status.ShowFeedback(error.Message, InfoBarSeverity.Error); }
     }
 
     private async void DefaultClick(object sender, RoutedEventArgs e)
@@ -293,24 +290,24 @@ public partial class WslManagerWindow : Window
         if (Row(sender) is not { } instance) return;
         if (instance.Version != "WSL 2" || !help.Contains("--resize", StringComparison.Ordinal))
         {
-            Status.Text = "调整磁盘上限需要支持 --resize 的 WSL 2。";
+            Status.ShowFeedback("调整磁盘上限需要支持 --resize 的 WSL 2。", InfoBarSeverity.Warning);
             return;
         }
         await RunAsync(async () =>
         {
             if (instance.DiskFile is null)
             {
-                Status.Text = "无法确认当前磁盘上限，请先刷新检测。";
+                Status.ShowFeedback("无法确认当前磁盘上限，请先刷新检测。", InfoBarSeverity.Error);
                 return;
             }
             ulong? capacity = await Task.Run(() => VirtualDiskCapacity.Read(instance.Location, instance.DiskFile));
             if (capacity is not ulong current || current == 0)
             {
-                Status.Text = "无法确认当前磁盘上限，请先刷新检测。";
+                Status.ShowFeedback("无法确认当前磁盘上限，请先刷新检测。", InfoBarSeverity.Error);
                 return;
             }
             const ulong gib = 1UL << 30;
-            var (dialog, form) = CreateDialog("调整虚拟磁盘上限");
+            var (dialog, form, footer) = CreateDialog("调整虚拟磁盘上限");
             form.Children.Add(new TextBlock
             {
                 Text = $"实例：{instance.Name}\n当前上限：{VirtualDiskCapacity.Format(current)}\n应用前会停止所有 WSL 实例及其中运行的程序。",
@@ -324,11 +321,11 @@ public partial class WslManagerWindow : Window
                 requested = amount * gib;
                 return requested != current && requested <= (64UL << 40);
             }
-            if (!Confirm(dialog, form, "停止 WSL 并调整", ValidCapacity,
+            if (!Confirm(dialog, footer, "停止 WSL 并调整", ValidCapacity,
                 $"请输入与当前上限不同的正整数 GiB 值，最大 64 TiB。")) return;
-            if (requested < current && MessageBox.Show(this,
+            if (requested < current && FluentDialog.Ask(this, "确认缩小磁盘上限",
                 $"将「{instance.Name}」从 {VirtualDiskCapacity.Format(current)} 缩小到 {VirtualDiskCapacity.Format(requested)}。WSL 会检查文件系统能否缩到目标容量。继续吗？",
-                "确认缩小磁盘上限", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                "缩小", "取消", destructive: true) != MessageBoxResult.Yes)
                 return;
 
             var stopped = await InvokeAsync(new[] { "--shutdown" });
@@ -343,7 +340,7 @@ public partial class WslManagerWindow : Window
         if (Row(sender) is not { } instance) return;
         await RunAsync(async () =>
         {
-            var (dialog, form) = CreateDialog($"注销并删除 {instance.Name}");
+            var (dialog, form, footer) = CreateDialog($"注销并删除 {instance.Name}");
             string[] projects = projectsUsing(instance.Name).Distinct().ToArray();
             form.Children.Add(new TextBlock
             {
@@ -352,29 +349,29 @@ public partial class WslManagerWindow : Window
                 TextWrapping = TextWrapping.Wrap
             });
             var input = AddInput(form, "输入实例名称确认");
-            if (Confirm(dialog, form, "注销并删除", () => input.Text == instance.Name, "请输入完整的实例名称。", destructive: true))
+            if (Confirm(dialog, footer, "注销并删除", () => input.Text == instance.Name, "请输入完整的实例名称。", destructive: true))
                 await ExecuteAsync("--unregister", instance.Name);
         });
     }
 
     private async void InstallClick(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
-        Status.Text = "正在获取在线发行版列表…";
+        Status.ShowFeedback("正在获取在线发行版列表…");
         var list = await InvokeAsync(new[] { "--list", "--online" });
         var names = list.Code == 0 ? list.Output.Split('\n')
             .Select(line => Regex.Match(line, @"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s{2,}\S"))
             .Where(match => match.Success && match.Groups[1].Value != "NAME")
             .Select(match => match.Groups[1].Value).Distinct().ToArray() : Array.Empty<string>();
-        var (dialog, form) = CreateDialog("安装发行版");
-        var distribution = new ComboBox { IsEditable = true, ItemsSource = names, MinHeight = 34, Padding = new Thickness(8, 4, 8, 4) };
+        var (dialog, form, footer) = CreateDialog("安装发行版");
+        var distribution = new ComboBox { IsEditable = true, ItemsSource = names };
         AddField(form, "发行版（留空安装默认发行版）", distribution);
         if (names.Length == 0) form.Children.Add(new TextBlock { Text = "可手动填写发行版名称，例如 Ubuntu。", TextWrapping = TextWrapping.Wrap });
         var name = AddInput(form, "实例名称（可选）");
         name.IsEnabled = SupportsInstall("--name");
         var place = new DockPanel();
-        var browse = new Button { Content = "浏览…", Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0) };
+        var browse = new Wpf.Ui.Controls.Button { Content = "浏览…", Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0) };
         DockPanel.SetDock(browse, Dock.Right);
-        var location = new TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
+        var location = new Wpf.Ui.Controls.TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
         place.Children.Add(browse);
         place.Children.Add(location);
         AddField(form, "安装位置（可选）", place);
@@ -386,7 +383,7 @@ public partial class WslManagerWindow : Window
         };
         var size = AddInput(form, "虚拟磁盘上限（GB，可选，按使用量增长）");
         size.IsEnabled = SupportsInstall("--vhd-size");
-        var web = new CheckBox { Content = "从网络下载", IsChecked = SupportsInstall("--web-download"),
+        var web = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "从网络下载", OffContent = "从网络下载", IsChecked = SupportsInstall("--web-download"),
             IsEnabled = SupportsInstall("--web-download"), Margin = new Thickness(0, 12, 0, 0) };
         form.Children.Add(web);
         bool Valid() =>
@@ -396,9 +393,9 @@ public partial class WslManagerWindow : Window
                     string.Equals(row.Name, name.Text.Trim(), StringComparison.OrdinalIgnoreCase))) &&
             (location.Text.Trim().Length == 0 || ValidInstallFolder(location.Text.Trim())) &&
             (size.Text.Trim().Length == 0 || PositiveSize(size.Text));
-        if (!Confirm(dialog, form, "开始安装", Valid, "请检查发行版名称、未占用的实例名称、空安装目录和正整数容量。"))
+        if (!Confirm(dialog, footer, "开始安装", Valid, "请检查发行版名称、未占用的实例名称、空安装目录和正整数容量。"))
         {
-            Status.Text = "已取消安装。";
+            Status.ShowFeedback("已取消安装。");
             return;
         }
         var args = new List<string> { "--install" };
@@ -428,22 +425,27 @@ public partial class WslManagerWindow : Window
         catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException) { return false; }
     }
 
-    private (Window Dialog, StackPanel Form) CreateDialog(string title)
+    private (Window Dialog, StackPanel Form, StackPanel Footer) CreateDialog(string title)
     {
-        var form = new StackPanel { Margin = new Thickness(20) };
-        var dialog = new Window
+        var form = new StackPanel();
+        var footer = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
+        var body = new DockPanel { Margin = new Thickness(20) };
+        DockPanel.SetDock(footer, Dock.Bottom);
+        body.Children.Add(footer);
+        body.Children.Add(new ScrollViewer
         {
-            Owner = this, Title = title, Icon = Icon, FontFamily = FontFamily, FontSize = FontSize, Width = 510,
-            SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Content = form,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
-            Background = System.Windows.Media.Brushes.White, UseLayoutRounding = true
-        };
-        return (dialog, form);
+            Content = form,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        });
+        var dialog = FluentDialog.Create(this, title, body, 510);
+        FluentDialog.LimitToWorkArea(dialog, this);
+        return (dialog, form, footer);
     }
 
     private static TextBox AddInput(StackPanel form, string label)
     {
-        var input = new TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
+        var input = new Wpf.Ui.Controls.TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
         AddField(form, label, input);
         return input;
     }
@@ -454,19 +456,19 @@ public partial class WslManagerWindow : Window
         form.Children.Add(field);
     }
 
-    private bool Confirm(Window dialog, StackPanel form, string action, Func<bool> validate,
+    private bool Confirm(Window dialog, StackPanel footer, string action, Func<bool> validate,
         string invalidMessage, bool destructive = false)
     {
-        var message = new TextBlock { Foreground = System.Windows.Media.Brushes.DarkRed, TextWrapping = TextWrapping.Wrap };
-        form.Children.Add(message);
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 14, 0, 0) };
-        form.Children.Add(footer);
-        var cancel = new Button { Content = "取消", IsCancel = true, Style = (Style)FindResource(typeof(Button)), MinWidth = 84, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0) };
-        var confirm = new Button { Content = action, Style = (Style)FindResource("WslPrimary"), MinWidth = 100, Padding = new Thickness(14, 5, 14, 5) };
-        if (destructive) confirm.Background = confirm.BorderBrush = System.Windows.Media.Brushes.DarkRed;
-        footer.Children.Add(cancel);
-        footer.Children.Add(confirm);
+        var message = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        message.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
+        footer.Children.Add(message);
+        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        footer.Children.Add(actions);
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0) };
+        var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 100, Padding = new Thickness(14, 5, 14, 5) };
+        confirm.Appearance = destructive ? Wpf.Ui.Controls.ControlAppearance.Danger : Wpf.Ui.Controls.ControlAppearance.Primary;
+        actions.Children.Add(cancel);
+        actions.Children.Add(confirm);
         confirm.Click += (_, _) =>
         {
             if (validate()) dialog.DialogResult = true;

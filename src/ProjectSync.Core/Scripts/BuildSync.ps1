@@ -1,6 +1,9 @@
 ﻿param(
     [string]$Config = (Join-Path $PSScriptRoot 'build-sync.json'),
     [switch]$Preview,
+    [switch]$AllowCleanup,
+    [string]$BuildLease,
+    [string]$ResultFile,
     [switch]$Publish,
     [switch]$TestConnection,
     [switch]$ListRemotes,
@@ -11,8 +14,16 @@
 )
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+function Write-SyncResult([string]$Kind, [string]$Value) {
+    if ($ResultFile) {
+        $result = @{ kind = $Kind; value = $Value } | ConvertTo-Json -Compress
+        [IO.File]::WriteAllText($ResultFile, $result)
+    } else {
+        Write-Host "$Kind=$Value"
+    }
+}
 function Stop-Sync([string]$Code, [string]$Detail) {
-    Write-Host "PROJECTSYNC_ERROR=$Code"
+    Write-SyncResult 'PROJECTSYNC_ERROR' $Code
     Write-Host $Detail
     exit 1
 }
@@ -220,6 +231,16 @@ $syncPaths += @($suffixes | ForEach-Object { ":(exclude,glob)**/*$_" })
 $autoCrlf = git -C $repo config --default false --get core.autocrlf
 if ($LASTEXITCODE -ne 0) { throw "Could not read target Git line-ending configuration." }
 if (!$Preview -and !$Publish -and !$ExpectedPlan) { throw "Run a preview before applying." }
+$commonGitDir = git -C $repo rev-parse --path-format=absolute --git-common-dir
+if ($LASTEXITCODE -ne 0 -or !$commonGitDir) { throw 'Could not locate the Windows Git directory.' }
+try {
+    $repositoryLock = [IO.File]::Open((Join-Path $commonGitDir 'projectsync.lock'),
+        [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+} catch [IO.IOException] {
+    Stop-Sync 'REPOSITORY_BUSY' 'Another ProjectSync operation is using this Windows Git repository.'
+}
+
+try {
 git @gitOptions fetch --no-tags -- $remoteTarget "refs/heads/$($c.branch)"
 if ($LASTEXITCODE -ne 0) { throw 'Git fetch failed.' }
 $commit = git -C $repo rev-parse --verify 'FETCH_HEAD^{commit}'
@@ -248,6 +269,7 @@ if ($Publish) {
     $pending = $Matches[3]
     if ($pending -and $head -eq $pending -and $commit -eq $pending) {
         Write-Host "Already pushed $pending to branch $($c.branch)"
+        Write-SyncResult 'PUBLISHED' 'pushed'
         exit 0
     }
     if ($commit -ne $base) { throw 'Remote changed. Review the remote and any pending local commit before continuing.' }
@@ -262,7 +284,11 @@ if ($Publish) {
         if ($LASTEXITCODE -ne 0) { throw 'Could not stage the Windows working tree. Review the Git index.' }
         $changes = @(git -C $repo -c core.quotepath=false diff --cached --name-status)
         if ($LASTEXITCODE -ne 0) { throw 'Could not inspect staged changes.' }
-        if ($changes.Count -eq 0) { Write-Host 'No changes to publish.'; exit 0 }
+        if ($changes.Count -eq 0) {
+            Write-Host 'No changes to publish.'
+            Write-SyncResult 'PUBLISHED' 'no_changes'
+            exit 0
+        }
         Write-Host 'Staged Windows working tree changes:'
         $changes | ForEach-Object { Write-Host $_ }
 
@@ -279,6 +305,7 @@ if ($Publish) {
     git @gitOptions push -- $remoteTarget "${pending}:refs/heads/$($c.branch)"
     if ($LASTEXITCODE -ne 0) { Stop-Sync 'PUSH' 'Push failed. The local commit was saved. You can retry the push.' }
     Write-Host "Pushed $pending to branch $($c.branch)"
+    Write-SyncResult 'PUBLISHED' 'pushed'
     exit 0
 }
 
@@ -312,7 +339,11 @@ pull_paths=("${@:1:pull_count}")
 shift "$pull_count"
 source_branch=$1
 verified_snapshot=$2
-shift 2
+build_lease=$3
+shift 3
+if [[ -n $build_lease ]]; then build_lease=$(wslpath -u "$build_lease"); fi
+check_lease() { [[ -z $build_lease || -f $build_lease ]] || exit 130; }
+check_lease
 site_paths=("$@")
 for path in "${site_paths[@]}"; do
     [[ $path == ':('* ]] && continue
@@ -395,10 +426,28 @@ if [[ -z $verified_snapshot ]]; then
     fi
 
     # Build with the current WSL sources.
-    CI=1 NO_COLOR=1 bash -e -o pipefail -c "$build_command" || {
-        echo 'PROJECTSYNC_ERROR=BUILD'
-        exit 1
-    }
+    if [[ -z $build_lease ]]; then
+        CI=1 NO_COLOR=1 bash -e -o pipefail -c "$build_command" 9>&- || {
+            echo 'PROJECTSYNC_ERROR=BUILD'
+            exit 1
+        }
+    else
+        check_lease
+        CI=1 NO_COLOR=1 setsid bash -e -o pipefail -c "$build_command" </dev/null 9>&- &
+        build_pid=$!
+        while kill -0 "$build_pid" 2>/dev/null; do
+            if [[ ! -f $build_lease ]]; then
+                kill -TERM -- "-$build_pid" 2>/dev/null || kill -TERM "$build_pid" 2>/dev/null || true
+                sleep 1
+                kill -KILL -- "-$build_pid" 2>/dev/null || true
+                wait "$build_pid" || true
+                exit 130
+            fi
+            sleep 0.2
+        done
+        wait "$build_pid" || { echo 'PROJECTSYNC_ERROR=BUILD'; exit 1; }
+        check_lease
+    fi
 fi
 
 # Use the target's Git line-ending policy so the snapshot matches what Windows stages.
@@ -446,11 +495,12 @@ $oldConsoleEncoding = [Console]::OutputEncoding
 try {
     $OutputEncoding = [Text.UTF8Encoding]::new($false)
     [Console]::OutputEncoding = $OutputEncoding
-    $argsForBash = @($linuxRepo, $commit, $c.wslRepo, $c.buildCommand, [string]$c.nodeBin, $autoCrlf, [string]$pullPaths.Count) + $pullPaths + @($c.branch, $verifiedSnapshot) + $syncPaths
+    $argsForBash = @($linuxRepo, $commit, $c.wslRepo, $c.buildCommand, [string]$c.nodeBin, $autoCrlf, [string]$pullPaths.Count) + $pullPaths + @($c.branch, $verifiedSnapshot, $BuildLease) + $syncPaths
     $quoted = ($argsForBash | ForEach-Object { "'" + $_.Replace("'", "'\''") + "'" }) -join ' '
     $build | wsl.exe -d $c.distro -u $c.wslUser -- bash -c "sed '1s/^\xEF\xBB\xBF//;s/\r$//' | bash -s -- $quoted 2>&1" | ForEach-Object {
         $_ = $_.TrimEnd([char]13)
-        if ($_ -match '^SITE_SNAPSHOT=([0-9a-f]{40})$') { $snapshot = $Matches[1] }
+        if ($_ -cmatch '^PROJECTSYNC_ERROR=([A-Z_]+)$') { Write-SyncResult 'PROJECTSYNC_ERROR' $Matches[1] }
+        elseif ($_ -match '^SITE_SNAPSHOT=([0-9a-f]{40})$') { $snapshot = $Matches[1] }
         elseif ($_ -match '^SITE_TREES=([0-9a-f]{40}:[0-9a-f]{40})$') { $trees = $Matches[1] }
         elseif ($_ -cnotmatch "^warning: in the working copy of '.+', (?:LF will be replaced by CRLF|CRLF will be replaced by LF) the next time Git touches it$") {
             Write-Host $_
@@ -469,7 +519,11 @@ $cleanup = @()
 if ($c.cleanUntracked -eq $true) {
     $cleanup = @(git -C $repo -c core.quotepath=false clean -nd @protect)
     if ($LASTEXITCODE -ne 0) { throw 'Windows cleanup preview failed.' }
-    $cleanup | ForEach-Object { Write-Host $_ }
+    if ($Preview) {
+        $cleanup | ForEach-Object { Write-Host ('CLEANUP=' + ($_ -creplace '^Would remove ', '')) }
+    } elseif (!$AllowCleanup) {
+        Stop-Sync 'CLEANUP_CONFIRMATION' 'Windows untracked-file cleanup requires explicit confirmation.'
+    }
 }
 $planText = ConvertTo-Json -Compress -Depth 8 -InputObject @(
     $head, $commit, $snapshot, $trees, $repo, $remoteTarget, $c.branch, $c.distro, $c.wslUser,
@@ -480,7 +534,7 @@ $sha = [Security.Cryptography.SHA256]::Create()
 try { $plan = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($planText))).Replace('-','') }
 finally { $sha.Dispose() }
 if ($Preview) {
-    Write-Host "PLAN=${snapshot}:$plan"
+    Write-SyncResult 'PLAN' "${snapshot}:$plan"
     exit 0
 }
 if ($plan -cne $expectedHash) { Stop-Sync 'PREVIEW_EXPIRED' 'Source, target, or remote changed. Run a new preview.' }
@@ -494,11 +548,18 @@ if ($head -ne $commit) {
     if ($LASTEXITCODE -ne 0) { throw 'Fast-forward failed. Review the Windows working tree before applying sync.' }
 }
 if ($c.cleanUntracked -eq $true) {
+    $currentCleanup = @(git -C $repo -c core.quotepath=false clean -nd @protect)
+    if ($LASTEXITCODE -ne 0 -or ($currentCleanup -join [char]0) -cne ($cleanup -join [char]0)) {
+        Stop-Sync 'PREVIEW_EXPIRED' 'The cleanup candidates changed. Create a new preview before cleaning.'
+    }
     git -C $repo clean -fd @protect
     if ($LASTEXITCODE -ne 0) { throw 'Windows untracked-file cleanup failed.' }
 }
 git -C $repo restore --source=$snapshot --worktree -- @syncPaths
 if ($LASTEXITCODE -ne 0) { throw 'Windows site source sync failed.' }
 Write-Host "Synced full site sources verified with input from $commit"
-Write-Host "SYNCED=${commit}:$snapshot"
+Write-SyncResult 'SYNCED' "${commit}:$snapshot"
 exit 0
+} finally {
+    $repositoryLock.Dispose()
+}

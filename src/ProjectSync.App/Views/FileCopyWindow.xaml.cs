@@ -9,10 +9,11 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using ProjectSync.Core;
+using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
 
-public partial class FileCopyWindow : Window
+public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
 {
     private sealed record Location(string Label, string? Distribution)
     {
@@ -22,6 +23,8 @@ public partial class FileCopyWindow : Window
     private sealed record PreviewRow(string Action, string Path);
     private IReadOnlyList<CopyEntry>? preview;
     private CancellationTokenSource? operation;
+    private bool checkingSwap;
+    private bool swapRejected;
 
     internal FileCopyWindow(Func<Task<string[]>> getDistributions)
     {
@@ -30,6 +33,7 @@ public partial class FileCopyWindow : Window
         SourceLocation.Items.Add(pc);
         TargetLocation.Items.Add(pc);
         SourceLocation.SelectedIndex = TargetLocation.SelectedIndex = 0;
+        UpdateCopyActions();
         Loaded += async (_, _) =>
         {
             try
@@ -48,6 +52,15 @@ public partial class FileCopyWindow : Window
         };
     }
 
+    private void CopyBodySizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        const double minimumPreviewHeight = 148;
+        CopyFormScroller.MaxHeight = Math.Max(0, e.NewSize.Height - minimumPreviewHeight);
+    }
+
+    private void BrowseSourceKeyDown(object sender, System.Windows.Input.KeyEventArgs e) =>
+        FlyoutKeyboard.Handle(sender, e);
+
     private static string? Distribution(ComboBox selector) => (selector.SelectedItem as Location)?.Distribution;
 
     private void EndpointChanged(object sender, RoutedEventArgs e)
@@ -65,15 +78,63 @@ public partial class FileCopyWindow : Window
     {
         if (Changes is null) return;
         preview = null;
+        swapRejected = false;
+        PathFeedback.IsOpen = false;
         Changes.ItemsSource = null;
-        CopyStatus.Text = "请选择来源和目标，或直接输入绝对路径。";
+        CopyStatus.IsOpen = false;
+        UpdateCopyActions();
     }
 
-    private void SwapClick(object sender, RoutedEventArgs e)
+    private void UpdateCopyActions()
     {
-        (SourceLocation.SelectedItem, TargetLocation.SelectedItem) =
-            (TargetLocation.SelectedItem, SourceLocation.SelectedItem);
-        (SourcePath.Text, TargetPath.Text) = (TargetPath.Text, SourcePath.Text);
+        bool idle = operation is null && !checkingSwap;
+        bool pathsEntered = !string.IsNullOrWhiteSpace(SourcePath.Text) && !string.IsNullOrWhiteSpace(TargetPath.Text);
+        bool canCopy = preview?.Any(entry => entry.Action is CopyAction.Copy or CopyAction.Replace or CopyAction.CreateDirectory) == true;
+        CopyOptions.IsEnabled = idle;
+        SwapEndpoints.IsEnabled = idle && pathsEntered && !swapRejected;
+        PreviewCopy.IsEnabled = idle && pathsEntered;
+        StartCopy.IsEnabled = idle && canCopy;
+        PreviewCopy.Appearance = canCopy ? Wpf.Ui.Controls.ControlAppearance.Secondary : Wpf.Ui.Controls.ControlAppearance.Primary;
+        StartCopy.Appearance = canCopy ? Wpf.Ui.Controls.ControlAppearance.Primary : Wpf.Ui.Controls.ControlAppearance.Secondary;
+    }
+
+    private async void SwapClick(object sender, RoutedEventArgs e) => await SwapEndpointsAsync();
+
+    private async Task SwapEndpointsAsync()
+    {
+        if (!SwapEndpoints.IsEnabled) return;
+
+        checkingSwap = true;
+        UpdateCopyActions();
+        try
+        {
+            var source = FileCopy.ResolvePath(SourcePath.Text, Distribution(SourceLocation));
+            var target = FileCopy.ResolvePath(TargetPath.Text, Distribution(TargetLocation));
+            if (!await Task.Run(() => Directory.Exists(source) && Directory.Exists(target)))
+            {
+                ShowSwapFeedback("仅可交换两个现有目录。来源为单个文件时，目标仍须是目录。");
+                return;
+            }
+
+            (SourceLocation.SelectedItem, TargetLocation.SelectedItem) =
+                (TargetLocation.SelectedItem, SourceLocation.SelectedItem);
+            (SourcePath.Text, TargetPath.Text) = (TargetPath.Text, SourcePath.Text);
+        }
+        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            ShowSwapFeedback(error.Message);
+        }
+        finally
+        {
+            checkingSwap = false;
+            UpdateCopyActions();
+        }
+    }
+
+    private void ShowSwapFeedback(string message)
+    {
+        swapRejected = true;
+        PathFeedback.ShowFeedback(message, InfoBarSeverity.Warning);
     }
 
     private void BrowseSourceFile(object sender, RoutedEventArgs e) => Browse(SourceLocation, SourcePath, true);
@@ -110,10 +171,15 @@ public partial class FileCopyWindow : Window
             }
             FileCopy.ResolvePath(selected, distro);
             field.Text = selected;
+            if (file && field == SourcePath)
+            {
+                swapRejected = true;
+                UpdateCopyActions();
+            }
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
         {
-            CopyStatus.Text = ex.Message;
+            PathFeedback.ShowFeedback(ex.Message, InfoBarSeverity.Error);
         }
     }
 
@@ -131,12 +197,17 @@ public partial class FileCopyWindow : Window
 
     private async Task RunAsync(bool apply)
     {
-        if (operation is not null) return;
+        if (operation is not null || checkingSwap) return;
+        if (apply && !StartCopy.IsEnabled)
+        {
+            CopyStatus.ShowFeedback("请先预览复制清单。", InfoBarSeverity.Warning);
+            return;
+        }
         using var cancellation = new CancellationTokenSource();
         operation = cancellation;
-        CopyOptions.IsEnabled = PreviewCopy.IsEnabled = StartCopy.IsEnabled = false;
+        UpdateCopyActions();
         CancelCopy.Visibility = Visibility.Visible;
-        CopyStatus.Text = "正在检查来源和目标…";
+        CopyStatus.ShowFeedback("正在检查来源和目标…");
         int filesCopied = 0, directoriesCreated = 0;
         try
         {
@@ -159,45 +230,50 @@ public partial class FileCopyWindow : Window
             int replacements = plan.Count(entry => entry.Action == CopyAction.Replace);
             int skips = plan.Count(entry => entry.Action is CopyAction.SkipExisting or CopyAction.SkipDownloadMark);
             int folders = plan.Count(entry => entry.Action == CopyAction.CreateDirectory);
-            CopyStatus.Text = $"复制 {copies} 个 · 覆盖 {replacements} 个 · 跳过 {skips} 个 · 创建目录 {folders} 个";
-            if (!apply) return;
+            CopyStatus.ShowFeedback($"复制 {copies} 个 · 覆盖 {replacements} 个 · 跳过 {skips} 个 · 创建目录 {folders} 个");
+            if (!apply)
+            {
+                if (copies + replacements + folders == 0)
+                    CopyStatus.ShowFeedback($"没有需要复制的项目，跳过 {skips} 个。");
+                return;
+            }
             if (changed)
             {
-                CopyStatus.Text = "来源或目标已变化，已刷新清单。请核对后再次点击开始复制。";
+                CopyStatus.ShowFeedback("来源或目标已变化，已刷新清单。请核对后再次点击开始复制。", InfoBarSeverity.Warning);
                 return;
             }
             if (copies + replacements + folders == 0)
             {
-                CopyStatus.Text = $"没有需要复制的项目，跳过 {skips} 个。";
+                CopyStatus.ShowFeedback($"没有需要复制的项目，跳过 {skips} 个。");
                 return;
             }
-            if (replacements > 0 && MessageBox.Show(this, $"将覆盖目标中的 {replacements} 个同名文件。继续复制？",
-                "确认覆盖", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            if (replacements > 0 && FluentDialog.Ask(this, "确认覆盖", $"将覆盖目标中的 {replacements} 个同名文件。继续复制？",
+                "覆盖", "取消", destructive: true) != MessageBoxResult.Yes)
                 return;
 
-            CopyStatus.Text = "正在复制…";
+            CopyStatus.ShowFeedback("正在复制…");
             await Task.Run(() => FileCopy.Apply(plan, skipMarks, entry =>
             {
                 if (entry.Action == CopyAction.CreateDirectory) directoriesCreated++;
                 else filesCopied++;
             }, cancellation.Token));
             preview = null;
-            CopyStatus.Text = $"复制完成，处理文件 {filesCopied} 个 · 创建目录 {directoriesCreated} 个 · 跳过 {skips} 个。";
+            CopyStatus.ShowFeedback($"复制完成，处理文件 {filesCopied} 个 · 创建目录 {directoriesCreated} 个 · 跳过 {skips} 个。", InfoBarSeverity.Success);
         }
         catch (OperationCanceledException)
         {
             preview = null;
-            CopyStatus.Text = $"已取消，已处理文件 {filesCopied} 个 · 已创建目录 {directoriesCreated} 个。";
+            CopyStatus.ShowFeedback($"已取消，已处理文件 {filesCopied} 个 · 已创建目录 {directoriesCreated} 个。");
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
             preview = null;
-            CopyStatus.Text = $"{ex.Message} 已处理文件 {filesCopied} 个 · 已创建目录 {directoriesCreated} 个。";
+            CopyStatus.ShowFeedback($"{ex.Message} 已处理文件 {filesCopied} 个 · 已创建目录 {directoriesCreated} 个。", InfoBarSeverity.Error);
         }
         finally
         {
             operation = null;
-            CopyOptions.IsEnabled = PreviewCopy.IsEnabled = StartCopy.IsEnabled = true;
+            UpdateCopyActions();
             CancelCopy.Visibility = Visibility.Collapsed;
         }
     }

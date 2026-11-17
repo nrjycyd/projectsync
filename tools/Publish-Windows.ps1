@@ -38,10 +38,14 @@ try {
         'ProjectSync.App.exe'
         'ProjectSync.App.dll'
         'ProjectSync.Core.dll'
+        'Wpf.Ui.dll'
+        'Wpf.Ui.Abstractions.dll'
+        'licenses/WPF-UI-LICENSE.md'
+        'licenses/WPF-UI-ThirdPartyNotices.txt'
+        'licenses/DevelopmentToolLogos.md'
         'ProjectSync.App.deps.json'
         'ProjectSync.App.runtimeconfig.json'
         'scripts/BuildSync.ps1'
-        'examples/edusprout.build-sync.json'
     )
     $actual = @(Get-ChildItem -LiteralPath $folder -Recurse -File -Force | ForEach-Object {
         [IO.Path]::GetRelativePath($folder, $_.FullName).Replace('\', '/')
@@ -53,6 +57,8 @@ try {
     if ($assembly.Version.ToString(3) -cne $version) { throw 'Packaged assembly version does not match project.' }
     $destination = Join-Path $output $name
     Move-Item -LiteralPath $archive -Destination $destination -Force
+    $hash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+    Set-Content -LiteralPath (Join-Path $output 'SHA256SUMS') -Value "$hash  $name" -Encoding ascii
     Write-Output $destination
 } finally {
     $cleanup = Get-Item -LiteralPath $staging.FullName -Force

@@ -16,7 +16,7 @@ public partial class MainWindow
     private async void CheckUpdates(object sender, RoutedEventArgs e)
     {
         CheckUpdatesButton.IsEnabled = false;
-        CheckUpdatesButton.Content = "检查中…";
+        UpdateActionText.Text = "检查中…";
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApi);
@@ -44,7 +44,7 @@ public partial class MainWindow
             if (latest > current)
                 OfferReleasesPage($"发现新版 v{latest}。是否打开 GitHub 发布页？");
             else
-                MessageBox.Show(this, $"当前版本 v{current} 已是最新。", "检查更新", MessageBoxButton.OK, MessageBoxImage.Information);
+                FluentDialog.Ask(this, "检查更新", $"当前版本 v{current} 已是最新。", "关闭");
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException)
         {
@@ -52,14 +52,14 @@ public partial class MainWindow
         }
         finally
         {
-            CheckUpdatesButton.Content = "检查更新";
+            UpdateActionText.Text = "检查更新";
             CheckUpdatesButton.IsEnabled = true;
         }
     }
 
     private void OfferReleasesPage(string message)
     {
-        if (MessageBox.Show(this, message, "检查更新", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
+        if (FluentDialog.Ask(this, "检查更新", message, "打开", "取消") != MessageBoxResult.Yes)
             return;
 
         try
@@ -68,7 +68,7 @@ public partial class MainWindow
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            MessageBox.Show(this, $"无法打开浏览器，请访问 {ReleasesUrl}", "检查更新", MessageBoxButton.OK, MessageBoxImage.Information);
+            FluentDialog.Ask(this, "检查更新", $"无法打开浏览器，请访问 {ReleasesUrl}", "关闭");
         }
     }
 }
