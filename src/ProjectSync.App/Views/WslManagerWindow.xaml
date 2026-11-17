@@ -39,7 +39,7 @@
       <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource WorkspaceActionIcon}"/>
      </ui:Button.Icon>
     </ui:Button>
-    <ui:Button x:Name="WslSetupButton" Content="WSL 安装与修复" Appearance="Primary" MinHeight="34" Visibility="Collapsed" Click="OpenWslSetupGuide"/>
+    <ui:Button x:Name="WslSetupButton" Content="WSL 安装与修复" Appearance="Primary" MinHeight="34" Visibility="Collapsed" Click="SetupWslClick"/>
    </StackPanel>
    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
     <TextBlock Text="发行版" FontSize="16" FontWeight="SemiBold"/>

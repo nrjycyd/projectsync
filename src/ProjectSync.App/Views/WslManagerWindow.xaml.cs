@@ -195,17 +195,6 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             : "Windows 的 WSL 组件不可用。请先安装或修复 WSL，再刷新检测。", InfoBarSeverity.Warning);
     }
 
-    private void OpenWslSetupGuide(object sender, RoutedEventArgs e)
-    {
-        const string url = "https://learn.microsoft.com/windows/wsl/install";
-        try { using var browser = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-        catch (System.ComponentModel.Win32Exception error)
-        {
-            ProjectSync.App.App.AppendDiagnostic(error.Message);
-            Status.ShowFeedback($"无法打开浏览器。请访问 {url}", InfoBarSeverity.Warning);
-        }
-    }
-
     // The WSL host emits UTF-16LE while e2fsck and resize2fs can emit UTF-8.
     private static string DecodeResizeOutput(byte[] output)
     {
@@ -512,8 +501,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             .Where(match => match.Success && match.Groups[1].Value != "NAME")
             .Select(match => match.Groups[1].Value).Distinct().ToArray() : Array.Empty<string>();
         var (dialog, form, footer) = CreateDialog("安装发行版");
-        var distribution = new ComboBox { IsEditable = true, ItemsSource = names };
-        AddField(form, "发行版（留空安装默认发行版）", distribution);
+        var distribution = new ComboBox { IsEditable = names.Length == 0, ItemsSource = names };
+        AddField(form, "发行版", distribution);
         if (names.Length == 0) form.Children.Add(new TextBlock { Text = "可手动填写发行版名称，例如 Ubuntu。", TextWrapping = TextWrapping.Wrap });
         var name = AddInput(form, "实例名称（可选）");
         name.IsEnabled = SupportsInstall("--name");
@@ -535,20 +524,20 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         var web = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "从网络下载", OffContent = "从网络下载", IsChecked = SupportsInstall("--web-download"),
             IsEnabled = SupportsInstall("--web-download"), Margin = new Thickness(0, 12, 0, 0) };
         form.Children.Add(web);
+        string SelectedDistribution() => (distribution.SelectedItem as string ?? distribution.Text).Trim();
         bool Valid() =>
-            (distribution.Text.Trim().Length == 0 || ValidName(distribution.Text.Trim())) &&
+            ValidName(SelectedDistribution()) &&
             (name.Text.Trim().Length == 0 || ValidName(name.Text.Trim()) &&
                 !((IEnumerable<Instance>?)Instances.ItemsSource ?? Array.Empty<Instance>()).Any(row =>
                     string.Equals(row.Name, name.Text.Trim(), StringComparison.OrdinalIgnoreCase))) &&
             (location.Text.Trim().Length == 0 || ValidInstallFolder(location.Text.Trim())) &&
             (size.Text.Trim().Length == 0 || PositiveSize(size.Text));
-        if (!Confirm(dialog, footer, "开始安装", Valid, "请检查发行版名称、未占用的实例名称、空安装目录和正整数容量。"))
+        if (!Confirm(dialog, footer, "开始安装", Valid, "请选择发行版，并检查实例名称、安装目录和虚拟磁盘容量。"))
         {
             Status.ShowFeedback("已取消安装。");
             return;
         }
-        var args = new List<string> { "--install" };
-        if (distribution.Text.Trim().Length > 0) args.AddRange(new[] { "-d", distribution.Text.Trim() });
+        var args = new List<string> { "--install", "-d", SelectedDistribution() };
         if (web.IsChecked == true) args.Add("--web-download");
         if (SupportsInstall("--no-launch")) args.Add("--no-launch");
         if (name.IsEnabled && name.Text.Trim().Length > 0) args.AddRange(new[] { "--name", name.Text.Trim() });
