@@ -296,13 +296,24 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void ClearConfiguration(object sender, RoutedEventArgs e)
     {
+        string message = activeProject is null
+            ? "将当前表单和 JSON 恢复到新建项目的初始状态？"
+            : $"清空「{activeProject.Name}」的配置？将保留项目名称，点击「保存项目」后生效。";
         if (ConfirmProjectAction("清空配置",
-            "将当前项目的表单和 JSON 恢复为空白配置？重新填写项目名称并保存后，才会替换已保存的配置。",
+            message,
             "清空配置", "取消", canCancel: false, destructive: true) != MessageBoxResult.Yes)
             return;
 
         restoreDetectedOptions = false;
-        LoadConfig("{}");
+        var initialConfig = new JsonObject();
+        if (activeProject is not null)
+            initialConfig["name"] = activeProject.Name;
+        LoadConfig(initialConfig.ToJsonString());
+        if (activeProject is null)
+        {
+            originalConfig = (JsonObject)current.DeepClone();
+            UpdateSaveProjectAction();
+        }
         LocalGitStatus.IsOpen = false;
     }
 
