@@ -41,6 +41,7 @@
       <Style x:Key="BatchActionButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
        <Setter Property="Margin" Value="0,0,8,0"/>
        <Setter Property="MinHeight" Value="34"/>
+       <Setter Property="Padding" Value="10.75,5,11.25,6"/>
        <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
       </Style>
       <Style x:Key="BatchActionIcon" TargetType="{x:Type ui:SymbolIcon}">
@@ -51,7 +52,7 @@
        </Setter>
       </Style>
      </WrapPanel.Resources>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False">
+     <ui:Button Style="{StaticResource BatchActionButton}" Padding="9.5,5,12.5,6" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False">
       <ui:Button.Icon>
        <ui:SymbolIcon Symbol="Play16" Style="{StaticResource BatchActionIcon}"/>
       </ui:Button.Icon>
