@@ -86,6 +86,7 @@ public partial class MainWindow
             if (hasFiles && !statusUnavailable)
                 ShowInitializedChanges(changes);
         }
+        catch (WindowsGitMissingException error) { ShowWindowsGitMissing(LocalGitStatus, error); }
         catch (Exception error)
         {
             string details = error is SyncScriptException || messages.Count == 0

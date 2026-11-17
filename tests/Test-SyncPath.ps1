@@ -22,4 +22,28 @@ foreach ($path in @('D:\项目 空格2\a', '/home/user/outside/a', '\\wsl$\Other
     catch { $rejected = $true }
     if (!$rejected) { throw "Expected rejection: $path" }
 }
-Write-Output 'BuildSync syntax and PowerShell path checks passed.'
+$originalPath = $env:Path
+$testDir = Join-Path ([IO.Path]::GetTempPath()) ('projectsync-no-git-' + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $testDir | Out-Null
+try {
+    $config = Join-Path $testDir 'config.json'
+    $result = Join-Path $testDir 'result.json'
+    '{"remoteUrl":"https://example.invalid/repo","windowsRepo":""}' | Set-Content -LiteralPath $config -Encoding UTF8
+    $env:Path = $testDir
+    foreach ($mode in '-ListRemotes', '-TestConnection', '-InitializeRepository') {
+        $arguments = @($mode)
+        if ($mode -eq '-InitializeRepository') { $arguments += 'empty' }
+        $output = & (Join-Path $PSHOME 'powershell.exe') -NoProfile -File $script -Config $config -ResultFile $result @arguments
+        if ($LASTEXITCODE -ne 1) { throw "Expected missing Git failure for ${mode}: $output" }
+        $payload = Get-Content -LiteralPath $result -Raw | ConvertFrom-Json
+        if ($payload.kind -cne 'PROJECTSYNC_ERROR' -or $payload.value -cne 'WINDOWS_GIT_MISSING') {
+            throw "Unexpected missing Git result for ${mode}: $output"
+        }
+        Remove-Item -LiteralPath $result
+    }
+} finally {
+    $env:Path = $originalPath
+    Remove-Item -LiteralPath (Join-Path $testDir 'config.json'), (Join-Path $testDir 'result.json') -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $testDir
+}
+Write-Output 'BuildSync syntax, PowerShell path, and Windows Git prerequisite checks passed.'
