@@ -61,17 +61,29 @@
      </ui:Button>
      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BrowserPreviewButton" Content="预览" Click="OpenPreviewSelected" IsEnabled="False">
       <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="Window16" Style="{StaticResource BatchActionIcon}"/>
+       <ui:SymbolIcon Symbol="Window16" Style="{StaticResource BatchActionIcon}">
+        <ui:SymbolIcon.RenderTransform>
+         <TranslateTransform X="1.3" Y="1.6"/>
+        </ui:SymbolIcon.RenderTransform>
+       </ui:SymbolIcon>
       </ui:Button.Icon>
      </ui:Button>
      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="ApplyBatchButton" Content="同步" Click="ApplySelected" IsEnabled="False">
       <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="ArrowSync16" Style="{StaticResource BatchActionIcon}"/>
+       <ui:SymbolIcon Symbol="ArrowSync16" Style="{StaticResource BatchActionIcon}">
+        <ui:SymbolIcon.RenderTransform>
+         <TranslateTransform X="2.6" Y="1.6"/>
+        </ui:SymbolIcon.RenderTransform>
+       </ui:SymbolIcon>
       </ui:Button.Icon>
      </ui:Button>
      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="PublishBatchButton" Content="推送" Click="PublishSelected" IsEnabled="False">
       <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource BatchActionIcon}"/>
+       <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource BatchActionIcon}">
+        <ui:SymbolIcon.RenderTransform>
+         <TranslateTransform X="2" Y="1.6"/>
+        </ui:SymbolIcon.RenderTransform>
+       </ui:SymbolIcon>
       </ui:Button.Icon>
      </ui:Button>
      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="RetryPushButton" Content="重试" Visibility="Collapsed" Click="RetryPushSelected">
