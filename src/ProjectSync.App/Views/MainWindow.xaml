@@ -16,14 +16,48 @@
    <Setter Property="Width" Value="18"/>
    <Setter Property="Height" Value="18"/>
   </Style>
+  <Style x:Key="SettingsNavigationItem" TargetType="TabItem">
+   <Setter Property="MinHeight" Value="40"/>
+   <Setter Property="Margin" Value="0,0,0,4"/>
+   <Setter Property="Padding" Value="12,6"/>
+   <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+   <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="TabItem">
+      <Border x:Name="ItemBackground" Background="Transparent" CornerRadius="4">
+       <Grid>
+        <Border x:Name="SelectionIndicator" Width="3" Height="16" CornerRadius="1.5"
+                HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed"
+                Background="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+        <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"
+                          Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/>
+       </Grid>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="ItemBackground" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+       </Trigger>
+       <Trigger Property="IsSelected" Value="True">
+        <Setter TargetName="ItemBackground" Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+        <Setter TargetName="SelectionIndicator" Property="Visibility" Value="Visible"/>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
   <ControlTemplate x:Key="SettingsTabsLayout" TargetType="TabControl">
    <Grid>
     <Grid.ColumnDefinitions>
-     <ColumnDefinition Width="168"/>
+     <ColumnDefinition Width="192"/>
      <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
     <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0"
-            Background="{DynamicResource LayerOnMicaBaseAltFillColorSecondaryBrush}" Padding="8,8,8,0">
+            Background="{DynamicResource LayerOnMicaBaseAltFillColorSecondaryBrush}" Padding="12">
      <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="0"/>
     </Border>
     <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent"/>
@@ -355,7 +389,9 @@
    </ScrollViewer>
    </StackPanel>
   </Border>
-   <TabControl x:Name="SettingsTabs" TabStripPlacement="Left" Template="{StaticResource SettingsTabsLayout}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+   <TabControl x:Name="SettingsTabs" TabStripPlacement="Left" Template="{StaticResource SettingsTabsLayout}"
+               ItemContainerStyle="{StaticResource SettingsNavigationItem}"
+               BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
     <TabItem x:Name="RemoteSettingsTab" Header="Git 远端仓库">
      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <Border Style="{StaticResource SettingsForm}">
