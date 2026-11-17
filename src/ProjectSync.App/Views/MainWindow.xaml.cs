@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json.Nodes;
 using System.IO;
+using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -481,12 +483,43 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
         catch (Exception error)
         {
-            RemoteTestStatus.ShowFeedback(output.Length == 0 ? error.Message : output.ToString().Trim(), InfoBarSeverity.Error);
+            RemoteTestStatus.ShowFeedback(error is SyncScriptException || output.Length == 0
+                ? error.Message : output.ToString().Trim(), InfoBarSeverity.Error);
         }
         finally
         {
             running = false;
             SettingsTabs.IsEnabled = Actions.IsEnabled = true;
+        }
+    }
+
+    private sealed class SyncScriptException(string message) : InvalidOperationException(message);
+
+    private static FileStream OpenVerifiedSyncScript(string path)
+    {
+        const string message = "随包同步脚本缺失、无法读取或与当前版本不匹配。请重新下载并解压完整的 ProjectSync 发布包。";
+        try
+        {
+            var script = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            try
+            {
+                string? expected = typeof(MainWindow).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+                    .SingleOrDefault(attribute => attribute.Key == "BuildSyncSha256")?.Value;
+                string actual = Convert.ToHexString(SHA256.HashData(script));
+                if (!string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
+                    throw new SyncScriptException(message);
+                return script;
+            }
+            catch
+            {
+                script.Dispose();
+                throw;
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            ProjectSync.App.App.AppendDiagnostic(error.Message);
+            throw new SyncScriptException(message);
         }
     }
 
@@ -499,12 +532,14 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         string? resultFile = null;
         try
         {
+            string scriptPath = Path.Combine(AppContext.BaseDirectory, "scripts", "BuildSync.ps1");
+            using var verifiedScript = OpenVerifiedSyncScript(scriptPath);
             temporary = Path.GetTempFileName();
             await File.WriteAllTextAsync(temporary, configuration);
             resultFile = Path.GetTempFileName();
             var start = new ProcessStartInfo
             {
-                FileName = "powershell.exe",
+                FileName = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -512,8 +547,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
-            foreach (string argument in new[] { "-NoProfile", "-File",
-                Path.Combine(AppContext.BaseDirectory, "scripts", "BuildSync.ps1"), "-Config", temporary,
+            start.Environment["PROJECTSYNC_BUNDLED_SCRIPT_LAUNCH"] = "1";
+            start.Environment["PROJECTSYNC_PARENT_EXECUTION_POLICY"] =
+                Environment.GetEnvironmentVariable("PSExecutionPolicyPreference") ?? "";
+            foreach (string argument in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                scriptPath, "-Config", temporary,
                 "-ResultFile", resultFile })
                 start.ArgumentList.Add(argument);
             if (listRemotes)
@@ -555,13 +593,18 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             cancellation.ThrowIfCancellationRequested();
             using var process = Process.Start(start) ?? throw new InvalidOperationException("无法启动同步进程。");
             using var logCancellation = new CancellationTokenSource();
+            var scriptErrors = new StringBuilder();
             Task execution = Task.WhenAll(ReadLog(process.StandardOutput, line =>
             {
                 if (publish && System.Text.RegularExpressions.Regex.IsMatch(line, @"\APENDING=[0-9a-f]{40}(?::[0-9a-f]{40}){2}\z"))
                     savePending?.Invoke(line.Substring(8));
                 else
                     writeLog(line);
-            }, logCancellation.Token), ReadLog(process.StandardError, writeLog, logCancellation.Token),
+            }, logCancellation.Token), ReadLog(process.StandardError, line =>
+            {
+                if (scriptErrors.Length < 4096) scriptErrors.AppendLine(line);
+                writeLog(line);
+            }, logCancellation.Token),
                 process.WaitForExitAsync());
             try
             {
@@ -585,6 +628,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 throw;
             }
             string payload = await File.ReadAllTextAsync(resultFile);
+            string stderr = scriptErrors.ToString();
+            if (process.ExitCode != 0 && payload.Length == 0 &&
+                (stderr.Contains("PSSecurityException", StringComparison.OrdinalIgnoreCase) ||
+                 (stderr.Contains("SecurityError:", StringComparison.OrdinalIgnoreCase) &&
+                  stderr.Contains("UnauthorizedAccess", StringComparison.OrdinalIgnoreCase))))
+            {
+                ProjectSync.App.App.AppendDiagnostic(stderr);
+                throw new SyncScriptException("Windows 阻止了同步脚本启动。请检查 PowerShell 执行策略，受组织管理的电脑请联系管理员。详情见运行日志。");
+            }
             var response = payload.Length == 0 ? null : JsonNode.Parse(payload);
             string? kind = response?["kind"]?.GetValue<string>();
             string? value = response?["value"]?.GetValue<string>();

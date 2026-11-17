@@ -23,4 +23,12 @@
   <ItemGroup>
     <PackageReference Include="WPF-UI" Version="4.3.0" GeneratePathProperty="true" />
   </ItemGroup>
+  <Target Name="RecordBuildSyncHash" BeforeTargets="GetAssemblyAttributes">
+    <GetFileHash Files="../ProjectSync.Core/Scripts/BuildSync.ps1" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_HashedBuildSync" />
+    </GetFileHash>
+    <ItemGroup>
+      <AssemblyMetadata Include="BuildSyncSha256" Value="@(_HashedBuildSync->'%(FileHash)')" />
+    </ItemGroup>
+  </Target>
 </Project>

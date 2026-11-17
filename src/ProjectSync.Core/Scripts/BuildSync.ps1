@@ -13,6 +13,11 @@
     [string]$CommitSummaryFile
 )
 $ErrorActionPreference = 'Stop'
+if ($env:PROJECTSYNC_BUNDLED_SCRIPT_LAUNCH -eq '1') {
+    # The app authorizes this bundled script only. Commands it starts inherit the caller's policy.
+    $env:PSExecutionPolicyPreference = $env:PROJECTSYNC_PARENT_EXECUTION_POLICY
+    Remove-Item Env:PROJECTSYNC_BUNDLED_SCRIPT_LAUNCH, Env:PROJECTSYNC_PARENT_EXECUTION_POLICY -ErrorAction SilentlyContinue
+}
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 function Write-SyncResult([string]$Kind, [string]$Value) {
     if ($ResultFile) {
