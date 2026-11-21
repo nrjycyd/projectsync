@@ -20,11 +20,8 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Build solution
         run: dotnet build ProjectSync.sln --configuration Release
-      - name: Test FileCopy and .NET path normalization
+      - name: Run Core unit and Git integration tests
         run: dotnet run --project tests/ProjectSync.Tests --configuration Release
-      - name: Test Windows PowerShell path normalization and syntax
-        shell: powershell
-        run: ./tests/Test-SyncPath.ps1
       - name: Package and verify Windows release
         shell: pwsh
         run: |

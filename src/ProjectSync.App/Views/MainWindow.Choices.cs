@@ -4,12 +4,13 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Controls;
+using ProjectSync.Core;
 
 namespace ProjectSync.App.Views;
 
 public partial class MainWindow
 {
-    private string ChoicesFile => Path.Combine(Path.GetDirectoryName(projectFile)!, "detected-options.json");
+    private string ChoicesFile => ProjectSync.App.App.Store.ChoicesFilePath;
 
     private T? ReadChoices<T>(string key) where T : class
     {
@@ -33,24 +34,16 @@ public partial class MainWindow
 
     private string? SaveChoices<T>(string key, T value)
     {
-        string temporary = ChoicesFile + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             var cache = ReadChoiceCache();
             cache[key] = JsonSerializer.SerializeToNode(value);
-            Directory.CreateDirectory(Path.GetDirectoryName(ChoicesFile)!);
-            File.WriteAllText(temporary, cache.ToJsonString());
-            File.Move(temporary, ChoicesFile, overwrite: true);
+            AppDataStore.WriteTextAtomically(ChoicesFile, cache.ToJsonString());
             return null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             return "无法保存下拉列表缓存：" + error.Message;
-        }
-        finally
-        {
-            try { File.Delete(temporary); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
         }
     }
 

@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using ProjectSync.Core;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
@@ -19,12 +20,16 @@ public partial class MainWindow
             HomeStatus.ShowFeedback($"请先在「{project.Name}」的本地构建环境中填写{operation}命令。", InfoBarSeverity.Warning);
             return;
         }
-        if (string.IsNullOrWhiteSpace(user) ||
-            !directory.StartsWith("/", StringComparison.Ordinal) ||
-            Array.Exists(directory.Split('/'), part => part is "." or "..") ||
-            directory.Trim('/') == "")
+        try
         {
-            HomeStatus.ShowFeedback("请先检测并保存有效的 WSL 用户和项目根目录。", InfoBarSeverity.Warning);
+            distribution = SyncPath.ValidateWslDistribution(distribution);
+            user = SyncPath.ValidateWslUser(user);
+            directory = SyncPath.ValidateWslRoot(directory);
+            nodeBin = SyncPath.ValidateNodeBin(nodeBin);
+        }
+        catch (ArgumentException error)
+        {
+            HomeStatus.ShowFeedback(error.Message, InfoBarSeverity.Warning);
             return;
         }
 
@@ -41,7 +46,10 @@ public partial class MainWindow
         WriteHomeLog($"[{project.Name}] {operation}");
         // Maintenance may change the dependency lockfile, so refresh any cached preview.
         if (projectRuns.TryGetValue(project.Id, out var state) && state.Progress != "已提交，待推送")
+        {
             projectRuns.Remove(project.Id);
+            DeletePreview(project);
+        }
 
         try
         {
@@ -49,24 +57,22 @@ public partial class MainWindow
             await StopPreviewServerAsync(project.Id);
 
             const string script = """if [[ -n $1 ]]; then export PATH="$1:$PATH"; fi; exec bash -e -o pipefail -s""";
-            var start = new ProcessStartInfo("wsl.exe")
+            var start = new ProcessStartInfo(ProcessRunner.WslExecutablePath)
             {
-                UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true,
-                RedirectStandardOutput = true, RedirectStandardError = true,
                 StandardInputEncoding = new UTF8Encoding(false),
-                StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
             };
             foreach (string arg in new[] { "-d", distribution, "-u", user, "--cd", directory,
                 "--exec", "bash", "-c", script, "projectsync-reinstall", nodeBin })
                 start.ArgumentList.Add(arg);
-            using var process = Process.Start(start) ?? throw new InvalidOperationException("无法启动 WSL。");
-            var output = ReadLog(process.StandardOutput, WriteHomeLog);
-            var errors = ReadLog(process.StandardError, WriteHomeLog);
-            try { await process.StandardInput.WriteAsync(command + "\n"); }
-            finally { process.StandardInput.Close(); }
-            await Task.WhenAll(output, errors, process.WaitForExitAsync());
-            if (process.ExitCode != 0)
-                throw new InvalidOperationException($"命令返回退出代码 {process.ExitCode}，请查看日志。");
+
+            var result = await ProcessRunner.RunAsync(start,
+                onStdout: line => Dispatcher.BeginInvoke(() => WriteHomeLog(line)),
+                onStderr: line => Dispatcher.BeginInvoke(() => WriteHomeLog(line)),
+                stdinContent: command + "\n");
+            if (result.ExitCode != 0)
+                throw new InvalidOperationException($"命令返回退出代码 {result.ExitCode}，请查看日志。");
             HomeStatus.ShowFeedback($"「{project.Name}」{operation}完成。", InfoBarSeverity.Success);
             WriteHomeLog($"{operation}完成。");
         }

@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using ProjectSync.Core;
 using Wpf.Ui.Controls;
 
 namespace ProjectSync.App.Views;
@@ -25,7 +24,9 @@ public partial class MainWindow
         {
             EnvironmentFeedback.ShowFeedback("正在查找 WSL 项目目录…");
             string[] distributions = namedDistro.Length > 0 ? new[] { namedDistro } :
-                Lines(await QueryWslAsync(Encoding.Unicode, "-l", "-q"));
+                Lines(await QueryWslAsync(Encoding.Unicode, "-l", "-q"))
+                    .Where(name => !WslOutputParser.IsSystemUtilityDistribution(name))
+                    .ToArray();
             var matches = new List<string>();
             foreach (string name in distributions)
             {
@@ -129,6 +130,7 @@ public partial class MainWindow
 
     private static string NodeChoiceKey(string distribution, string user, string path) =>
         ChoiceKey("node", distribution, user, path);
+
     private void RestoreSavedNodeOption()
     {
         var saved = SavedNodeOption();
@@ -164,7 +166,11 @@ public partial class MainWindow
             if command -v node >/dev/null; then
                 printf 'default\t%s\n' "$(node --version)"
             fi
-            for executable in "${NVM_DIR:-$HOME/.nvm}"/versions/node/*/bin/node; do
+            nvm_dir="${NVM_DIR:-$HOME/.nvm}"
+            if [[ ! -d $nvm_dir/versions/node && -n ${XDG_CONFIG_HOME:-} && -d $XDG_CONFIG_HOME/nvm/versions/node ]]; then
+                nvm_dir="$XDG_CONFIG_HOME/nvm"
+            fi
+            for executable in "$nvm_dir"/versions/node/*/bin/node; do
                 [[ -x "$executable" ]] || continue
                 bin=${executable%/node}
                 version=$("$executable" --version 2>/dev/null) || continue
@@ -172,7 +178,7 @@ public partial class MainWindow
             done
             """;
         string output = await QueryWslAsync(Encoding.UTF8, "-d", distribution, "-u", user,
-            "--exec", "bash", "-c", probe.Replace("\r\n", "\n"), "projectsync", path);
+            "--exec", "bash", "-c", probe.ReplaceLineEndings("\n"), "projectsync", path);
         var options = new List<NodeOption>();
         string requested = "";
         foreach (var row in Lines(output))
@@ -233,7 +239,7 @@ public partial class MainWindow
     }
 
     private static bool TryParseWslNetworkPath(string value, out string path, out string distribution) =>
-        ProjectSync.Core.SyncPath.TryParseWslNetworkPath(value, out path, out distribution);
+        SyncPath.TryParseWslNetworkPath(value, out path, out distribution);
 
     private static string[] Lines(string text) =>
         text.TrimStart('\uFEFF').Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -243,33 +249,12 @@ public partial class MainWindow
 
     private static async Task<string> QueryWslAsync(Encoding encoding, string[] args, bool allowFailure, Action? onSuccess)
     {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo("wsl.exe")
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                StandardOutputEncoding = encoding,
-                StandardErrorEncoding = encoding
-            }
-        };
-        foreach (string arg in args)
-            process.StartInfo.ArgumentList.Add(arg);
-        process.Start();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException)
-        {
-            if (!process.HasExited) process.Kill();
+        var result = await ProcessRunner.RunWslAsync(args, encoding: encoding, timeout: TimeSpan.FromSeconds(15));
+        if (result.TimedOut)
             throw new InvalidOperationException("WSL 查询超时，请确认发行版能够启动。");
-        }
-        if (process.ExitCode != 0 && !allowFailure)
-            throw new InvalidOperationException($"WSL 查询失败：{(await error).Trim()}");
-        if (process.ExitCode == 0) onSuccess?.Invoke();
-        return await output;
+        if (result.ExitCode != 0 && !allowFailure)
+            throw new InvalidOperationException($"WSL 查询失败：{result.Stderr.Trim()}");
+        if (result.ExitCode == 0) onSuccess?.Invoke();
+        return result.Stdout;
     }
 }

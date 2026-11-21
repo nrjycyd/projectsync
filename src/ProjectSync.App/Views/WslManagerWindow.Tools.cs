@@ -24,7 +24,7 @@ public partial class WslManagerWindow
         try
         {
             var result = await InvokeAsync(new[] { "-d", instance, "--exec", "bash", "-c", script },
-                encoding: Encoding.UTF8).WaitAsync(TimeSpan.FromSeconds(8));
+                encoding: Encoding.UTF8, timeout: TimeSpan.FromSeconds(8));
             if (result.Code != 0) return (Array.Empty<DevelopmentTool>(), "检测失败");
             var tools = new List<DevelopmentTool>();
             foreach (string line in result.Output.Split('\n'))
@@ -42,5 +42,4 @@ public partial class WslManagerWindow
             return (Array.Empty<DevelopmentTool>(), "检测失败");
         }
     }
-
 }

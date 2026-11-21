@@ -5,10 +5,12 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using ProjectSync.Core;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
@@ -37,6 +39,7 @@ public partial class WslManagerWindow
         form.Children.Add(downloadNotice);
         bool closed = false;
         int probeVersion = 0;
+        var dialogCts = new CancellationTokenSource();
         async Task CheckDownloadToolAsync()
         {
             int request = ++probeVersion;
@@ -53,8 +56,8 @@ public partial class WslManagerWindow
                 if (login.Length > 0) args.AddRange(new[] { "-u", login });
                 args.AddRange(new[] { "--exec", "bash", "-c",
                     "if command -v curl >/dev/null || command -v wget >/dev/null; then echo available; else echo missing; fi" });
-                var result = await InvokeAsync(args.ToArray(), encoding: System.Text.Encoding.UTF8)
-                    .WaitAsync(TimeSpan.FromSeconds(10));
+                var result = await InvokeAsync(args.ToArray(), encoding: System.Text.Encoding.UTF8,
+                    timeout: TimeSpan.FromSeconds(10), cancellation: dialogCts.Token);
                 if (closed || request != probeVersion) return;
                 if (result.Code == 0 && result.Output.Trim() == "available")
                     downloadNotice.IsOpen = false;
@@ -63,7 +66,7 @@ public partial class WslManagerWindow
                 else
                     downloadNotice.ShowFeedback("暂无法检测下载工具，安装前会重新检查。", InfoBarSeverity.Warning);
             }
-            catch (Exception error) when (error is TimeoutException or InvalidOperationException or
+            catch (Exception error) when (error is OperationCanceledException or TimeoutException or InvalidOperationException or
                 System.ComponentModel.Win32Exception or System.IO.IOException)
             {
                 if (!closed && request == probeVersion)
@@ -71,7 +74,11 @@ public partial class WslManagerWindow
             }
         }
 
-        dialog.Closed += (_, _) => closed = true;
+        dialog.Closed += (_, _) =>
+        {
+            closed = true;
+            try { dialogCts.Cancel(); } catch (ObjectDisposedException) { }
+        };
         dialog.Loaded += async (_, _) => await CheckDownloadToolAsync();
         node.Check.Checked += async (_, _) => await CheckDownloadToolAsync();
         node.Check.Unchecked += async (_, _) => await CheckDownloadToolAsync();
@@ -81,16 +88,16 @@ public partial class WslManagerWindow
         var versionStatus = new Wpf.Ui.Controls.InfoBar { IsClosable = false, Margin = new Thickness(0, 10, 0, 0) };
         versionStatus.ShowFeedback("正在读取可用版本…");
         form.Children.Add(versionStatus);
-        bool loadFinished = false;
-        var load = new System.Threading.CancellationTokenSource();
-        dialog.Closed += (_, _) => { if (!loadFinished) load.Cancel(); };
         dialog.Loaded += async (_, _) =>
         {
             try
             {
-                await LoadDevelopmentVersionsAsync(instance.Name, git, python, node, pnpm, versionStatus, load.Token);
+                await LoadDevelopmentVersionsAsync(instance.Name, git, python, node, pnpm, versionStatus, dialogCts.Token);
             }
-            finally { loadFinished = true; load.Dispose(); }
+            finally
+            {
+                if (closed) dialogCts.Dispose();
+            }
         };
 
         bool Valid()
@@ -102,7 +109,9 @@ public partial class WslManagerWindow
                 (!node.Selected || Regex.IsMatch(node.Version, @"\A(?:latest|lts/\*|v?[0-9]+(?:\.[0-9]+){0,2})\z")) &&
                 (!pnpm.Selected || pnpm.Version == "latest" || Regex.IsMatch(pnpm.Version, @"\A[0-9]+(?:\.[0-9]+){0,2}(?:-[A-Za-z0-9.-]+)?\z"));
         }
-        if (!Confirm(dialog, footer, "在终端安装", Valid, "请至少勾选一项，并检查用户名及版本格式。")) return;
+        bool accepted = Confirm(dialog, footer, "在终端安装", Valid, "请至少勾选一项，并检查用户名及版本格式。");
+        dialogCts.Dispose();
+        if (!accepted) return;
 
         try
         {
@@ -112,7 +121,7 @@ public partial class WslManagerWindow
                 python.Selected ? Package("python3", python.Version) : "",
                 alias.IsChecked == true ? "python-is-python3" : ""
             }.Where(package => package.Length > 0).ToArray();
-            var start = new ProcessStartInfo("wsl.exe") { UseShellExecute = true };
+            var start = new ProcessStartInfo(ProcessRunner.WslExecutablePath) { UseShellExecute = true };
             start.ArgumentList.Add("-d");
             start.ArgumentList.Add(instance.Name);
             if (!string.IsNullOrWhiteSpace(user.Text))
@@ -157,7 +166,7 @@ public partial class WslManagerWindow
     private static readonly HttpClient VersionClient = new() { Timeout = TimeSpan.FromSeconds(12) };
 
     private async Task LoadDevelopmentVersionsAsync(string instance, Component git, Component python,
-        Component node, Component pnpm, Wpf.Ui.Controls.InfoBar status, System.Threading.CancellationToken token)
+        Component node, Component pnpm, Wpf.Ui.Controls.InfoBar status, CancellationToken token)
     {
         async Task<bool> Fill(Component component, Func<Task<string[]>> read)
         {
@@ -176,7 +185,7 @@ public partial class WslManagerWindow
             }
         }
 
-        Task<string[]> Apt(string package) => ReadAptVersionsAsync(instance, package);
+        Task<string[]> Apt(string package) => ReadAptVersionsAsync(instance, package, token);
         bool[] loaded = await Task.WhenAll(
             Fill(git, () => Apt("git")), Fill(python, () => Apt("python3")),
             Fill(node, () => ReadPublishedVersionsAsync(true, token)),
@@ -190,17 +199,17 @@ public partial class WslManagerWindow
             status.ShowFeedback($"未能读取具体版本：{string.Join("、", missing)}。仍可使用默认选项。", InfoBarSeverity.Warning);
     }
 
-    private static async Task<string[]> ReadAptVersionsAsync(string instance, string package)
+    private static async Task<string[]> ReadAptVersionsAsync(string instance, string package, CancellationToken token)
     {
         var result = await InvokeAsync(new[] { "-d", instance, "--exec", "env", "LC_ALL=C", "apt-cache", "madison", package },
-            encoding: System.Text.Encoding.UTF8).WaitAsync(TimeSpan.FromSeconds(12));
+            encoding: System.Text.Encoding.UTF8, timeout: TimeSpan.FromSeconds(12), cancellation: token);
         if (result.Code != 0) return Array.Empty<string>();
         return result.Output.Split('\n').Select(line => line.Split('|'))
             .Where(fields => fields.Length == 3 && fields[0].Trim() == package)
             .Select(fields => fields[1].Trim()).Where(version => version.Length > 0).Distinct().ToArray();
     }
 
-    private static async Task<string[]> ReadPublishedVersionsAsync(bool node, System.Threading.CancellationToken token)
+    private static async Task<string[]> ReadPublishedVersionsAsync(bool node, CancellationToken token)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, node ?
             "https://nodejs.org/dist/index.json" : "https://registry.npmjs.org/pnpm");

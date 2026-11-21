@@ -34,11 +34,15 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         TargetLocation.Items.Add(pc);
         SourceLocation.SelectedIndex = TargetLocation.SelectedIndex = 0;
         UpdateCopyActions();
+        bool isClosed = false;
+        Closed += (_, _) => isClosed = true;
         Loaded += async (_, _) =>
         {
             try
             {
-                foreach (var name in (await getDistributions()).Distinct(StringComparer.OrdinalIgnoreCase))
+                var distributions = (await getDistributions()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                if (isClosed) return;
+                foreach (var name in distributions)
                 {
                     var location = new Location($"WSL · {name}", name);
                     SourceLocation.Items.Add(location);
@@ -47,7 +51,8 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
             }
             catch (Exception ex)
             {
-                SourceLocation.ToolTip = TargetLocation.ToolTip = $"无法读取 WSL 实例：{ex.Message}";
+                if (!isClosed)
+                    SourceLocation.ToolTip = TargetLocation.ToolTip = $"无法读取 WSL 实例：{ex.Message}";
             }
         };
     }
@@ -265,7 +270,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
             preview = null;
             CopyStatus.ShowFeedback($"已取消，已处理文件 {filesCopied} 个 · 已创建目录 {directoriesCreated} 个。");
         }
-        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException or System.Security.SecurityException or Win32Exception)
         {
             preview = null;
             CopyStatus.ShowFeedback($"{ex.Message} 已处理文件 {filesCopied} 个 · 已创建目录 {directoriesCreated} 个。", InfoBarSeverity.Error);

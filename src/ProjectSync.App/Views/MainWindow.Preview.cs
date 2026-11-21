@@ -5,13 +5,13 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
+using ProjectSync.Core;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
@@ -67,15 +67,34 @@ public partial class MainWindow
         if (!previewServers.Remove(projectId, out var server)) return;
         try
         {
-            server.StandardInput.Close();
-            await server.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            try { server.StandardInput.Close(); } catch (IOException) { }
+            try
+            {
+                await server.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (TimeoutException)
+            {
+                ProcessRunner.TryKillTree(server);
+                try { await server.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(2)); }
+                catch (TimeoutException) { }
+            }
         }
         finally
         {
-            if (server.HasExited) server.Dispose();
-            else previewServers[projectId] = server;
+            server.Dispose();
             UpdatePreviewStatus();
         }
+    }
+
+    private void ForceStopAllPreviews()
+    {
+        foreach (var server in previewServers.Values.ToArray())
+        {
+            try { server.StandardInput.Close(); } catch (Exception) { }
+            ProcessRunner.TryKillTree(server);
+            server.Dispose();
+        }
+        previewServers.Clear();
     }
 
     private async Task WatchPreviewExitAsync(Guid projectId, Process server, Task exit)
@@ -87,33 +106,18 @@ public partial class MainWindow
         UpdatePreviewStatus();
     }
 
-    private static string? BuildFingerprint(ProjectEntry project)
-    {
-        try
-        {
-            if (JsonNode.Parse(project.Configuration) is not JsonObject config) return null;
-            config.Remove("name");
-            config.Remove("previewAfterBuild");
-            config.Remove("previewCommand");
-            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                Encoding.UTF8.GetBytes(config.ToJsonString())));
-        }
-        catch (System.Text.Json.JsonException) { return null; }
-    }
+    private static string? BuildFingerprint(ProjectEntry project) =>
+        ProjectConfig.ComputeBuildFingerprint(project.Configuration);
 
     private bool HasSuccessfulBuild(ProjectEntry project) =>
         successfulBuilds.TryGetValue(project.Id, out var hash) && hash == BuildFingerprint(project);
-
-    private string BuildReceiptPath(ProjectEntry project) =>
-        Path.Combine(Path.GetDirectoryName(projectFile)!, $"built-{project.Id:N}.txt");
 
     private void RestoreBuildReceipt(ProjectEntry project)
     {
         try
         {
-            string path = BuildReceiptPath(project);
-            if (File.Exists(path))
-                successfulBuilds[project.Id] = File.ReadAllText(path).Trim();
+            if (ProjectSync.App.App.Store.LoadBuildReceipt(project.Id) is { Length: > 0 } hash)
+                successfulBuilds[project.Id] = hash;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -127,9 +131,7 @@ public partial class MainWindow
         successfulBuilds[project.Id] = hash;
         try
         {
-            string path = BuildReceiptPath(project);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, hash);
+            ProjectSync.App.App.Store.SaveBuildReceipt(project.Id, hash);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -139,22 +141,45 @@ public partial class MainWindow
 
     private void InvalidateSuccessfulBuild(ProjectEntry project)
     {
-        File.Delete(BuildReceiptPath(project));
+        ProjectSync.App.App.Store.DeleteBuildReceipt(project.Id);
         successfulBuilds.Remove(project.Id);
     }
 
     private static bool HasPreviewCommand(ProjectEntry project) =>
-        ReadPreviewOption(project, "previewCommand") is JsonValue value &&
-        value.TryGetValue<string>(out var command) && !string.IsNullOrWhiteSpace(command);
+        ProjectConfig.TryReadString(project.Configuration, "previewCommand").Length > 0;
 
     private static bool ShouldAutoOpenPreview(ProjectEntry project) =>
-        ReadPreviewOption(project, "previewAfterBuild") is JsonValue value &&
-        value.TryGetValue<bool>(out var enabled) && enabled;
+        ProjectConfig.TryReadBool(project.Configuration, "previewAfterBuild");
 
-    private static JsonNode? ReadPreviewOption(ProjectEntry project, string name)
+    private static Uri? TryExtractPreviewUrl(string line)
     {
-        try { return (JsonNode.Parse(project.Configuration) as JsonObject)?[name]; }
-        catch (System.Text.Json.JsonException) { return null; }
+        var match = Regex.Match(line,
+            @"https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):[0-9]+(?:/[^\s\x1b""'<>()]*)?",
+            RegexOptions.IgnoreCase);
+        if (!match.Success) return null;
+        string raw = match.Value.TrimEnd('.', ',', ';', ':', ')', ']', '}', '!', '?');
+        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri)) return null;
+        if (uri.Host == "0.0.0.0")
+            return new UriBuilder(uri) { Host = "localhost" }.Uri;
+        return uri;
+    }
+
+    private static async Task<bool> TryConnectLoopbackAsync(Uri target, CancellationToken token)
+    {
+        string[] hosts = target.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            ? new[] { "127.0.0.1", "::1" }
+            : new[] { target.Host.Trim('[', ']') };
+        foreach (string host in hosts)
+        {
+            using var connection = new TcpClient();
+            try
+            {
+                await connection.ConnectAsync(host, target.Port, token);
+                return true;
+            }
+            catch (SocketException) { }
+        }
+        return false;
     }
 
     private async Task<bool> TryStartSitePreviewAsync(ProjectEntry project, CancellationToken cancellation)
@@ -162,20 +187,18 @@ public partial class MainWindow
         Process? server = null;
         try
         {
-            var config = JsonNode.Parse(project.Configuration) as JsonObject
-                ?? throw new InvalidOperationException("项目配置无效。");
-            string Read(string key) => config[key]?.GetValue<string>() ?? "";
-            string command = Read("previewCommand");
-            if (string.IsNullOrWhiteSpace(command))
+            var config = ProjectConfig.Parse(project.Configuration);
+            if (string.IsNullOrWhiteSpace(config.PreviewCommand))
                 throw new InvalidOperationException("请在本地构建环境中填写预览命令。");
+            string distro = SyncPath.ValidateWslDistribution(config.Distro);
+            string user = SyncPath.ValidateWslUser(config.WslUser);
+            string wslRepo = SyncPath.ValidateWslRoot(config.WslRepo);
+            string nodeBin = SyncPath.ValidateNodeBin(config.NodeBin);
 
             if (stoppingPreviews is { } stopping)
             {
                 try { await stopping.WaitAsync(cancellation); }
-                catch when (!cancellation.IsCancellationRequested)
-                {
-                    // Retry stopping this project's server below.
-                }
+                catch when (!cancellation.IsCancellationRequested) { }
             }
             await StopPreviewServerAsync(project.Id);
             cancellation.ThrowIfCancellationRequested();
@@ -200,16 +223,15 @@ public partial class MainWindow
                 trap cleanup EXIT
                 wait "$server"
                 """;
-            var start = new ProcessStartInfo("wsl.exe")
+            var start = new ProcessStartInfo(ProcessRunner.WslExecutablePath)
             {
                 UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
                 StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
             };
-            // Windows source checkouts can give raw string literals CRLF line endings.
             string wrapper = "exec 3<&0; " + script.ReplaceLineEndings("\n");
-            foreach (string arg in new[] { "-d", Read("distro"), "-u", Read("wslUser"),
-                "--cd", Read("wslRepo"), "--exec", "bash", "-c", wrapper, "projectsync-preview", Read("nodeBin"), command.ReplaceLineEndings("\n") })
+            foreach (string arg in new[] { "-d", distro, "-u", user,
+                "--cd", wslRepo, "--exec", "bash", "-c", wrapper, "projectsync-preview", nodeBin, config.PreviewCommand.ReplaceLineEndings("\n") })
                 start.ArgumentList.Add(arg);
 
             server = Process.Start(start) ?? throw new InvalidOperationException("无法启动 WSL 预览。");
@@ -218,10 +240,8 @@ public partial class MainWindow
             {
                 if (e.Data is not { } line) return;
                 Dispatcher.BeginInvoke(new Action(() => WriteHomeLog($"[{project.Name} 预览] {line}")));
-                var match = Regex.Match(line, @"https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):[0-9]+(?:/[^\s\x1b]*)?",
-                    RegexOptions.IgnoreCase);
-                if (match.Success && Uri.TryCreate(match.Value, UriKind.Absolute, out var uri))
-                    address.TrySetResult(new UriBuilder(uri) { Host = "127.0.0.1" }.Uri);
+                if (TryExtractPreviewUrl(line) is { } uri)
+                    address.TrySetResult(uri);
             }
 
             server.OutputDataReceived += Output;
@@ -242,13 +262,9 @@ public partial class MainWindow
             while (true)
             {
                 if (server.HasExited) throw new InvalidOperationException("预览服务已退出，请查看日志。");
-                using var connection = new TcpClient();
-                try
-                {
-                    await connection.ConnectAsync(target.Host, target.Port, deadline.Token);
+                if (await TryConnectLoopbackAsync(target, deadline.Token))
                     break;
-                }
-                catch (SocketException) { await Task.Delay(200, deadline.Token); }
+                await Task.Delay(200, deadline.Token);
             }
 
             cancellation.ThrowIfCancellationRequested();
@@ -272,7 +288,8 @@ public partial class MainWindow
         {
             if (server is not null)
             {
-                server.StandardInput.Close();
+                try { server.StandardInput.Close(); } catch (IOException) { }
+                ProcessRunner.TryKillTree(server);
                 server.Dispose();
             }
         }

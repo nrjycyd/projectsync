@@ -39,6 +39,7 @@ public partial class WslManagerWindow
     {
         DirectoryInfo? staging = null;
         string? installer = null;
+        bool restart = false;
         try
         {
             Status.ShowFeedback("正在查找微软官方 WSL 安装包…");
@@ -64,7 +65,7 @@ public partial class WslManagerWindow
                 ? new[] { "/i", installer, "REINSTALL=ALL", "REINSTALLMODE=vomus", "/passive", "/norestart" }
                 : new[] { "/i", installer, "/passive", "/norestart" };
             int installCode = await RunElevatedAsync("msiexec.exe", installArgs);
-            bool restart = RequiresRestart(installCode, "WSL 安装或修复");
+            restart = RequiresRestart(installCode, "WSL 安装或修复");
             Status.ShowFeedback("正在启用虚拟机平台…");
             int featureCode = await RunElevatedAsync("dism.exe", "/Online", "/Enable-Feature",
                 "/FeatureName:VirtualMachinePlatform", "/All", "/NoRestart");
@@ -81,7 +82,10 @@ public partial class WslManagerWindow
         }
         catch (Win32Exception error) when (error.NativeErrorCode == 1223)
         {
-            Status.ShowFeedback("已取消管理员授权。可重新尝试安装或刷新检测。");
+            Status.ShowFeedback(restart
+                ? "WSL 安装或修复已完成并需要重启 Windows，但已取消启用虚拟机平台。请先重启 Windows，再回来点击「刷新检测」。"
+                : "已取消管理员授权。可重新尝试安装或刷新检测。",
+                restart ? InfoBarSeverity.Warning : InfoBarSeverity.Informational);
         }
         catch (OperationCanceledException)
         {
@@ -134,22 +138,29 @@ public partial class WslManagerWindow
             Architecture.Arm64 => "arm64",
             _ => throw new InvalidOperationException("此 Windows 架构没有受支持的 WSL 安装包。")
         };
-        string? tag = release.GetProperty("tag_name").GetString();
-        if (release.GetProperty("draft").GetBoolean() || release.GetProperty("prerelease").GetBoolean() ||
-            tag is null || !Regex.IsMatch(tag, @"\Av?[0-9]+(?:\.[0-9]+){1,3}\z"))
+        string? tag = release.TryGetProperty("tag_name", out var tagElement) ? tagElement.GetString() : null;
+        bool draft = release.TryGetProperty("draft", out var draftElement) && draftElement.GetBoolean();
+        bool prerelease = release.TryGetProperty("prerelease", out var preElement) && preElement.GetBoolean();
+        if (draft || prerelease || tag is null || !Regex.IsMatch(tag, @"\Av?[0-9]+(?:\.[0-9]+){1,3}\z"))
             throw new InvalidOperationException("未找到微软发布的稳定版 WSL 安装包。");
 
-        var assets = release.GetProperty("assets").EnumerateArray().Where(asset =>
-            asset.GetProperty("name").GetString() is { } name &&
+        if (!release.TryGetProperty("assets", out var assetsElement) || assetsElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("未找到匹配当前 Windows 架构的 WSL 安装包。");
+
+        var assets = assetsElement.EnumerateArray().Where(asset =>
+            asset.TryGetProperty("name", out var nameElement) &&
+            nameElement.GetString() is { } name &&
             Regex.IsMatch(name, @"\Awsl\.[0-9]+(?:\.[0-9]+){1,3}\." + suffix + @"\.msi\z")).ToArray();
         if (assets.Length != 1)
             throw new InvalidOperationException("未找到匹配当前 Windows 架构的 WSL 安装包。");
         var asset = assets[0];
         string name = asset.GetProperty("name").GetString()!;
         string expectedUrl = $"https://github.com/microsoft/WSL/releases/download/{tag}/{name}";
-        string? digest = asset.GetProperty("digest").GetString();
-        long size = asset.GetProperty("size").GetInt64();
-        if (asset.GetProperty("browser_download_url").GetString() != expectedUrl ||
+        string? digest = asset.TryGetProperty("digest", out var digestElement) && digestElement.ValueKind == JsonValueKind.String
+            ? digestElement.GetString() : null;
+        string? downloadUrl = asset.TryGetProperty("browser_download_url", out var urlElement) ? urlElement.GetString() : null;
+        long size = asset.TryGetProperty("size", out var sizeElement) && sizeElement.TryGetInt64(out long parsedSize) ? parsedSize : 0;
+        if (downloadUrl != expectedUrl ||
             digest is null || !Regex.IsMatch(digest, @"\Asha256:[a-fA-F0-9]{64}\z") ||
             size <= 0 || size > MaximumInstallerSize)
             throw new InvalidOperationException("微软 WSL 发布包的下载信息或校验值无效。");
@@ -209,8 +220,21 @@ public partial class WslManagerWindow
             using var embedded = X509Certificate.CreateFromSignedFile(msi);
             using var signer = new X509Certificate2(embedded);
             if (!string.Equals(signer.GetNameInfo(X509NameType.SimpleName, forIssuer: false),
-                "Microsoft Corporation", StringComparison.Ordinal))
+                "Microsoft Corporation", StringComparison.Ordinal) ||
+                !signer.Subject.Contains("O=Microsoft Corporation", StringComparison.Ordinal))
                 throw new InvalidOperationException("WSL 安装包的签名发布者不是 Microsoft Corporation。");
+
+            using var chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
+            chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+            chain.ChainPolicy.ApplicationPolicy.Add(new Oid("1.3.6.1.5.5.7.3.3")); // Code Signing EKU
+            if (!chain.Build(signer) || chain.ChainElements.Count == 0)
+                throw new InvalidOperationException("无法验证 WSL 安装包签名者的微软证书链。");
+
+            var rootCert = chain.ChainElements[^1].Certificate;
+            string rootName = rootCert.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
+            if (!rootName.StartsWith("Microsoft Root Certificate Authority", StringComparison.Ordinal))
+                throw new InvalidOperationException($"WSL 安装包的根证书不是受信任的微软根证书（{rootName}）。");
         }
         finally
         {
@@ -232,12 +256,13 @@ public partial class WslManagerWindow
             if (MsiDatabaseOpenView(database, "SELECT `Value` FROM `Property` WHERE `Property` = 'ProductCode'", out view) != 0 ||
                 MsiViewExecute(view, 0) != 0 || MsiViewFetch(view, out record) != 0)
                 throw new InvalidOperationException("无法查询 WSL 安装包的产品标识。");
-            var productCode = new StringBuilder(39);
+            var productCode = new StringBuilder(64);
             uint length = (uint)productCode.Capacity;
             result = MsiRecordGetString(record, 1, productCode, ref length);
-            if (result != 0 || !Guid.TryParse(productCode.ToString(), out _))
+            string code = productCode.ToString().Trim();
+            if (result != 0 || !Guid.TryParse(code, out _))
                 throw new InvalidOperationException("无法读取 WSL 安装包的产品标识。");
-            return MsiQueryProductState(productCode.ToString()) == installed;
+            return MsiQueryProductState(code) == installed;
         }
         finally
         {

@@ -18,17 +18,8 @@
              CopyToPublishDirectory="PreserveNewest" />
     <Content Include="$(PkgWPF-UI)/ThirdPartyNotices.txt" Link="licenses/WPF-UI-ThirdPartyNotices.txt"
              CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="../ProjectSync.Core/Scripts/BuildSync.ps1" Link="scripts/BuildSync.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="WPF-UI" Version="4.3.0" GeneratePathProperty="true" />
   </ItemGroup>
-  <Target Name="RecordBuildSyncHash" BeforeTargets="GetAssemblyAttributes">
-    <GetFileHash Files="../ProjectSync.Core/Scripts/BuildSync.ps1" Algorithm="SHA256">
-      <Output TaskParameter="Items" ItemName="_HashedBuildSync" />
-    </GetFileHash>
-    <ItemGroup>
-      <AssemblyMetadata Include="BuildSyncSha256" Value="@(_HashedBuildSync->'%(FileHash)')" />
-    </ItemGroup>
-  </Target>
 </Project>
