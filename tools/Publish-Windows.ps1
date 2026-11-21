@@ -45,7 +45,6 @@ try {
         'licenses/DevelopmentToolLogos.md'
         'ProjectSync.App.deps.json'
         'ProjectSync.App.runtimeconfig.json'
-        'scripts/BuildSync.ps1'
     )
     $actual = @(Get-ChildItem -LiteralPath $folder -Recurse -File -Force | ForEach-Object {
         [IO.Path]::GetRelativePath($folder, $_.FullName).Replace('\', '/')

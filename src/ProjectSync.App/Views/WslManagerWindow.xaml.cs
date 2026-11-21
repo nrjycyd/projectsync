@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using ProjectSync.Core;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
@@ -32,10 +33,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     {
         try
         {
-            // Read both numbers from the same filesystem so the fraction is comparable.
             var result = await InvokeAsync(new[] { "-d", instance, "--exec", "env", "LC_ALL=C",
-                "df", "-B1", "--output=size,avail", "/" }, encoding: Encoding.UTF8)
-                .WaitAsync(TimeSpan.FromSeconds(5));
+                "df", "-B1", "--output=size,avail", "/" }, encoding: Encoding.UTF8, timeout: TimeSpan.FromSeconds(5));
             if (result.Code != 0) return null;
 
             var match = Regex.Match(result.Output, @"(?m)^[ \t]*([0-9]+)[ \t]+([0-9]+)[ \t\r]*$");
@@ -88,79 +87,24 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     private static async Task<(int Code, string Output)> InvokeAsync(string[] args, Action<string>? log = null,
-        Encoding? encoding = null, TimeSpan? timeout = null)
+        Encoding? encoding = null, TimeSpan? timeout = null, CancellationToken cancellation = default)
     {
-        var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "wsl.exe"))
-        {
-            UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardInput = timeout.HasValue,
-            RedirectStandardOutput = true, RedirectStandardError = true,
-            StandardOutputEncoding = encoding ?? Encoding.Unicode, StandardErrorEncoding = encoding ?? Encoding.Unicode
-        };
-        foreach (string argument in args) start.ArgumentList.Add(argument);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("无法启动 WSL。");
-        using var deadline = new CancellationTokenSource();
-        if (timeout is { } limit)
-        {
-            process.StandardInput.Close();
-            deadline.CancelAfter(limit);
-        }
         bool resize = args.Length >= 3 && args[0] == "--manage" && args[2] == "--resize";
-        async Task<string> ReadAsync(StreamReader reader)
-        {
-            if (resize)
-            {
-                using var buffer = new MemoryStream();
-                await reader.BaseStream.CopyToAsync(buffer);
-                string decoded = DecodeResizeOutput(buffer.ToArray());
-                foreach (string line in decoded.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                    log?.Invoke(line);
-                return decoded + Environment.NewLine;
-            }
-            var result = new StringBuilder();
-            try
-            {
-                while (await reader.ReadLineAsync(deadline.Token) is { } raw)
-                {
-                    string line = raw.Trim('\0', '\uFEFF', '\r');
-                    if (line.Length == 0) continue;
-                    result.AppendLine(line);
-                    log?.Invoke(line);
-                }
-            }
-            catch (OperationCanceledException) when (deadline.IsCancellationRequested) { }
-            return result.ToString();
-        }
-        var stdout = ReadAsync(process.StandardOutput);
-        var stderr = ReadAsync(process.StandardError);
-        var completion = Task.WhenAll(stdout, stderr, process.WaitForExitAsync(deadline.Token));
-        try
-        {
-            await completion.WaitAsync(deadline.Token);
-            return (process.ExitCode, (stdout.Result + stderr.Result).TrimEnd());
-        }
-        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
-        {
-            try { if (!process.HasExited) process.Kill(); }
-            catch (InvalidOperationException) when (process.HasExited) { }
-            catch (System.ComponentModel.Win32Exception error) { ProjectSync.App.App.AppendDiagnostic(error.Message); }
+        ProcessResult result = resize
+            ? await ProcessRunner.RunWslResizeAsync(args, log, timeout, cancellation)
+            : await ProcessRunner.RunWslAsync(args, encoding ?? Encoding.Unicode, timeout, log, closeStdin: timeout.HasValue, cancellation: cancellation);
 
-            var readers = Task.WhenAll(stdout, stderr);
-            try { await readers.WaitAsync(TimeSpan.FromSeconds(1)); }
-            catch (TimeoutException) { }
-            string output = (stdout.IsCompletedSuccessfully ? stdout.Result : "") +
-                (stderr.IsCompletedSuccessfully ? stderr.Result : "");
-            return (QueryTimeout, $"{output}WSL 查询超时（{timeout!.Value.TotalSeconds:0} 秒）。");
+        if (result.TimedOut)
+        {
+            string combined = result.CombinedOutput;
+            string prefix = combined.Length > 0 ? combined + Environment.NewLine : "";
+            return (QueryTimeout, $"{prefix}WSL 查询超时（{timeout!.Value.TotalSeconds:0} 秒）。");
         }
+        return (result.ExitCode, result.CombinedOutput);
     }
 
-    private static bool HostNeedsSetup(string output) =>
-        Regex.IsMatch(output, @"REGDB_E_CLASSNOTREG|WSL_E_(?:WSL_NOT_INSTALLED|WSL_OPTIONAL_COMPONENT_REQUIRED|INSTALL_COMPONENT_REQUIRED)|WSL installation appears to be corrupted|Windows Subsystem for Linux is not installed",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
-    private static bool IsEmptyDistributionList(string output) =>
-        Regex.IsMatch(output, @"WSL_E_NO_DISTRO|has no installed distributions|没有(?:已)?安装的\s*(?:Linux\s*)?(?:分发版|发行版)|未安装任何\s*(?:Linux\s*)?(?:分发版|发行版)",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static bool HostNeedsSetup(string output) => WslOutputParser.HostNeedsSetup(output);
+    private static bool IsEmptyDistributionList(string output) => WslOutputParser.IsEmptyDistributionList(output);
 
     private void SetHostReady(bool ready, bool showSetup = false)
     {
@@ -196,30 +140,6 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             : "Windows 的 WSL 组件不可用。请先安装或修复 WSL，再刷新检测。", InfoBarSeverity.Warning);
     }
 
-    // The WSL host emits UTF-16LE while e2fsck and resize2fs can emit UTF-8.
-    private static string DecodeResizeOutput(byte[] output)
-    {
-        var result = new StringBuilder();
-        int start = 0;
-        for (int end = 0; end <= output.Length; end++)
-        {
-            if (end < output.Length && output[end] != (byte)'\n') continue;
-            bool wideNewline = end + 1 < output.Length && output[end + 1] == 0;
-            int count = end - start + (wideNewline ? 2 : 0);
-            if (count > 0)
-            {
-                var bytes = output.AsSpan(start, count);
-                bool wide = wideNewline || bytes.IndexOf((byte)0) >= 0 ||
-                    bytes.StartsWith(new byte[] { 0xFF, 0xFE });
-                string line = (wide ? Encoding.Unicode : Encoding.UTF8).GetString(bytes);
-                result.AppendLine(line.Trim('\uFEFF', '\0', '\r', '\n'));
-            }
-            if (wideNewline) end++;
-            start = end + 1;
-        }
-        return result.ToString().ReplaceLineEndings("\n").TrimEnd();
-    }
-
     private async Task RunAsync(Func<Task> work)
     {
         if (busy) return;
@@ -249,7 +169,6 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             ShowHostSetup(result.Output, command);
             return null;
         }
-        // WSL can write the empty-list result before its process or redirected streams finish.
         if (result.Code == QueryTimeout && !IsEmptyDistributionList(result.Output))
         {
             ShowHostSetup(result.Output, command, timedOut: true);
@@ -266,7 +185,6 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         if (host.Code != 0 && !IsEmptyDistributionList(host.Output))
             RecordHostQueryFailure("--status", host.Output);
 
-        // Older WSL versions may reject --status while still supporting the distribution list.
         Status.ShowFeedback("正在读取已安装的发行版…");
         if (await CheckHostAsync("--list", "--verbose") is not { } list) return;
         if (list.Code != 0 && !IsEmptyDistributionList(list.Output))
@@ -284,10 +202,10 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             ShowHostSetup(results[setupErrorIndex].Output, setupErrorIndex == 0 ? "--version" : "--help");
             return;
         }
-        string version = Regex.Match(results[0].Output, @"\d+(?:\.\d+){2,3}").Value;
+        string version = WslOutputParser.ExtractWslVersion(results[0].Output);
         VersionText.Text = version.Length > 0 ? $"WSL {version}" : "";
         help = results[1].Output;
-        installHelp = Regex.Match(help, @"(?ms)^\s{4}--install\b.*?(?=^ {4}--\w|\z)").Value;
+        installHelp = WslOutputParser.ExtractInstallHelp(help);
         var locations = new Dictionary<string, (string Location, string DiskFile, string? Flavor, string? OsVersion)>(StringComparer.OrdinalIgnoreCase);
         using (var lxss = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Lxss"))
         {
@@ -303,29 +221,23 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         }
 
         var rows = new List<Instance>();
-        foreach (string line in list.Output.Split('\n'))
+        foreach (var parsed in WslOutputParser.ParseDistributionList(list.Output))
         {
-            var match = Regex.Match(line.TrimEnd(), @"^\s*(\*?)\s*(.+?)\s{2,}(.+?)\s{2,}([12])$");
-            if (!match.Success) continue;
-            string name = match.Groups[2].Value.Trim();
-            string state = match.Groups[3].Value;
-            bool running = state is "Running" or "正在运行" or "运行中";
-            if (running) state = "运行中";
-            else if (state is "Stopped" or "已停止" or "停止") state = "已停止";
-            var (location, diskFile, flavor, osVersion) = locations.GetValueOrDefault(name);
-            bool wsl2 = match.Groups[4].Value == "2";
+            var (location, diskFile, flavor, osVersion) = locations.GetValueOrDefault(parsed.Name);
+            bool wsl2 = parsed.Version == 2;
             var (capacity, icon) = await Task.Run(() =>
                 (wsl2 && location is not null ? VirtualDiskCapacity.Read(location, diskFile) : null,
-                 ReadDistributionIcon(location, running)));
+                 ReadDistributionIcon(location, parsed.IsRunning)));
             string? limit = capacity is ulong bytes ? VirtualDiskCapacity.Format(bytes) : null;
-            string unavailable = running ? "未能读取根文件系统剩余空间" : "实例未运行，剩余空间待检测";
+            string unavailable = parsed.IsRunning ? "未能读取根文件系统剩余空间" : "实例未运行，剩余空间待检测";
             var disk = wsl2
                 ? new DiskUsage(limit is null ? "—" : $"— / {limit}",
                     limit is null ? unavailable : $"{unavailable}。虚拟磁盘上限 {limit}。")
                 : new DiskUsage("不适用", "WSL 1 没有独立的虚拟磁盘。");
             string distribution = DistributionLabel(flavor, osVersion);
-            rows.Add(new Instance(name, match.Groups[1].Length > 0, state, running,
-                $"WSL {match.Groups[4].Value}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(), running ? "检测中…" : "待检测", distribution, icon));
+            rows.Add(new Instance(parsed.Name, parsed.IsDefault, parsed.StateLabel, parsed.IsRunning,
+                $"WSL {parsed.Version}", location ?? "—", disk, diskFile, Array.Empty<DevelopmentTool>(),
+                parsed.IsRunning ? "检测中…" : "待检测", distribution, icon));
         }
         Instances.ItemsSource = rows;
         var checkedRows = await Task.WhenAll(rows.Select(async row =>
@@ -358,7 +270,11 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         Log.Clear();
         LogArea.IsExpanded = true;
         Status.ShowFeedback("正在执行 WSL 操作…");
-        var result = await InvokeAsync(args, line => { Log.AppendText(line + Environment.NewLine); Log.ScrollToEnd(); });
+        var result = await InvokeAsync(args, line => Dispatcher.BeginInvoke(() =>
+        {
+            Log.AppendText(line + Environment.NewLine);
+            Log.ScrollToEnd();
+        }));
         if (result.Code != 0)
         {
             if (HostNeedsSetup(result.Output))
@@ -389,7 +305,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         if (Row(sender) is not { } instance) return;
         try
         {
-            var start = new ProcessStartInfo("wsl.exe") { UseShellExecute = true };
+            var start = new ProcessStartInfo(ProcessRunner.WslExecutablePath) { UseShellExecute = true };
             start.ArgumentList.Add("-d");
             start.ArgumentList.Add(instance.Name);
             start.ArgumentList.Add("--cd");
@@ -444,12 +360,12 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             ulong requested = 0;
             bool ValidCapacity()
             {
-                if (!PositiveSize(size.Text) || !uint.TryParse(size.Text, out uint amount)) return false;
+                if (!PositiveSize(size.Text) || !uint.TryParse(size.Text.Trim(), out uint amount)) return false;
                 requested = amount * gib;
                 return requested != current && requested <= (64UL << 40);
             }
             if (!Confirm(dialog, footer, "停止 WSL 并调整", ValidCapacity,
-                $"请输入与当前上限不同的正整数 GiB 值，最大 64 TiB。")) return;
+                "请输入与当前上限不同的正整数 GiB 值，最大 64 TiB。")) return;
             if (requested < current && FluentDialog.Ask(this, "确认缩小磁盘上限",
                 $"将「{instance.Name}」从 {VirtualDiskCapacity.Format(current)} 缩小到 {VirtualDiskCapacity.Format(requested)}。WSL 会检查文件系统能否缩到目标容量。继续吗？",
                 "缩小", "取消", destructive: true) != MessageBoxResult.Yes)
@@ -498,10 +414,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         }
         else
             Status.IsOpen = false;
-        var names = list.Code == 0 ? list.Output.Split('\n')
-            .Select(line => Regex.Match(line, @"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s{2,}\S"))
-            .Where(match => match.Success && match.Groups[1].Value != "NAME")
-            .Select(match => match.Groups[1].Value).Distinct().ToArray() : Array.Empty<string>();
+        var names = list.Code == 0 ? WslOutputParser.ParseOnlineDistributions(list.Output) : Array.Empty<string>();
         var (dialog, form, footer) = CreateDialog("安装发行版");
         var distribution = new ComboBox { IsEditable = names.Length == 0, ItemsSource = names };
         AddField(form, "发行版", distribution);
@@ -521,7 +434,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             var folder = new OpenFolderDialog { Title = "选择安装位置" };
             if (folder.ShowDialog(dialog) == true) location.Text = folder.FolderName;
         };
-        var size = AddInput(form, "虚拟磁盘上限（GB，可选，按使用量增长）");
+        var size = AddInput(form, "虚拟磁盘上限（GB，可选，最大 65536 GB，按使用量增长）");
         size.IsEnabled = SupportsInstall("--vhd-size");
         var web = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "从网络下载", OffContent = "从网络下载", IsChecked = SupportsInstall("--web-download"),
             IsEnabled = SupportsInstall("--web-download"), Margin = new Thickness(0, 12, 0, 0) };
@@ -533,8 +446,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
                 !((IEnumerable<Instance>?)Instances.ItemsSource ?? Array.Empty<Instance>()).Any(row =>
                     string.Equals(row.Name, name.Text.Trim(), StringComparison.OrdinalIgnoreCase))) &&
             (location.Text.Trim().Length == 0 || ValidInstallFolder(location.Text.Trim())) &&
-            (size.Text.Trim().Length == 0 || PositiveSize(size.Text));
-        if (!Confirm(dialog, footer, "开始安装", Valid, "请选择发行版，并检查实例名称、安装目录和虚拟磁盘容量。"))
+            (size.Text.Trim().Length == 0 || (PositiveSize(size.Text) && uint.TryParse(size.Text.Trim(), out uint gb) && gb <= 65536));
+        if (!Confirm(dialog, footer, "开始安装", Valid, "请选择发行版，并检查实例名称、安装目录和虚拟磁盘容量（1~65536 GB）。"))
         {
             Status.ShowFeedback("已取消安装。");
             return;
@@ -551,7 +464,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     private bool SupportsInstall(string option) => Regex.IsMatch(installHelp, @"(?m)^\s+" + Regex.Escape(option) + @"(?:[\s,]|$)");
     private static bool ValidName(string value) => Regex.IsMatch(value, @"\A[A-Za-z0-9][A-Za-z0-9._-]*\z");
     private static bool PositiveSize(string value) => Regex.IsMatch(value.Trim(), @"\A[0-9]+\z") &&
-        uint.TryParse(value, out uint size) && size > 0;
+        uint.TryParse(value.Trim(), out uint size) && size > 0;
 
     private static bool ValidInstallFolder(string path)
     {

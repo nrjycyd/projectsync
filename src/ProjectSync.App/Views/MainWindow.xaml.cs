@@ -1,19 +1,15 @@
 using Microsoft.Win32;
 using System;
-using System.Diagnostics;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.Encodings.Web;
-using System.Text.Json.Nodes;
-using System.IO;
-using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
+using ProjectSync.Core;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
@@ -22,7 +18,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 {
     private bool running;
     private string? displayedBranchKey;
-
+    private bool initializingTheme = true;
 
     private readonly Dictionary<string, TextBox> fields;
     private JsonObject current = new();
@@ -43,6 +39,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private void ChooseTheme(object sender, SelectionChangedEventArgs e)
     {
         if (sender is not ComboBox { SelectedItem: ComboBoxItem item } || item.Tag is not string theme) return;
+        ApplyTheme(theme, persist: !initializingTheme);
+    }
+
+    private void ApplyTheme(string theme, bool persist)
+    {
         if (followingSystemTheme)
         {
             Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(this);
@@ -56,17 +57,39 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 followingSystemTheme = true;
             }
             Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
-            return;
+        }
+        else
+        {
+            Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
+                theme == "Dark" ? Wpf.Ui.Appearance.ApplicationTheme.Dark : Wpf.Ui.Appearance.ApplicationTheme.Light,
+                Wpf.Ui.Controls.WindowBackdropType.Mica);
         }
 
-        Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
-            theme == "Dark" ? Wpf.Ui.Appearance.ApplicationTheme.Dark : Wpf.Ui.Appearance.ApplicationTheme.Light,
-            Wpf.Ui.Controls.WindowBackdropType.Mica);
+        if (persist)
+            ProjectSync.App.App.Store.SavePreferences(new AppPreferences(theme));
     }
 
     public MainWindow()
     {
         InitializeComponent();
+        var savedTheme = ProjectSync.App.App.Store.LoadPreferences().Theme;
+        foreach (ComboBoxItem item in ThemeChoice.Items)
+        {
+            if (item.Tag as string == savedTheme)
+            {
+                ThemeChoice.SelectedItem = item;
+                break;
+            }
+        }
+        initializingTheme = false;
+        Loaded += (_, _) =>
+        {
+            if (ThemeChoice.SelectedItem is ComboBoxItem { Tag: "System" } && !followingSystemTheme)
+            {
+                Wpf.Ui.Appearance.SystemThemeWatcher.Watch(this, Wpf.Ui.Controls.WindowBackdropType.Mica);
+                followingSystemTheme = true;
+            }
+        };
         Closed += (_, _) =>
         {
             if (followingSystemTheme) Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(this);
@@ -144,26 +167,19 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private bool ConfirmExternalConfiguration(string configuration, bool onlyChanged = false)
     {
-        var parsed = JsonNode.Parse(configuration) as JsonObject
-            ?? throw new JsonException("配置必须是 JSON 对象。");
-        if (new[] { "git", "source", "build", "sync" }.Any(key => parsed[key] is JsonObject))
-            throw new JsonException("不支持嵌套格式，请使用扁平项目配置。");
+        var reviewItems = ProjectConfig.ExtractSecurityReviewItems(configuration, onlyChanged ? current : null);
+        if (reviewItems.Count == 0)
+            return true;
 
-        var commands = new[] { "buildCommand", "previewCommand", "reinstallCommand",
-            "themeUpgradeCommand", "gitSshCommand" }
-            .Select(key => (Key: key, Value: parsed[key]?.GetValue<string>()))
-            .Where(command => !string.IsNullOrWhiteSpace(command.Value))
-            .Where(command => !onlyChanged || parsed[command.Key]?.ToJsonString() != current[command.Key]?.ToJsonString())
-            .Select(command => $"{command.Key}\n{command.Value}");
-        string details = string.Join("\n\n", commands);
-        return details.Length == 0 || ConfirmProjectAction("检查配置中的命令",
-            "项目操作可能以你的权限运行以下命令。请逐条核对，并仅在信任来源时继续。\n\n" + details,
+        string details = string.Join("\n\n", reviewItems.Select(item => $"{item.Label}\n{item.Value}"));
+        return ConfirmProjectAction("检查配置中的命令与敏感选项",
+            "项目操作可能以你的权限运行以下命令行、修改 PATH 或覆写/清理目录。请逐条核对，并仅在信任来源时继续。\n\n" + details,
             "接受配置", "取消", canCancel: false) == MessageBoxResult.Yes;
     }
 
     private void LoadConfig(string text)
     {
-        var parsed = JsonNode.Parse(text) as JsonObject ?? throw new JsonException("配置必须是 JSON 对象。");
+        var parsed = ProjectConfig.ParseRawObject(text);
         if (!parsed.ContainsKey("pullPaths") && parsed["pullPath"] is JsonNode legacy)
             parsed["pullPaths"] = new JsonArray(legacy.DeepClone());
         parsed.Remove("pullPath");
@@ -257,10 +273,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         try
         {
             foreach (string suffix in Lines(excludeSuffixes.Text))
-                if (suffix != ":Zone.Identifier" && System.Text.RegularExpressions.Regex.IsMatch(suffix, @"[\\/:*?""<>|\[\]\x00-\x1f]"))
-                    throw new ArgumentException($"排除后缀应填写文件名末尾的文字：{suffix}");
+                SyncPath.ValidateSuffix(suffix);
+            SyncPath.ValidateNodeBin(nodeBin.Text);
             var updates = boxes.Select(box => (Box: box, Text: string.Join(Environment.NewLine,
-                Lines(box.Text).Select(path => NormalizeSyncPath(path, box == include ? "同步路径" : "排除路径"))))).ToArray();
+                Lines(box.Text).Select(path => NormalizeSyncPath(path,
+                    box == include ? "同步路径" : box == pullPath ? "拉取目录" : "排除路径"))))).ToArray();
             foreach (var update in updates)
                 if (update.Box.Text != update.Text)
                     update.Box.Text = update.Text;
@@ -274,13 +291,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     private string NormalizeSyncPath(string input, string label) =>
-        ProjectSync.Core.SyncPath.Normalize(input, label, windowsRepo.Text, wslRepo.Text, distro.Text.Trim());
+        SyncPath.Normalize(input, label, windowsRepo.Text, wslRepo.Text, distro.Text.Trim());
 
-    private static string UnquotePath(string value)
-    {
-        value = value.Trim();
-        return value.Length >= 2 && value[0] == '"' && value[^1] == '"' ? value[1..^1] : value;
-    }
+    private static string UnquotePath(string value) => SyncPath.UnquotePath(value);
 
     private string SerializeConfig() => current.ToJsonString(new JsonSerializerOptions
     {
@@ -367,7 +380,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             return;
         }
 
-        if (!TryNormalizeSyncPaths(include, exclude)) return;
+        if (!TryNormalizeSyncPaths(include, exclude, pullPath)) return;
 
         string name = string.Join("_", ProjectName.Text.Trim().Split(Path.GetInvalidFileNameChars())).TrimEnd('.', ' ');
         var dialog = new SaveFileDialog
@@ -407,30 +420,25 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         try
         {
-            var output = new List<string>();
-            var errors = new StringBuilder();
-            await RunProjectAsync(SerializeConfig(), false, false, null, line =>
-            {
-                const string prefix = "LOCAL_REMOTE=";
-                if (line.StartsWith(prefix, StringComparison.Ordinal))
-                    output.Add(line[prefix.Length..]);
-                else
-                    errors.AppendLine(line);
-            }, listRemotes: true, failureMessage: () => errors.ToString().Trim());
+            var config = ProjectConfig.Parse(SerializeConfig());
+            string[] output = await SyncEngine.ListRemotesAsync(config);
 
             string text = remote.Text;
             if (string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(remoteUrl.Text))
-                text = output.Contains("origin") ? "origin" : output.Count == 1 ? output[0] : text;
+                text = output.Contains("origin") ? "origin" : output.Length == 1 ? output[0] : text;
             loading = true;
-            RestoreChoices(remote, text, output.ToArray());
+            RestoreChoices(remote, text, output);
             loading = false;
             ClearRemoteBranches();
             FormChanged();
             string? cacheError = SaveChoices(RemoteChoiceKey(), output);
-            RemoteDetectionStatus.ShowFeedback(cacheError ?? (output.Count == 0 ? "本地仓库没有配置远端名称，可以直接填写远端仓库地址。" :
-                $"已读取 {output.Count} 个远端名称。可从下拉列表选择。"), cacheError is not null || output.Count == 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+            RemoteDetectionStatus.ShowFeedback(cacheError ?? (output.Length == 0 ? "本地仓库没有配置远端名称，可以直接填写远端仓库地址。" :
+                $"已读取 {output.Length} 个远端名称。可从下拉列表选择。"), cacheError is not null || output.Length == 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         }
-        catch (WindowsGitMissingException error) { ShowWindowsGitMissing(RemoteDetectionStatus, error); }
+        catch (SyncException error) when (error.Code == SyncErrorCode.WindowsGitMissing)
+        {
+            ShowWindowsGitMissing(RemoteDetectionStatus, error.Message);
+        }
         catch (Exception error) { RemoteDetectionStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
@@ -461,33 +469,26 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         ClearRemoteBranches();
         RemoteTestStatus.ShowFeedback("正在读取远端分支。如弹出浏览器，请完成 GitHub 登录。");
-        var branches = new List<string>();
-        var output = new StringBuilder();
         try
         {
-            await RunProjectAsync(SerializeConfig(), false, false, null,
-                line =>
-                {
-                    const string prefix = "REMOTE_BRANCH=";
-                    if (line.StartsWith(prefix, StringComparison.Ordinal))
-                        branches.Add(line[prefix.Length..]);
-                    else
-                        output.AppendLine(line);
-                }, testConnection: true);
+            var config = ProjectConfig.Parse(SerializeConfig());
+            string[] branches = await SyncEngine.TestConnectionAsync(config);
             string text = branch.Text;
             loading = true;
-            RestoreChoices(branch, text, branches.ToArray());
+            RestoreChoices(branch, text, branches);
             loading = false;
             string? cacheError = SaveChoices(BranchChoiceKey(), branches);
-            RemoteTestStatus.ShowFeedback(cacheError ?? (branches.Count == 0 ? "连接成功，远端暂无分支。" :
-                branches.Contains(text) ? $"连接成功，已读取 {branches.Count} 个分支。" :
-                $"连接成功，已读取 {branches.Count} 个分支。请从下拉列表选择目标分支。"), cacheError is not null ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+            RemoteTestStatus.ShowFeedback(cacheError ?? (branches.Length == 0 ? "连接成功，远端暂无分支。" :
+                branches.Contains(text) ? $"连接成功，已读取 {branches.Length} 个分支。" :
+                $"连接成功，已读取 {branches.Length} 个分支。请从下拉列表选择目标分支。"), cacheError is not null ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         }
-        catch (WindowsGitMissingException error) { ShowWindowsGitMissing(RemoteTestStatus, error); }
+        catch (SyncException error) when (error.Code == SyncErrorCode.WindowsGitMissing)
+        {
+            ShowWindowsGitMissing(RemoteTestStatus, error.Message);
+        }
         catch (Exception error)
         {
-            RemoteTestStatus.ShowFeedback(error is SyncScriptException || output.Length == 0
-                ? error.Message : output.ToString().Trim(), InfoBarSeverity.Error);
+            RemoteTestStatus.ShowFeedback(error.Message, InfoBarSeverity.Error);
         }
         finally
         {
@@ -496,12 +497,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    private sealed class SyncScriptException(string message) : InvalidOperationException(message);
-
-    private sealed class WindowsGitMissingException() : InvalidOperationException(
-        "找不到 Windows Git。请安装 Git for Windows，确认 git 可从 Windows 命令行运行，然后重启 ProjectSync 并重试。");
-
-    private static void ShowWindowsGitMissing(Wpf.Ui.Controls.InfoBar status, WindowsGitMissingException error)
+    private static void ShowWindowsGitMissing(Wpf.Ui.Controls.InfoBar status, string message)
     {
         const string downloadUrl = "https://git-scm.com/install/windows";
         var action = new Wpf.Ui.Controls.Button { Content = "下载 Git for Windows" };
@@ -514,195 +510,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             catch (System.ComponentModel.Win32Exception failed)
             {
                 ProjectSync.App.App.AppendDiagnostic(failed.Message);
-                status.ShowFeedback($"{error.Message} 下载地址：{downloadUrl}", InfoBarSeverity.Warning);
+                status.ShowFeedback($"{message} 下载地址：{downloadUrl}", InfoBarSeverity.Warning);
             }
         };
-        status.ShowFeedback(error.Message, InfoBarSeverity.Warning, action);
-    }
-
-    private static FileStream OpenVerifiedSyncScript(string path)
-    {
-        const string message = "随包同步脚本缺失、无法读取或与当前版本不匹配。请重新下载并解压完整的 ProjectSync 发布包。";
-        try
-        {
-            var script = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            try
-            {
-                string? expected = typeof(MainWindow).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
-                    .SingleOrDefault(attribute => attribute.Key == "BuildSyncSha256")?.Value;
-                string actual = Convert.ToHexString(SHA256.HashData(script));
-                if (!string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
-                    throw new SyncScriptException(message);
-                return script;
-            }
-            catch
-            {
-                script.Dispose();
-                throw;
-            }
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
-            ProjectSync.App.App.AppendDiagnostic(error.Message);
-            throw new SyncScriptException(message);
-        }
-    }
-
-    private static async Task<(string? Plan, string? Synced, bool Pushed)> RunProjectAsync(
-        string configuration, bool preview, bool publish, string? expected, Action<string> writeLog, bool testConnection = false, bool listRemotes = false, Func<string>? failureMessage = null, Action<string>? savePending = null, string? commitSummary = null, string? initializeRepository = null, bool allowCleanup = false, CancellationToken cancellation = default, bool checkWindowsGit = false)
-    {
-        string? temporary = null;
-        string? summaryFile = null;
-        string? buildLease = null;
-        string? resultFile = null;
-        try
-        {
-            string scriptPath = Path.Combine(AppContext.BaseDirectory, "scripts", "BuildSync.ps1");
-            using var verifiedScript = OpenVerifiedSyncScript(scriptPath);
-            temporary = Path.GetTempFileName();
-            await File.WriteAllTextAsync(temporary, configuration);
-            resultFile = Path.GetTempFileName();
-            var start = new ProcessStartInfo
-            {
-                FileName = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"),
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
-            start.Environment["PROJECTSYNC_BUNDLED_SCRIPT_LAUNCH"] = "1";
-            start.Environment["PROJECTSYNC_PARENT_EXECUTION_POLICY"] =
-                Environment.GetEnvironmentVariable("PSExecutionPolicyPreference") ?? "";
-            foreach (string argument in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                scriptPath, "-Config", temporary,
-                "-ResultFile", resultFile })
-                start.ArgumentList.Add(argument);
-            if (checkWindowsGit)
-                start.ArgumentList.Add("-CheckWindowsGit");
-            else if (listRemotes)
-                start.ArgumentList.Add("-ListRemotes");
-            else if (testConnection)
-                start.ArgumentList.Add("-TestConnection");
-            else if (initializeRepository is not null)
-            {
-                start.ArgumentList.Add("-InitializeRepository");
-                start.ArgumentList.Add(initializeRepository);
-            }
-            else
-            {
-                if (publish)
-                {
-                    start.ArgumentList.Add("-Publish");
-                    if (commitSummary is not null)
-                    {
-                        summaryFile = Path.GetTempFileName();
-                        await File.WriteAllTextAsync(summaryFile, commitSummary);
-                        start.ArgumentList.Add("-CommitSummaryFile");
-                        start.ArgumentList.Add(summaryFile);
-                    }
-                }
-                start.ArgumentList.Add(preview ? "-Preview" : "-ExpectedPlan");
-                if (!preview)
-                    start.ArgumentList.Add(expected!);
-                if (allowCleanup)
-                    start.ArgumentList.Add("-AllowCleanup");
-            }
-
-            if (cancellation.CanBeCanceled)
-            {
-                buildLease = Path.GetTempFileName();
-                start.ArgumentList.Add("-BuildLease");
-                start.ArgumentList.Add(buildLease);
-            }
-
-            cancellation.ThrowIfCancellationRequested();
-            using var process = Process.Start(start) ?? throw new InvalidOperationException("无法启动同步进程。");
-            using var logCancellation = new CancellationTokenSource();
-            var scriptErrors = new StringBuilder();
-            Task execution = Task.WhenAll(ReadLog(process.StandardOutput, line =>
-            {
-                if (publish && System.Text.RegularExpressions.Regex.IsMatch(line, @"\APENDING=[0-9a-f]{40}(?::[0-9a-f]{40}){2}\z"))
-                    savePending?.Invoke(line.Substring(8));
-                else
-                    writeLog(line);
-            }, logCancellation.Token), ReadLog(process.StandardError, line =>
-            {
-                if (scriptErrors.Length < 4096) scriptErrors.AppendLine(line);
-                writeLog(line);
-            }, logCancellation.Token),
-                process.WaitForExitAsync());
-            try
-            {
-                await execution.WaitAsync(cancellation);
-                cancellation.ThrowIfCancellationRequested();
-            }
-            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-            {
-                File.Delete(buildLease!);
-                if (await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(4))) != execution)
-                {
-                    if (!process.HasExited)
-                    {
-                        try { process.Kill(entireProcessTree: true); }
-                        catch (InvalidOperationException) when (process.HasExited) { }
-                    }
-                    logCancellation.Cancel();
-                }
-                try { await execution; }
-                catch (OperationCanceledException) when (logCancellation.IsCancellationRequested) { }
-                throw;
-            }
-            string payload = await File.ReadAllTextAsync(resultFile);
-            string stderr = scriptErrors.ToString();
-            if (process.ExitCode != 0 && payload.Length == 0 &&
-                (stderr.Contains("PSSecurityException", StringComparison.OrdinalIgnoreCase) ||
-                 (stderr.Contains("SecurityError:", StringComparison.OrdinalIgnoreCase) &&
-                  stderr.Contains("UnauthorizedAccess", StringComparison.OrdinalIgnoreCase))))
-            {
-                ProjectSync.App.App.AppendDiagnostic(stderr);
-                throw new SyncScriptException("Windows 阻止了同步脚本启动。请检查 PowerShell 执行策略，受组织管理的电脑请联系管理员。详情见运行日志。");
-            }
-            var response = payload.Length == 0 ? null : JsonNode.Parse(payload);
-            string? kind = response?["kind"]?.GetValue<string>();
-            string? value = response?["value"]?.GetValue<string>();
-            string? result = kind == "PLAN" ? value : null;
-            string? verified = kind == "SYNCED" ? value : null;
-            string? errorCode = kind == "PROJECTSYNC_ERROR" ? value : null;
-            if (errorCode == "WINDOWS_GIT_MISSING")
-            {
-                ProjectSync.App.App.AppendDiagnostic("Git for Windows (git.exe) was not found on the Windows PATH.");
-                throw new WindowsGitMissingException();
-            }
-            if (process.ExitCode != 0 || (preview && result is null) ||
-                (publish && (kind != "PUBLISHED" || value is not ("pushed" or "no_changes"))) ||
-                (!checkWindowsGit && !listRemotes && !testConnection && !preview && !publish && initializeRepository is null && verified is null))
-                throw new InvalidOperationException(failureMessage?.Invoke() is { Length: > 0 } message ? message : errorCode switch
-                {
-                    "REPOSITORY_BUSY" => "此 Windows 仓库正在执行另一项 ProjectSync 操作。",
-                    "CONFIG" => "项目配置缺少必填项。请打开项目设置，按日志列出的字段补齐。",
-                    "WINDOWS_REPO" => "Windows Git 仓库不可用。请在「Git 本地仓库」选择正确目录，并检查仓库操作。",
-                    "WSL_DIRECTORY" => "无法进入 WSL 源目录。请在项目设置中重新检测环境。",
-                    "SOURCE_MISSING" => "WSL 缺少配置中指定的同步文件。请核对日志里的路径。",
-                    "WSL_INDEX" => "WSL 暂存区与当前文件不一致，或 Git 索引不可读。请查看日志并核对暂存内容。",
-                    "BUILD" => "构建命令执行失败。请查看上方的构建输出。",
-                    "PREVIEW_EXPIRED" => "变更清单已过期，请重新构建。",
-                    "PUSH" => "本地提交已生成。请查看推送错误，然后重试推送。",
-                    _ => "操作失败，详情见日志。"
-                });
-            return (result, verified, value == "pushed");
-        }
-        finally
-        {
-            foreach (string? file in new[] { temporary, summaryFile, buildLease, resultFile })
-            {
-                if (file is null) continue;
-                try { File.Delete(file); }
-                catch (IOException error) { writeLog(error.Message); }
-                catch (UnauthorizedAccessException error) { writeLog(error.Message); }
-            }
-        }
+        status.ShowFeedback(message, InfoBarSeverity.Warning, action);
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -716,15 +527,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 closeAfterBatch = true;
                 StopBatch(this, new RoutedEventArgs());
             }
+            else if (running || detectingWsl)
+            {
+                var targetBar = ProjectPage.Visibility == Visibility.Visible ? Status : HomeStatus;
+                targetBar.ShowFeedback("当前操作正在执行，请等待完成后再关闭窗口。", InfoBarSeverity.Informational);
+            }
         }
         if (!e.Cancel)
-            foreach (var server in previewServers.Values) server.StandardInput.Close();
+            ForceStopAllPreviews();
     }
-
-    private static async Task ReadLog(StreamReader reader, Action<string> handle, CancellationToken cancellation = default)
-    {
-        while (await reader.ReadLineAsync(cancellation) is { } line)
-            handle(line);
-    }
-
 }

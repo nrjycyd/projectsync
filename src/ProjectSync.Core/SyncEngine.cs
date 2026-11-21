@@ -1230,7 +1230,7 @@ require_source() {
 
 for path in "${site_paths[@]}"; do
     [[ $path == ':('* ]] && continue
-    if [[ -z $verified_snapshot ]]; then
+    if [[ -z $verified_snapshot ]] && (( pull_count > 0 )); then
         supplied_by_pull=false
         for pull in "${pull_paths[@]}"; do
             if [[ $path == "$pull" || $path == "$pull/"* || $pull == "$path/"* ]]; then
@@ -1345,12 +1345,14 @@ mirror_pull_directories() (
 
 if [[ -z $verified_snapshot ]]; then
     git -c safe.directory="$windows_repo" fetch --no-tags "$windows_repo" "$remote_commit"
-    for path in "${pull_paths[@]}"; do
-        if [[ $(git cat-file -t "$remote_commit:$path" 2>/dev/null) != tree ]]; then
-            printf 'Missing remote directory: %s\n' "$path" >&2
-            exit 1
-        fi
-    done
+    if (( pull_count > 0 )); then
+        for path in "${pull_paths[@]}"; do
+            if [[ $(git cat-file -t "$remote_commit:$path" 2>/dev/null) != tree ]]; then
+                printf 'Missing remote directory: %s\n' "$path" >&2
+                exit 1
+            fi
+        done
+    fi
     if (( pull_count > 0 )) && [[ . -ef $windows_repo ]]; then
         echo 'WSL mirror requires a repository separate from the Windows repository.' >&2
         exit 1
@@ -1428,16 +1430,13 @@ write_record SNAPSHOT "$snapshot"
         fail_with PREVIEW_EXPIRED
     fi
 
-    declare -A untracked_map=()
-    while IFS= read -r -d '' untracked; do
-        untracked_map["$untracked"]=1
-    done < <("${git_target[@]}" ls-files -z --others --exclude-standard -- "${site_paths[@]}")
+    "${git_target[@]}" ls-files -z --others --exclude-standard -- "${site_paths[@]}" > "$tmp/untracked-paths"
 
     while IFS= read -r -d '' status && IFS= read -r -d '' changed_path; do
         if [[ -z $verified_snapshot ]]; then
             write_record CHANGE "$status" "$changed_path"
         fi
-        if [[ $status == D && -n ${untracked_map[$changed_path]:-} ]]; then
+        if [[ $status == D && -s "$tmp/untracked-paths" ]] && grep -Fzqx -- "$changed_path" "$tmp/untracked-paths"; then
             write_record UNTRACKED_DELETE "$changed_path"
         fi
     done < <("${git_target[@]}" diff -z --name-status --no-renames "$target_tree" "$source_tree" -- "${site_paths[@]}")

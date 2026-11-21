@@ -3,12 +3,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
+using ProjectSync.Core;
 using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
@@ -16,9 +17,8 @@ namespace ProjectSync.App.Views;
 
 public partial class MainWindow
 {
-    private readonly string projectFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        ProjectSync.App.App.DataDirectoryName, "projects.json");
+    private const int MaxHomeLogLength = 200_000;
+    private readonly string projectFile = ProjectSync.App.App.Store.ProjectsFilePath;
     private readonly List<ProjectEntry> savedProjects = new();
     private ProjectEntry? activeProject;
     private int settingsOpenSequence;
@@ -40,31 +40,8 @@ public partial class MainWindow
         public bool Checked { get; set; }
 
         [System.Text.Json.Serialization.JsonIgnore]
-        public string RemoteRepository
-        {
-            get
-            {
-                try
-                {
-                    using var config = JsonDocument.Parse(Configuration);
-                    if (config.RootElement.ValueKind == JsonValueKind.Object)
-                    {
-                        foreach (string field in new[] { "remoteUrl", "remote" })
-                        {
-                            if (config.RootElement.TryGetProperty(field, out var value) &&
-                                value.ValueKind == JsonValueKind.String &&
-                                value.GetString()?.Trim() is { Length: > 0 } address)
-                                return address;
-                        }
-                    }
-                }
-                catch (JsonException)
-                {
-                    // Fall back to the saved remote summary for malformed configuration.
-                }
-                return Branch;
-            }
-        }
+        public string RemoteRepository => ProjectConfig.GetRemoteDisplaySummary(Configuration, Branch);
+
         [System.Text.Json.Serialization.JsonIgnore]
         public string Progress { get; set; } = "待构建";
     }
@@ -86,17 +63,16 @@ public partial class MainWindow
             RestoreBuildReceipt(project);
             try
             {
-                string path = PendingPushPath(project);
-                if (File.Exists(path))
+                if (ProjectSync.App.App.Store.LoadPendingPush(project.Id) is { } pending)
                 {
-                    string pending = File.ReadAllText(path).Trim();
-                    if (System.Text.RegularExpressions.Regex.IsMatch(pending, @"\A[0-9a-f]{40}(?::[0-9a-f]{40}){2}\z"))
-                        projectRuns[project.Id] = new RunState(null, pending, "已提交，待推送");
+                    projectRuns[project.Id] = new RunState(null, pending.ToToken(), "已提交，待推送");
                 }
-                if (!projectRuns.ContainsKey(project.Id) && File.Exists(PreviewStatePath(project)))
+                string previewPath = ProjectSync.App.App.Store.PreviewStatePath(project.Id);
+                if (!projectRuns.ContainsKey(project.Id) && File.Exists(previewPath))
                 {
-                    var preview = JsonSerializer.Deserialize<SavedPreview>(File.ReadAllText(PreviewStatePath(project)));
-                    if (preview is not null && preview.ConfigurationHash == ConfigurationHash(project) &&
+                    var preview = JsonSerializer.Deserialize<SavedPreview>(File.ReadAllText(previewPath));
+                    if (preview is not null &&
+                        preview.ConfigurationHash == ProjectConfig.ComputeBuildFingerprint(project.Configuration) &&
                         System.Text.RegularExpressions.Regex.IsMatch(preview.Plan, @"\A[0-9a-f]{40}:[0-9A-F]{64}\z"))
                     {
                         projectRuns[project.Id] = new RunState(preview.Plan, null, "可同步", preview.Changes);
@@ -112,38 +88,16 @@ public partial class MainWindow
         RefreshProjects();
     }
 
-    private static string ConfigurationHash(ProjectEntry project) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(project.Configuration)));
-
-    private string PendingPushPath(ProjectEntry project) =>
-        Path.Combine(Path.GetDirectoryName(projectFile)!, $"pending-{project.Id:N}-{ConfigurationHash(project)}.txt");
-
-    private string PreviewStatePath(ProjectEntry project) =>
-        Path.Combine(Path.GetDirectoryName(projectFile)!, $"preview-{project.Id:N}.json");
-
     private void SavePreview(ProjectEntry project, string plan, BatchChange[] changes)
     {
-        string path = PreviewStatePath(project);
-        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(temporary, JsonSerializer.Serialize(new SavedPreview(ConfigurationHash(project), plan, changes)));
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally
-        {
-            File.Delete(temporary);
-        }
+        string path = ProjectSync.App.App.Store.PreviewStatePath(project.Id);
+        string hash = ProjectConfig.ComputeBuildFingerprint(project.Configuration)
+            ?? ProjectConfig.ComputeConfigurationHash(project.Configuration);
+        AppDataStore.WriteTextAtomically(path, JsonSerializer.Serialize(new SavedPreview(hash, plan, changes)));
     }
 
-    private void DeletePreview(ProjectEntry project)
-    {
-        try { File.Delete(PreviewStatePath(project)); }
-        catch (IOException error) { WriteHomeLog($"无法删除预览记录：{error.Message}"); }
-        catch (UnauthorizedAccessException error) { WriteHomeLog($"无法删除预览记录：{error.Message}"); }
-    }
+    private void DeletePreview(ProjectEntry project) =>
+        ProjectSync.App.App.Store.DeletePreviewState(project.Id);
 
     private void ShowSavedChanges()
     {
@@ -162,20 +116,9 @@ public partial class MainWindow
     private ProjectEntry CreateEntry() => new(activeProject?.Id ?? Guid.NewGuid(), ProjectName.Text.Trim(),
         windowsRepo.Text.Trim(), $"{remote.Text.Trim()}/{branch.Text.Trim()}", SerializeConfig());
 
-    private void PersistProjects()
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(projectFile)!);
-        string temporary = projectFile + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            File.WriteAllText(temporary, JsonSerializer.Serialize(savedProjects, new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(temporary, projectFile, overwrite: true);
-        }
-        finally
-        {
-            File.Delete(temporary);
-        }
-    }
+    private void PersistProjects() =>
+        AppDataStore.WriteTextAtomically(projectFile,
+            JsonSerializer.Serialize(savedProjects, new JsonSerializerOptions { WriteIndented = true }));
 
     private void RefreshProjects()
     {
@@ -223,9 +166,9 @@ public partial class MainWindow
                             (await ReadShortcutRemoteAsync(localPath, remoteName)).Length > 0)
                             selectedTab = LocalSettingsTab;
                     }
-                    catch (System.ComponentModel.Win32Exception)
+                    catch (Exception error) when (error is SyncException or ArgumentException or System.ComponentModel.Win32Exception)
                     {
-                        // Git is unavailable. Keep the remote settings visible.
+                        // Git is unavailable or remote invalid. Keep the remote settings visible.
                     }
                 }
             }
@@ -298,7 +241,7 @@ public partial class MainWindow
             return false;
         }
 
-        if (!TryNormalizeSyncPaths(include, exclude)) return false;
+        if (!TryNormalizeSyncPaths(include, exclude, pullPath)) return false;
         if (!HasConfigChanges) return true;
 
         ProjectEntry entry = CreateEntry();
@@ -319,11 +262,26 @@ public partial class MainWindow
         }
 
         activeProject = entry;
-        if (previous is not null && previous.Configuration != entry.Configuration)
+        if (previous is not null &&
+            ProjectConfig.ComputeBuildFingerprint(previous.Configuration) != ProjectConfig.ComputeBuildFingerprint(entry.Configuration))
         {
-            projectRuns.Remove(entry.Id);
-            DeletePreview(entry);
-            ShowSavedChanges();
+            bool isPendingPush = projectRuns.TryGetValue(entry.Id, out var existingState) &&
+                existingState.Progress == "已提交，待推送";
+            if (!isPendingPush)
+            {
+                projectRuns.Remove(entry.Id);
+                DeletePreview(entry);
+                ShowSavedChanges();
+            }
+            else if (!string.Equals(previous.Repository, entry.Repository, StringComparison.OrdinalIgnoreCase) ||
+                     !string.Equals(ProjectConfig.TryReadString(previous.Configuration, "branch"),
+                                    ProjectConfig.TryReadString(entry.Configuration, "branch"), StringComparison.Ordinal))
+            {
+                // Repository or branch changed: old pending push no longer applies.
+                projectRuns.Remove(entry.Id);
+                ProjectSync.App.App.Store.DeletePendingPush(entry.Id);
+            }
+            // If only remoteUrl/SSH/credentials changed while pending push, keep pending state so Retry Push works!
         }
         originalConfig = (JsonObject)current.DeepClone();
         UpdateSaveProjectAction();
@@ -380,12 +338,8 @@ public partial class MainWindow
 
         RefreshProjects();
         projectRuns.Remove(entry.Id);
-        DeletePreview(entry);
-        try { InvalidateSuccessfulBuild(entry); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
-            WriteHomeLog($"无法删除构建记录：{error.Message}");
-        }
+        successfulBuilds.Remove(entry.Id);
+        ProjectSync.App.App.Store.DeleteAllProjectState(entry.Id);
         ShowSavedChanges();
         HomeStatus.ShowFeedback($"已移除「{entry.Name}」。", InfoBarSeverity.Success);
     }
@@ -415,8 +369,7 @@ public partial class MainWindow
 
         try
         {
-            var config = JsonNode.Parse(project.Configuration);
-            string Field(string key) => config?[key]?.GetValue<string>()?.Trim() ?? "";
+            string Field(string key) => ProjectConfig.TryReadString(project.Configuration, key);
             string destination;
             switch (shortcut)
             {
@@ -453,7 +406,7 @@ public partial class MainWindow
 
                         await QueryWslAsync(System.Text.Encoding.UTF8,
                             "-d", distribution, "-u", user, "--", "test", "-d", path);
-                        var terminal = new System.Diagnostics.ProcessStartInfo("wsl.exe") { UseShellExecute = true };
+                        var terminal = new System.Diagnostics.ProcessStartInfo(ProcessRunner.WslExecutablePath) { UseShellExecute = true };
                         foreach (string arg in new[] { "-d", distribution, "-u", user, "--cd", path })
                             terminal.ArgumentList.Add(arg);
                         using var session = System.Diagnostics.Process.Start(terminal);
@@ -479,27 +432,18 @@ public partial class MainWindow
                 UseShellExecute = true
             });
         }
+        catch (SyncException error) when (error.Code == SyncErrorCode.WindowsGitMissing)
+        {
+            ShowWindowsGitMissing(HomeStatus, error.Message);
+        }
         catch (Exception error)
         {
             HomeStatus.ShowFeedback($"无法打开「{project.Name}」的快捷访问目标：{error.Message}", InfoBarSeverity.Error);
         }
     }
 
-    private static async Task<string> ReadShortcutRemoteAsync(string repository, string remoteName)
-    {
-        var start = new System.Diagnostics.ProcessStartInfo("git")
-        {
-            WorkingDirectory = repository, UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardOutput = true, StandardOutputEncoding = System.Text.Encoding.UTF8
-        };
-        foreach (string arg in new[] { "remote", "get-url", "--", remoteName })
-            start.ArgumentList.Add(arg);
-        using var git = System.Diagnostics.Process.Start(start)
-            ?? throw new InvalidOperationException("无法启动 Git。");
-        string address = (await git.StandardOutput.ReadToEndAsync()).Trim();
-        await git.WaitForExitAsync();
-        return git.ExitCode == 0 ? address : "";
-    }
+    private static Task<string> ReadShortcutRemoteAsync(string repository, string remoteName) =>
+        SyncEngine.ReadRemoteUrlAsync(repository, remoteName);
 
     private static string RepositoryBrowserUrl(string address)
     {
@@ -564,7 +508,6 @@ public partial class MainWindow
         UpdateBatchButton(RetryPushButton, "重试", "重试推送", canRetry, selected.Length, "请勾选待推送的项目");
         RetryPushButton.Visibility = canRetry > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        // Prefer finishing work that has already reached a later stage.
         var batchButtons = new[] { RetryPushButton, PublishBatchButton, ApplyBatchButton, BuildBatchButton };
         var primaryAction = Array.Find(batchButtons, button => button.IsEnabled);
         foreach (var button in batchButtons)
@@ -587,35 +530,13 @@ public partial class MainWindow
     private async void OpenPreviewSelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.BrowserPreview);
     private async void ApplySelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.Apply);
     private async void PublishSelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.Publish);
-
     private async void RetryPushSelected(object sender, RoutedEventArgs e) => await RunSelectedAsync(Operation.RetryPush);
-
-    private static async Task<string[]> ReadWorkingTreeAsync(ProjectEntry project)
-    {
-        var start = new System.Diagnostics.ProcessStartInfo("git")
-        {
-            UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardOutput = true, RedirectStandardError = true,
-            StandardOutputEncoding = System.Text.Encoding.UTF8
-        };
-        foreach (string argument in new[] { "--no-optional-locks", "-C", project.Repository,
-            "-c", "core.quotepath=false", "status", "--short", "--untracked-files=all", "--no-renames" })
-            start.ArgumentList.Add(argument);
-
-        using var process = System.Diagnostics.Process.Start(start)
-            ?? throw new IOException("无法启动 Git。");
-        Task<string> output = process.StandardOutput.ReadToEndAsync();
-        Task<string> errors = process.StandardError.ReadToEndAsync();
-        await Task.WhenAll(output, errors, process.WaitForExitAsync());
-        if (process.ExitCode != 0) throw new IOException(errors.Result.Trim());
-        return output.Result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-    }
 
     private string? RequestCommitSummary(ProjectEntry project, string[] changes)
     {
         var body = new System.Windows.Controls.DockPanel { Margin = new Thickness(20) };
         var dialog = FluentDialog.Create(this, "提交并推送", body, 480);
-        var branch = JsonNode.Parse(project.Configuration)?["branch"]?.GetValue<string>();
+        string branch = ProjectConfig.TryReadString(project.Configuration, "branch");
         string target = $"{project.Name} → {branch}\n{project.Repository}\n\n当前工作区有 {changes.Length} 项变更。";
         var scope = new System.Windows.Controls.TextBlock
         {
@@ -707,7 +628,7 @@ public partial class MainWindow
 
         var cleanupProjects = operation == Operation.Apply
             ? selected.Where(project => projectRuns.TryGetValue(project.Id, out var state) && state.Plan is not null
-                && JsonNode.Parse(project.Configuration)?["cleanUntracked"]?.GetValue<bool>() == true).ToArray()
+                && ProjectConfig.TryReadBool(project.Configuration, "cleanUntracked")).ToArray()
             : Array.Empty<ProjectEntry>();
         if (cleanupProjects.Length > 0 && ConfirmProjectAction("确认永久清理",
             "以下项目将永久删除预览列出的目标清理项。清理覆盖整个 Windows 工作区，文件不会进入回收站。\n\n" +
@@ -735,6 +656,8 @@ public partial class MainWindow
         int completed = 0;
         int failed = 0;
         bool autoPreviewFailed = false;
+        bool windowsGitMissing = false;
+        string? windowsGitMissingMessage = null;
         try
         {
             var summaries = new Dictionary<Guid, string>();
@@ -747,14 +670,24 @@ public partial class MainWindow
                         synced.Count(ch => ch == ':') != 1) continue;
                     try
                     {
-                        string[] changes = await ReadWorkingTreeAsync(project);
+                        string[] changes = await SyncEngine.ReadWorkingTreeStatusAsync(project.Repository, cancellation: cancellation.Token);
                         if (cancellation.IsCancellationRequested) return;
+                        if (changes.Length == 0)
+                            continue;
                         if (RequestCommitSummary(project, changes) is not { } summary)
                         {
                             cancellation.Cancel();
                             return;
                         }
                         summaries.Add(project.Id, summary);
+                    }
+                    catch (SyncException error) when (error.Code == SyncErrorCode.WindowsGitMissing)
+                    {
+                        failed++;
+                        windowsGitMissing = true;
+                        windowsGitMissingMessage = error.Message;
+                        WriteHomeLog($"{project.Name}：{error.Message}");
+                        return;
                     }
                     catch (Exception error)
                     {
@@ -782,66 +715,67 @@ public partial class MainWindow
                     catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { break; }
                     continue;
                 }
-                projectRuns.TryGetValue(project.Id, out var state);
-                string? expected = publishing ? state?.Synced : state?.Plan;
-                string? pending = publishing && expected?.Count(ch => ch == ':') == 2 ? expected : null;
-                if (operation == Operation.Apply && HasSuccessfulBuild(project))
+
+                projectRuns.TryGetValue(project.Id, out var previousState);
+                string? expected = publishing ? previousState?.Synced : previousState?.Plan;
+                string? pendingToken = publishing && expected?.Count(ch => ch == ':') == 2 ? expected : null;
+
+                if (operation == Operation.Build)
+                {
+                    projectRuns.Remove(project.Id);
+                    DeletePreview(project);
+                    InvalidateSuccessfulBuild(project);
+                }
+                else if (operation == Operation.Apply && HasSuccessfulBuild(project))
+                {
                     RememberSuccessfulBuild(project);
-                projectRuns.Remove(project.Id);
-                DeletePreview(project);
-                var changes = new List<BatchChange>();
+                }
+
+                Action<string> logLine = line => Dispatcher.BeginInvoke(() => WriteHomeLog(line));
+
                 try
                 {
+                    var config = ProjectConfig.Parse(project.Configuration);
                     if (operation == Operation.Build)
-                        InvalidateSuccessfulBuild(project);
-                    var result = await RunProjectAsync(project.Configuration, operation == Operation.Build,
-                        publishing, expected, line =>
-                        {
-                            WriteHomeLog(line);
-                            if (operation == Operation.Build && ParseHomeChange(project.Name, line) is { } change)
-                                changes.Add(change);
-                        }, commitSummary: summaries.GetValueOrDefault(project.Id), allowCleanup: cleanupProjects.Contains(project),
-                        cancellation: operation == Operation.Build ? cancellation.Token : default,
-                        savePending: value =>
-                        {
-                            pending = value;
-                            try
-                            {
-                                string path = PendingPushPath(project);
-                                string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-                                try
-                                {
-                                    File.WriteAllText(temporary, value);
-                                    File.Move(temporary, path, overwrite: true);
-                                }
-                                finally { File.Delete(temporary); }
-                            }
-                            catch (Exception error) { WriteHomeLog($"无法保存待推送记录：{error.Message}"); }
-                        });
-                    if (publishing)
                     {
-                        try { File.Delete(PendingPushPath(project)); }
-                        catch (Exception error) { WriteHomeLog($"无法清理待推送记录：{error.Message}"); }
-                    }
-                    var previewChanges = operation == Operation.Build ? changes.ToArray() : null;
-                    projectRuns[project.Id] = new RunState(result.Plan, result.Synced, operation switch
-                    { Operation.Build => "可同步", Operation.Apply => "可推送", _ => result.Pushed ? "已推送" : "无需推送" }, previewChanges);
-                    if (result.Plan is not null && previewChanges is not null)
-                    {
-                        try { SavePreview(project, result.Plan, previewChanges); }
+                        var previewResult = await SyncEngine.BuildPreviewAsync(config, logLine, cancellation.Token);
+                        var batchChanges = BuildBatchChanges(project.Name, previewResult);
+                        projectRuns[project.Id] = new RunState(previewResult.PlanToken, null, "可同步", batchChanges);
+                        try { SavePreview(project, previewResult.PlanToken, batchChanges); }
                         catch (IOException error) { WriteHomeLog($"无法保存预览记录：{error.Message}"); }
                         catch (UnauthorizedAccessException error) { WriteHomeLog($"无法保存预览记录：{error.Message}"); }
-                    }
-                    completed++;
-                    WriteHomeLog("操作完成。");
-                    if (operation == Operation.Build)
-                    {
+
+                        completed++;
+                        WriteHomeLog("操作完成。");
                         RememberSuccessfulBuild(project);
                         if (ShouldAutoOpenPreview(project) && !cancellation.IsCancellationRequested)
                         {
                             ShowBatchProgress(Operation.BrowserPreview, progress);
                             autoPreviewFailed |= !await TryStartSitePreviewAsync(project, cancellation.Token);
                         }
+                    }
+                    else if (operation == Operation.Apply)
+                    {
+                        var applied = await SyncEngine.ApplySyncAsync(config, expected!, cleanupProjects.Contains(project), logLine);
+                        DeletePreview(project);
+                        projectRuns[project.Id] = new RunState(null, $"{applied.BaseCommit}:{applied.SnapshotCommit}", "可推送");
+                        completed++;
+                        WriteHomeLog("操作完成。");
+                    }
+                    else
+                    {
+                        var publishResult = await SyncEngine.PublishAsync(config, expected!,
+                            summaries.GetValueOrDefault(project.Id), logLine,
+                            onPendingCommit: rec =>
+                            {
+                                pendingToken = rec.ToToken();
+                                try { ProjectSync.App.App.Store.SavePendingPush(project.Id, rec); }
+                                catch (Exception error) { logLine($"无法保存待推送记录：{error.Message}"); }
+                            });
+                        ProjectSync.App.App.Store.DeletePendingPush(project.Id);
+                        projectRuns[project.Id] = new RunState(null, null, publishResult.Pushed ? "已推送" : "无需推送");
+                        completed++;
+                        WriteHomeLog("操作完成。");
                     }
                 }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -852,7 +786,38 @@ public partial class MainWindow
                 catch (Exception error)
                 {
                     failed++;
-                    projectRuns[project.Id] = new RunState(null, pending, pending is null ? "操作失败" : "已提交，待推送");
+                    if (error is SyncException syncEx && syncEx.Code == SyncErrorCode.WindowsGitMissing)
+                    {
+                        windowsGitMissing = true;
+                        windowsGitMissingMessage = syncEx.Message;
+                    }
+
+                    if (pendingToken is not null)
+                    {
+                        projectRuns[project.Id] = new RunState(null, pendingToken, "已提交，待推送");
+                    }
+                    else if (operation == Operation.Apply &&
+                             error is SyncException applyEx &&
+                             applyEx.Code == SyncErrorCode.RepositoryBusy &&
+                             previousState is not null)
+                    {
+                        // Preserve valid preview state on transient repository-busy failure.
+                        projectRuns[project.Id] = previousState;
+                    }
+                    else if (operation == Operation.Publish &&
+                             error is SyncException pubEx &&
+                             pubEx.Code is SyncErrorCode.RepositoryBusy or SyncErrorCode.WindowsGitMissing &&
+                             previousState is not null)
+                    {
+                        // Preserve valid synced state when no commit was created yet.
+                        projectRuns[project.Id] = previousState;
+                    }
+                    else
+                    {
+                        projectRuns[project.Id] = new RunState(null, null, "操作失败");
+                        if (operation == Operation.Apply)
+                            DeletePreview(project);
+                    }
                     WriteHomeLog($"{project.Name}：操作失败。{error.Message}");
                 }
             }
@@ -870,7 +835,9 @@ public partial class MainWindow
                 HomeResults.SelectedItem = HomeChangesTab;
             string result = (cancellation.IsCancellationRequested ? "已停止 · " : "") +
                 $"完成 {completed} 个 · 失败 {failed} 个";
-            if (failed > 0)
+            if (windowsGitMissing && windowsGitMissingMessage is not null)
+                ShowWindowsGitMissing(HomeStatus, windowsGitMissingMessage);
+            else if (failed > 0)
                 HomeStatus.ShowFeedback(result + "。详情见运行日志。", InfoBarSeverity.Warning);
             else if (autoPreviewFailed)
                 HomeStatus.ShowFeedback(result + "。部分浏览器预览未打开，详情见运行日志。", InfoBarSeverity.Warning);
@@ -884,28 +851,35 @@ public partial class MainWindow
         }
     }
 
-    private static BatchChange? ParseHomeChange(string project, string line)
+    private static BatchChange[] BuildBatchChanges(string projectName, SyncPreviewResult preview)
     {
-        if (line.StartsWith("CLEANUP=", StringComparison.Ordinal))
-            return new BatchChange(project, "目标清理", line.Substring(8));
-        var parts = line.Split('\t', 2);
-        if (parts.Length == 2)
+        var items = new List<BatchChange>(preview.Changes.Length + preview.CleanupCandidates.Length);
+        foreach (var change in preview.Changes)
         {
-            string? action = parts[0] switch
+            string? action = change.Status switch
             {
-                "A" => "新增", "M" => "修改", "D" => "源端删除", "T" => "类型变更", _ => null
+                "A" => "新增",
+                "M" => "修改",
+                "D" => "源端删除",
+                "T" => "类型变更",
+                _ => null
             };
-            if (action is not null) return new BatchChange(project, action, parts[1]);
+            if (action is not null)
+                items.Add(new BatchChange(projectName, action, change.Path));
         }
-        return null;
+        foreach (string cleanup in preview.CleanupCandidates)
+            items.Add(new BatchChange(projectName, "目标清理", cleanup));
+        return items.ToArray();
     }
 
     private void WriteHomeLog(string line)
     {
         if (string.IsNullOrWhiteSpace(line)) return;
+        if (HomeLog.Text.Length > MaxHomeLogLength)
+            HomeLog.Text = HomeLog.Text[^(MaxHomeLogLength / 2)..];
         HomeLog.AppendText(line + Environment.NewLine);
-        ProjectSync.App.App.AppendDiagnostic(line);
         HomeLog.ScrollToEnd();
+        _ = Task.Run(() => ProjectSync.App.App.AppendDiagnostic(line));
     }
 
     private void ExportDiagnostics(object sender, RoutedEventArgs e)
@@ -934,7 +908,7 @@ public partial class MainWindow
                 foreach (string log in Directory.EnumerateFiles(ProjectSync.App.App.DiagnosticsDirectory, "projectsync-*.log")
                     .OrderByDescending(path => path, StringComparer.Ordinal).Take(7))
                 {
-                    using var input = File.OpenRead(log);
+                    using var input = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                     using var entry = archive.CreateEntry(Path.GetFileName(log)).Open();
                     input.CopyTo(entry);
                 }

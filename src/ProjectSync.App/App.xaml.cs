@@ -1,33 +1,23 @@
 using System;
-using System.IO;
 using System.Security.Principal;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using ProjectSync.Core;
 
 namespace ProjectSync.App;
 
 public partial class App : Application
 {
-    internal const string DataDirectoryName = "ProjectSync-WpfUiTrial";
+    internal const string DataDirectoryName = AppDataStore.DataDirectoryName;
+    internal static AppDataStore Store { get; } = new();
     private Mutex? instance;
-    internal static string DiagnosticsDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DataDirectoryName, "logs");
 
-    internal static void AppendDiagnostic(string message)
-    {
-        try
-        {
-            Directory.CreateDirectory(DiagnosticsDirectory);
-            var now = DateTimeOffset.Now;
-            File.AppendAllText(Path.Combine(DiagnosticsDirectory, $"projectsync-{now:yyyy-MM-dd}.log"),
-                $"{now:HH:mm:ss.fff zzz} {message}{Environment.NewLine}");
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-    }
+    internal static string DiagnosticsDirectory => Store.DiagnosticsDirectory;
+
+    internal static void AppendDiagnostic(string message) => Store.AppendDiagnostic(message);
 
     public static readonly DependencyProperty UseNativeComboBoxMotionProperty =
         DependencyProperty.RegisterAttached("UseNativeComboBoxMotion", typeof(bool), typeof(App),
@@ -82,11 +72,12 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        AppDataStore.MigrateLegacyDirectoryIfNeeded();
         DispatcherUnhandledException += ShowFatalError;
         base.OnStartup(e);
     }
 
-    private void ShowFatalError(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs args)
+    private void ShowFatalError(object sender, DispatcherUnhandledExceptionEventArgs args)
     {
         AppendDiagnostic(args.Exception.ToString());
         args.Handled = true;

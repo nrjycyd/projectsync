@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using ProjectSync.Core;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
 
 namespace ProjectSync.App.Views;
@@ -30,10 +31,13 @@ public partial class MainWindow
         WindowsGitStatus.ShowFeedback("正在检测 Windows Git…");
         try
         {
-            await RunProjectAsync("{}", false, false, null, _ => { }, checkWindowsGit: true);
-            WindowsGitStatus.ShowFeedback("已检测到 Git，可以继续。", InfoBarSeverity.Success);
+            string version = await SyncEngine.CheckWindowsGitAsync();
+            WindowsGitStatus.ShowFeedback($"已检测到 Git（{version}），可以继续。", InfoBarSeverity.Success);
         }
-        catch (WindowsGitMissingException error) { ShowWindowsGitMissing(WindowsGitStatus, error); }
+        catch (SyncException error) when (error.Code == SyncErrorCode.WindowsGitMissing)
+        {
+            ShowWindowsGitMissing(WindowsGitStatus, error.Message);
+        }
         catch (Exception error) { WindowsGitStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
@@ -91,42 +95,32 @@ public partial class MainWindow
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         Status.IsOpen = false;
         LocalGitStatus.ShowFeedback(reset ? "正在重置 Git 数据…" : "正在连接 Git 仓库…");
-        var changes = new List<string>();
         var messages = new List<string>();
-        bool completed = false;
-        bool statusUnavailable = false;
-        string? backup = null;
         try
         {
-            await RunProjectAsync(SerializeConfig(), false, false, null, line =>
-            {
-                if (line.StartsWith("LOCAL_CHANGE=", StringComparison.Ordinal))
-                    changes.Add(line["LOCAL_CHANGE=".Length..]);
-                else if (line == "LOCAL_INIT=complete")
-                    completed = true;
-                else if (line == "LOCAL_STATUS=unavailable")
-                    statusUnavailable = true;
-                else if (line.StartsWith("LOCAL_BACKUP=", StringComparison.Ordinal))
-                    backup = line["LOCAL_BACKUP=".Length..];
-                else
-                    messages.Add(line);
-            }, initializeRepository: reset ? "reset" : hasFiles ? "existing" : "empty");
-            if (!completed)
-                throw new InvalidOperationException("未收到 Git 仓库操作的完成状态。");
+            var config = ProjectConfig.Parse(SerializeConfig());
+            var mode = reset ? RepositoryInitMode.Reset
+                : hasFiles ? RepositoryInitMode.Existing
+                : RepositoryInitMode.Empty;
+            var outcome = await SyncEngine.InitializeRepositoryAsync(config, mode,
+                line => messages.Add(line));
 
             InvalidateLocalRepositoryPlans(path);
-            string result = reset ? $"Git 数据已重置，工作文件已保留。原 .git 备份：{backup}" :
+            string result = reset ? $"Git 数据已重置，工作文件已保留。原 .git 备份：{outcome.BackupPath}" :
                 hasFiles ? "Git 仓库已连接，现有文件已保留。" : "克隆完成，可以构建。";
-            if (statusUnavailable)
+            if (outcome.StatusUnavailable)
                 result += "\n无法读取差异。请在本地仓库查看 Git 状态。";
-            LocalGitStatus.ShowFeedback(result, statusUnavailable ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
-            if (hasFiles && !statusUnavailable)
-                ShowInitializedChanges(changes);
+            LocalGitStatus.ShowFeedback(result, outcome.StatusUnavailable ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+            if (hasFiles && !outcome.StatusUnavailable)
+                ShowInitializedChanges(outcome.Changes);
         }
-        catch (WindowsGitMissingException error) { ShowWindowsGitMissing(LocalGitStatus, error); }
+        catch (SyncException error) when (error.Code == SyncErrorCode.WindowsGitMissing)
+        {
+            ShowWindowsGitMissing(LocalGitStatus, error.Message);
+        }
         catch (Exception error)
         {
-            string details = error is SyncScriptException || messages.Count == 0
+            string details = error is SyncException || messages.Count == 0
                 ? error.Message : string.Join(Environment.NewLine, messages);
             LocalGitStatus.ShowFeedback($"{operation}未完成。{Environment.NewLine}{details}", InfoBarSeverity.Error);
         }
@@ -157,11 +151,7 @@ public partial class MainWindow
 
             projectRuns.Remove(project.Id);
             DeletePreview(project);
-            try { File.Delete(PendingPushPath(project)); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-                WriteHomeLog($"无法清除旧的待推送记录：{error.Message}");
-            }
+            ProjectSync.App.App.Store.DeletePendingPush(project.Id);
         }
         ShowSavedChanges();
         RefreshProjects();

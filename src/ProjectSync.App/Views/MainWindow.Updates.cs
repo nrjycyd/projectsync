@@ -64,7 +64,7 @@ public partial class MainWindow
 
         try
         {
-            Process.Start(new ProcessStartInfo(ReleasesUrl) { UseShellExecute = true });
+            using var browser = Process.Start(new ProcessStartInfo(ReleasesUrl) { UseShellExecute = true });
         }
         catch (System.ComponentModel.Win32Exception)
         {
