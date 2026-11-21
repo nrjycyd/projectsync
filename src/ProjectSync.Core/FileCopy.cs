@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -46,7 +45,8 @@ public static class FileCopy
         CheckAncestors(target);
         if (!Directory.Exists(target))
             throw new DirectoryNotFoundException("目标目录不存在或不可访问，请先选择一个现有目录。");
-        FileAttributes sourceAttributes = File.GetAttributes(source);
+        FileAttributes sourceAttributes = ReadAttributes(source)
+            ?? throw new FileNotFoundException($"来源文件或目录不存在或不可访问：{source}", source);
         string name = Path.GetFileName(source);
         if (name.Length == 0)
             throw new IOException("请选择根目录下的文件或子目录。");
@@ -54,6 +54,8 @@ public static class FileCopy
         if (SameOrInside(destination, source))
             throw new IOException("目标与来源相同，或位于来源目录内。");
 
+        bool caseInsensitiveTarget = !target.StartsWith(@"\\", StringComparison.Ordinal);
+        var seenDestinations = caseInsensitiveTarget ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) : null;
         var entries = new List<CopyEntry>();
         var pending = new Stack<(string Source, string Destination, string Relative, FileAttributes Attributes)>();
         pending.Push((source, destination, name, sourceAttributes));
@@ -67,6 +69,8 @@ public static class FileCopy
                 entries.Add(new(item.Source, item.Destination, item.Relative, CopyAction.SkipDownloadMark));
                 continue;
             }
+            if (seenDestinations is not null && !seenDestinations.Add(item.Destination))
+                throw new IOException($"目标 Windows 路径存在仅大小写不同的同名项：{item.Relative}");
 
             var existing = ReadAttributes(item.Destination);
             if (existing.HasValue) EnsureOrdinary(item.Destination, existing.Value);
@@ -142,13 +146,23 @@ public static class FileCopy
                 if (!Matches(entry.Source, entry.Length, entry.LastWrite) ||
                     !Matches(entry.Destination, entry.DestinationLength, entry.DestinationLastWrite))
                     throw new IOException($"复制期间文件已变化，请重新预览：{entry.RelativePath}");
+                if (entry.Action == CopyAction.Replace &&
+                    ReadAttributes(entry.Destination) is FileAttributes existingAttributes &&
+                    existingAttributes.HasFlag(FileAttributes.ReadOnly))
+                {
+                    File.SetAttributes(entry.Destination, existingAttributes & ~FileAttributes.ReadOnly);
+                }
                 File.Move(temporary, entry.Destination, overwrite: entry.Action == CopyAction.Replace);
                 ownsTemporary = false;
                 completed(entry);
             }
             finally
             {
-                if (ownsTemporary) File.Delete(temporary);
+                if (ownsTemporary)
+                {
+                    try { File.Delete(temporary); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                }
             }
         }
     }
