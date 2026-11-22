@@ -22,13 +22,15 @@ public sealed class RightAlignedContextMenu : ContextMenu
     private CustomPopupPlacement[] PlaceAtRightEdge(Size popupSize, Size targetSize, Point offset)
     {
         // Popup placement uses screen pixels; WPF UI reserves the shadow margin in DIPs.
+        // Windows 11 MenuFlyout keeps a 4 DIP gap from its trigger button.
         var dpi = VisualTreeHelper.GetDpi(PlacementTarget ?? this);
+        double gapY = 4.0 * dpi.DpiScaleY;
         double left = targetSize.Width - popupSize.Width + offset.X - Margin.Left * dpi.DpiScaleX;
         double top = offset.Y - Margin.Top * dpi.DpiScaleY;
         return new[]
         {
-            new CustomPopupPlacement(new Point(left, targetSize.Height + top), PopupPrimaryAxis.Horizontal),
-            new CustomPopupPlacement(new Point(left, top - popupSize.Height), PopupPrimaryAxis.Horizontal)
+            new CustomPopupPlacement(new Point(left, targetSize.Height + top + gapY), PopupPrimaryAxis.Horizontal),
+            new CustomPopupPlacement(new Point(left, top - popupSize.Height - gapY), PopupPrimaryAxis.Horizontal)
         };
     }
 }

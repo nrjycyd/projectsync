@@ -13,6 +13,44 @@ public partial class MainWindow
 {
     private bool detectingWsl;
 
+    private void UpdateWslEnvironmentUi()
+    {
+        string path = wslRepo.Text.Trim();
+        string selectedDistro = distro.Text.Trim();
+        string selectedUser = wslUser.Text.Trim();
+
+        if (path.Length == 0)
+        {
+            WslEnvBadge.Content = "未配置";
+            WslEnvBadge.Appearance = ControlAppearance.Secondary;
+        }
+        else if (selectedDistro.Length == 0 || selectedUser.Length == 0)
+        {
+            WslEnvBadge.Content = "待检测";
+            WslEnvBadge.Appearance = ControlAppearance.Caution;
+        }
+        else
+        {
+            WslEnvBadge.Content = $"{selectedDistro} · {selectedUser}";
+            WslEnvBadge.Appearance = ControlAppearance.Success;
+        }
+
+        string extraPath = nodeBin.Text.Trim();
+        NodeBinSummary.Text = extraPath.Length > 0
+            ? $"当前已配置：{extraPath}"
+            : "留空将使用 WSL 默认 PATH；选择上方 Node.js 版本时会自动填入";
+
+        bool hasReinstall = !string.IsNullOrWhiteSpace(reinstallCommand.Text);
+        bool hasUpgrade = !string.IsNullOrWhiteSpace(themeUpgradeCommand.Text);
+        MaintenanceCommandSummary.Text = (hasReinstall, hasUpgrade) switch
+        {
+            (true, true) => "已配置：重装依赖、升级主题",
+            (true, false) => "已配置：重装依赖",
+            (false, true) => "已配置：升级主题",
+            _ => "尚未配置；展开可设置首页快捷按钮执行的「重装依赖」与「升级主题」命令"
+        };
+    }
+
     private async void DetectWsl(object sender, RoutedEventArgs e)
     {
         if (detectingWsl || running || !TryGetWslPath(out string path, out string namedDistro))

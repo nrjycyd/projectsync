@@ -40,6 +40,14 @@ public sealed class SyncException : InvalidOperationException
 
 public enum RepositoryInitMode { Empty, Existing, Reset }
 
+public sealed record LocalRemoteEntry(string Name, string Url);
+
+public sealed record LocalRepositoryInspection(
+    bool IsGitRepository,
+    bool IsInsideAnotherRepository,
+    string CurrentBranch,
+    LocalRemoteEntry[] Remotes);
+
 public sealed record RepositoryInitResult(string? BackupPath, string[] Changes, bool StatusUnavailable);
 
 public sealed record SyncChangeItem(string Status, string Path);
@@ -89,6 +97,49 @@ public static class SyncEngine
         if (result.ExitCode != 0)
             throw new SyncException(SyncErrorCode.WindowsRepo, "无法读取本地 Git 远端名称。");
         return SplitLines(result.Stdout);
+    }
+
+    public static async Task<LocalRepositoryInspection> InspectLocalRepositoryAsync(
+        string repositoryPath, TimeSpan? timeout = null, CancellationToken cancellation = default)
+    {
+        string git = RequireGitExecutable();
+        if (string.IsNullOrWhiteSpace(repositoryPath) || !Directory.Exists(repositoryPath))
+            throw new SyncException(SyncErrorCode.WindowsRepo, "Windows 项目目录不存在或不可访问，请在「项目与 Git 仓库」选择目录。");
+
+        string repo = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repositoryPath));
+        TimeSpan effectiveTimeout = timeout ?? TimeSpan.FromSeconds(10);
+
+        var prefix = await RunGitAsync(git, repo, new[] { "rev-parse", "--show-prefix" },
+            null, timeout: effectiveTimeout, cancellation: cancellation);
+        if (prefix.TimedOut)
+            throw new SyncException(SyncErrorCode.WindowsRepo, "检测本地 Git 仓库超时。");
+        if (prefix.ExitCode != 0)
+            return new LocalRepositoryInspection(false, false, "", Array.Empty<LocalRemoteEntry>());
+        if (prefix.Stdout.Trim().Length > 0)
+            return new LocalRepositoryInspection(false, true, "", Array.Empty<LocalRemoteEntry>());
+
+        var branchResult = await RunGitAsync(git, repo, new[] { "branch", "--show-current" },
+            null, timeout: effectiveTimeout, cancellation: cancellation);
+        string currentBranch = !branchResult.TimedOut && branchResult.ExitCode == 0
+            ? branchResult.Stdout.Trim()
+            : "";
+
+        var remoteResult = await RunGitAsync(git, repo, new[] { "remote" },
+            null, timeout: effectiveTimeout, cancellation: cancellation);
+        if (remoteResult.TimedOut || remoteResult.ExitCode != 0)
+            throw new SyncException(SyncErrorCode.WindowsRepo, "无法读取本地 Git 远端名称。");
+
+        string[] remoteNames = SplitLines(remoteResult.Stdout);
+        var remotes = new List<LocalRemoteEntry>(remoteNames.Length);
+        foreach (string name in remoteNames)
+        {
+            var urlResult = await RunGitAsync(git, repo, new[] { "remote", "get-url", "--", name },
+                null, timeout: effectiveTimeout, cancellation: cancellation);
+            string url = !urlResult.TimedOut && urlResult.ExitCode == 0 ? urlResult.Stdout.Trim() : "";
+            remotes.Add(new LocalRemoteEntry(name, url));
+        }
+
+        return new LocalRepositoryInspection(true, false, currentBranch, remotes.ToArray());
     }
 
     public static async Task<string[]> TestConnectionAsync(
@@ -926,7 +977,7 @@ public static class SyncEngine
         SyncErrorCode.WindowsGitMissing => "找不到 Windows Git。请安装 Git for Windows，确认 git 可从 Windows 命令行运行，然后重启 SiteLift 并重试。",
         SyncErrorCode.RepositoryBusy => "此 Windows 仓库正在执行另一项 SiteLift 操作。",
         SyncErrorCode.Config => "项目配置缺少必填项或格式无效，请检查项目设置。",
-        SyncErrorCode.WindowsRepo => "Windows Git 仓库不可用。请在「Git 本地仓库」选择正确目录，并检查仓库操作。",
+        SyncErrorCode.WindowsRepo => "Windows Git 仓库不可用。请在「项目与 Git 仓库」选择正确目录，并检查仓库操作。",
         SyncErrorCode.WslDirectory => "无法进入 WSL 源目录。请在项目设置中重新检测环境。",
         SyncErrorCode.SourceMissing => "WSL 缺少配置中指定的同步文件。请核对日志里的路径。",
         SyncErrorCode.WslIndex => "WSL 暂存区与当前文件不一致，或 Git 索引不可读。请查看日志并核对暂存内容。",
@@ -1010,7 +1061,7 @@ public static class SyncEngine
         {
             throw testConnection
                 ? new SyncException(SyncErrorCode.Config, "没有本地 Git 仓库时，请先填写远端仓库地址再测试连接。")
-                : new SyncException(SyncErrorCode.WindowsRepo, "Windows 项目目录不存在或不可访问，请在「Git 本地仓库」选择目录。");
+                : new SyncException(SyncErrorCode.WindowsRepo, "Windows 项目目录不存在或不可访问，请在「项目与 Git 仓库」选择目录。");
         }
         string repo = Path.TrimEndingDirectorySeparator(Path.GetFullPath(windowsRepo));
         var prefix = await RunGitAsync(git, repo, new[] { "rev-parse", "--show-prefix" }, null, cancellation: cancellation);
@@ -1018,7 +1069,7 @@ public static class SyncEngine
         {
             throw testConnection
                 ? new SyncException(SyncErrorCode.Config, "没有本地 Git 仓库时，请先填写远端仓库地址再测试连接。")
-                : new SyncException(SyncErrorCode.WindowsRepo, "请在「Git 本地仓库」选择仓库根目录，并检查仓库操作。");
+                : new SyncException(SyncErrorCode.WindowsRepo, "请在「项目与 Git 仓库」选择仓库根目录，并检查仓库操作。");
         }
         return repo;
     }

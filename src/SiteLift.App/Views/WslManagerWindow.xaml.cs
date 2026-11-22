@@ -123,10 +123,19 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         SiteLift.App.App.AppendDiagnostic($"WSL 管理查询失败：wsl.exe {command} · {details[..Math.Min(details.Length, 1600)]}");
     }
 
+    private void UpdateHeaderBadges(string version, int instanceCount, bool showCount)
+    {
+        VersionText.Text = version;
+        VersionBadge.Visibility = version.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        InstanceCountBadge.Content = $"{instanceCount} 个实例";
+        InstanceCountBadge.Visibility = showCount ? Visibility.Visible : Visibility.Collapsed;
+        EmptyInstancesHint.Visibility = showCount && instanceCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void ShowHostSetup(string output, string? command = null, bool timedOut = false)
     {
         SetHostReady(false, showSetup: true);
-        VersionText.Text = "";
+        UpdateHeaderBadges("", 0, showCount: false);
         Instances.ItemsSource = Array.Empty<Instance>();
         if (command is not null)
             RecordHostQueryFailure(command, output);
@@ -144,12 +153,14 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (busy) return;
         busy = true;
+        WslBusyRing.Visibility = Visibility.Visible;
         Toolbar.IsEnabled = Instances.IsEnabled = false;
         try { await work(); }
         catch (Exception error) { Status.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         finally
         {
             busy = false;
+            WslBusyRing.Visibility = Visibility.Collapsed;
             Toolbar.IsEnabled = Instances.IsEnabled = true;
         }
     }
@@ -189,7 +200,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         if (await CheckHostAsync("--list", "--verbose") is not { } list) return;
         if (list.Code != 0 && !IsEmptyDistributionList(list.Output))
         {
-            VersionText.Text = "";
+            UpdateHeaderBadges("", 0, showCount: false);
             Instances.ItemsSource = Array.Empty<Instance>();
             RecordHostQueryFailure("--list --verbose", list.Output);
             Status.ShowFeedback("无法读取 WSL 发行版列表，请查看日志后刷新检测。", InfoBarSeverity.Error);
@@ -203,7 +214,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             return;
         }
         string version = WslOutputParser.ExtractWslVersion(results[0].Output);
-        VersionText.Text = version.Length > 0 ? $"WSL {version}" : "";
+        string versionLabel = version.Length > 0 ? $"WSL {version}" : "";
+        UpdateHeaderBadges(versionLabel, 0, showCount: false);
         help = results[1].Output;
         installHelp = WslOutputParser.ExtractInstallHelp(help);
         var locations = new Dictionary<string, (string Location, string DiskFile, string? Flavor, string? OsVersion)>(StringComparer.OrdinalIgnoreCase);
@@ -251,6 +263,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         Instances.ItemsSource = checkedRows;
         Instances.SelectedItem = checkedRows.FirstOrDefault(row => row.Name == selected);
         SetHostReady(true);
+        UpdateHeaderBadges(versionLabel, checkedRows.Length, showCount: true);
         Status.ShowFeedback(rows.Count == 0 ? "WSL 已就绪，尚未安装发行版。" : $"检测到 {rows.Count} 个发行版实例。");
     }
 
@@ -351,12 +364,9 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             }
             const ulong gib = 1UL << 30;
             var (dialog, form, footer) = CreateDialog("调整虚拟磁盘上限");
-            form.Children.Add(new TextBlock
-            {
-                Text = $"实例：{instance.Name}\n当前上限：{VirtualDiskCapacity.Format(current)}\n应用前会停止所有 WSL 实例及其中运行的程序。",
-                TextWrapping = TextWrapping.Wrap
-            });
-            var size = AddInput(form, "新上限（GiB）");
+            form.Children.Add(CreateDialogBanner($"实例：{instance.Name}",
+                $"当前上限：{VirtualDiskCapacity.Format(current)}。应用前会停止所有 WSL 实例及其中运行的程序。"));
+            var size = AddInput(form, "新上限（GiB）", "例如 64");
             ulong requested = 0;
             bool ValidCapacity()
             {
@@ -385,13 +395,10 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         {
             var (dialog, form, footer) = CreateDialog($"注销并删除 {instance.Name}");
             string[] projects = projectsUsing(instance.Name).Distinct().ToArray();
-            form.Children.Add(new TextBlock
-            {
-                Text = "此操作会永久删除该实例的 Linux 文件、设置和应用。" +
-                    (projects.Length == 0 ? "" : "\n关联项目：" + string.Join("、", projects)),
-                TextWrapping = TextWrapping.Wrap
-            });
-            var input = AddInput(form, "输入实例名称确认");
+            string warning = "此操作会永久删除该实例的 Linux 文件、设置和应用。" +
+                (projects.Length == 0 ? "" : "\n关联项目：" + string.Join("、", projects));
+            form.Children.Add(CreateDialogBanner($"确认删除实例「{instance.Name}」", warning, critical: true));
+            var input = AddInput(form, "输入实例名称确认", instance.Name);
             if (Confirm(dialog, footer, "注销并删除", () => input.Text == instance.Name, "请输入完整的实例名称。", destructive: true))
                 await ExecuteAsync("--unregister", instance.Name);
         });
@@ -415,16 +422,21 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         else
             Status.IsOpen = false;
         var names = list.Code == 0 ? WslOutputParser.ParseOnlineDistributions(list.Output) : Array.Empty<string>();
-        var (dialog, form, footer) = CreateDialog("安装发行版");
-        var distribution = new ComboBox { IsEditable = names.Length == 0, ItemsSource = names };
+        var (dialog, form, footer) = CreateDialog("安装发行版", 540);
+        var distribution = new ComboBox { IsEditable = names.Length == 0, ItemsSource = names, MinHeight = 34 };
         AddField(form, "发行版", distribution);
-        if (names.Length == 0) form.Children.Add(new TextBlock { Text = "可手动填写发行版名称，例如 Ubuntu。", TextWrapping = TextWrapping.Wrap });
-        var name = AddInput(form, "实例名称（可选）");
+        if (names.Length == 0)
+        {
+            var hint = new TextBlock { Text = "可手动填写发行版名称，例如 Ubuntu。", TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
+            hint.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+            form.Children.Add(hint);
+        }
+        var name = AddInput(form, "实例名称（可选）", "留空使用默认发行版名称");
         name.IsEnabled = SupportsInstall("--name");
         var place = new DockPanel();
-        var browse = new Wpf.Ui.Controls.Button { Content = "浏览…", Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0) };
+        var browse = new Wpf.Ui.Controls.Button { Content = "浏览…", MinHeight = 34, Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
         DockPanel.SetDock(browse, Dock.Right);
-        var location = new Wpf.Ui.Controls.TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
+        var location = new Wpf.Ui.Controls.TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4), PlaceholderText = @"留空使用 WSL 默认路径，例如 E:\wsl\ubuntu" };
         place.Children.Add(browse);
         place.Children.Add(location);
         AddField(form, "安装位置（可选）", place);
@@ -434,11 +446,19 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
             var folder = new OpenFolderDialog { Title = "选择安装位置" };
             if (folder.ShowDialog(dialog) == true) location.Text = folder.FolderName;
         };
-        var size = AddInput(form, "虚拟磁盘上限（GB，可选，最大 65536 GB，按使用量增长）");
+        var size = AddInput(form, "虚拟磁盘上限（GB，可选，最大 65536 GB，按使用量增长）", "例如 64");
         size.IsEnabled = SupportsInstall("--vhd-size");
-        var web = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "从网络下载", OffContent = "从网络下载", IsChecked = SupportsInstall("--web-download"),
-            IsEnabled = SupportsInstall("--web-download"), Margin = new Thickness(0, 12, 0, 0) };
-        form.Children.Add(web);
+        var web = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "开启", OffContent = "关闭", IsChecked = SupportsInstall("--web-download"),
+            IsEnabled = SupportsInstall("--web-download") };
+        var webCard = new Wpf.Ui.Controls.CardControl
+        {
+            Margin = new Thickness(0, 12, 0, 0),
+            IsTabStop = false,
+            Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Globe24 },
+            Header = CreateCardHeader("从网络下载发行版", "绕过 Microsoft Store 直接从网络拉取安装包"),
+            Content = web
+        };
+        form.Children.Add(webCard);
         string SelectedDistribution() => (distribution.SelectedItem as string ?? distribution.Text).Trim();
         bool Valid() =>
             ValidName(SelectedDistribution()) &&
@@ -478,27 +498,85 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException) { return false; }
     }
 
-    private (Window Dialog, StackPanel Form, StackPanel Footer) CreateDialog(string title)
+    private (Window Dialog, StackPanel Form, StackPanel Footer) CreateDialog(string title, double width = 520)
     {
         var form = new StackPanel();
-        var footer = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
-        var body = new DockPanel { Margin = new Thickness(20) };
-        DockPanel.SetDock(footer, Dock.Bottom);
-        body.Children.Add(footer);
+        var footer = new StackPanel();
+        var footerBorder = new Border
+        {
+            Margin = new Thickness(0, 14, 0, 0),
+            Padding = new Thickness(0, 12, 0, 0),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Child = footer
+        };
+        footerBorder.SetResourceReference(Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
+        var body = new DockPanel { Margin = new Thickness(20, 16, 20, 18) };
+        DockPanel.SetDock(footerBorder, Dock.Bottom);
+        body.Children.Add(footerBorder);
         body.Children.Add(new ScrollViewer
         {
             Content = form,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         });
-        var dialog = FluentDialog.Create(this, title, body, 510);
+        var dialog = FluentDialog.Create(this, title, body, width);
         FluentDialog.LimitToWorkArea(dialog, this);
         return (dialog, form, footer);
     }
 
-    private static TextBox AddInput(StackPanel form, string label)
+    private static StackPanel CreateCardHeader(string title, string subtitle)
     {
-        var input = new Wpf.Ui.Controls.TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4) };
+        var titleBlock = new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.Medium };
+        titleBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+        var subtitleBlock = new TextBlock { Text = subtitle, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+        subtitleBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        var header = new StackPanel();
+        header.Children.Add(titleBlock);
+        header.Children.Add(subtitleBlock);
+        return header;
+    }
+
+    private static Border CreateDialogCard(UIElement child, Thickness? padding = null, Thickness? margin = null)
+    {
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Padding = padding ?? new Thickness(14, 12, 14, 12),
+            Margin = margin ?? new Thickness(0, 0, 0, 8),
+            Child = child
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+        return card;
+    }
+
+    private static FrameworkElement CreateDialogBanner(string title, string subtitle, bool critical = false)
+    {
+        var icon = new Wpf.Ui.Controls.SymbolIcon
+        {
+            Symbol = critical ? Wpf.Ui.Controls.SymbolRegular.Delete24 : Wpf.Ui.Controls.SymbolRegular.Desktop24
+        };
+        if (critical)
+            icon.SetResourceReference(Control.ForegroundProperty, "SystemFillColorCriticalBrush");
+        return new Wpf.Ui.Controls.CardControl
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+            Padding = new Thickness(14, 12, 14, 12),
+            IsTabStop = false,
+            Icon = icon,
+            Header = CreateCardHeader(title, subtitle)
+        };
+    }
+
+    private static Wpf.Ui.Controls.TextBox AddInput(StackPanel form, string label, string? placeholder = null)
+    {
+        var input = new Wpf.Ui.Controls.TextBox
+        {
+            MinHeight = 34,
+            Padding = new Thickness(9, 4, 9, 4),
+            PlaceholderText = placeholder ?? ""
+        };
         AddField(form, label, input);
         return input;
     }
@@ -512,20 +590,24 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     private bool Confirm(Window dialog, StackPanel footer, string action, Func<bool> validate,
         string invalidMessage, bool destructive = false)
     {
-        var message = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        var message = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 0, 0, 8), Visibility = Visibility.Collapsed };
         message.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
         footer.Children.Add(message);
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         footer.Children.Add(actions);
-        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0) };
-        var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 100, Padding = new Thickness(14, 5, 14, 5) };
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, MinHeight = 34, Padding = new Thickness(14, 5.5, 14, 6.5), Margin = new Thickness(0, 0, 8, 0) };
+        var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 104, MinHeight = 34, Padding = new Thickness(14, 5.5, 14, 6.5) };
         confirm.Appearance = destructive ? Wpf.Ui.Controls.ControlAppearance.Danger : Wpf.Ui.Controls.ControlAppearance.Primary;
         actions.Children.Add(cancel);
         actions.Children.Add(confirm);
         confirm.Click += (_, _) =>
         {
             if (validate()) dialog.DialogResult = true;
-            else message.Text = invalidMessage;
+            else
+            {
+                message.Text = invalidMessage;
+                message.Visibility = Visibility.Visible;
+            }
         };
         dialog.Loaded += (_, _) => cancel.Focus();
         return dialog.ShowDialog() == true;
