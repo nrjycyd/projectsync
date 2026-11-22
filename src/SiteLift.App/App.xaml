@@ -1,0 +1,26 @@
+<Application x:Class="SiteLift.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:SiteLift.App"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             StartupUri="Views/MainWindow.xaml">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ui:ThemesDictionary Theme="Light"/>
+        <ui:ControlsDictionary/>
+        <ResourceDictionary Source="Styles/WorkspaceVisuals.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+      <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="{DynamicResource SurfaceStrokeColorFlyout}"/>
+      <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
+        <Setter Property="MinHeight" Value="34"/>
+        <Setter Property="Popup.PopupAnimation" Value="{DynamicResource {x:Static SystemParameters.MenuPopupAnimationKey}}"/>
+        <Setter Property="local:App.UseNativeComboBoxMotion" Value="True"/>
+      </Style>
+      <Style TargetType="ContextMenu" BasedOn="{StaticResource UiContextMenu}">
+        <Setter Property="Popup.PopupAnimation" Value="{DynamicResource {x:Static SystemParameters.MenuPopupAnimationKey}}"/>
+        <EventSetter Event="Opened" Handler="ContextMenuPopupOpened"/>
+      </Style>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

@@ -1,10 +1,10 @@
-# ProjectSync
+# SiteLift
 
 在 WSL 中构建项目，在 Windows 中预览并同步文件变更，再通过 Windows Git 仓库提交和推送。远端访问和账号配置目前针对 GitHub 优化。
 
 ## 快速开始
 
-1. 从 [GitHub Releases](https://github.com/nrjycyd/projectsync/releases/latest) 下载 Windows x64 ZIP，解压后运行 `ProjectSync.App.exe`。需要 [.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/8.0)、[Git for Windows](https://git-scm.com/install/windows) 和 WSL。安装 Git 后，在新开的 Windows PowerShell 中运行 `git --version` 确认命令可用，再启动 ProjectSync。
+1. 从 [GitHub Releases](https://github.com/nrjycyd/sitelift/releases/latest) 下载 Windows x64 ZIP，解压后运行 `SiteLift.App.exe`。需要 [.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/8.0)、[Git for Windows](https://git-scm.com/install/windows) 和 WSL。安装 Git 后，在新开的 Windows PowerShell 中运行 `git --version` 确认命令可用，再启动 SiteLift。
 2. 点击「新建项目」，或从旁边的下拉菜单导入 JSON。填写远端地址和分支、Windows 仓库路径、WSL 项目路径、构建命令和同步范围。「Git 本地仓库」可检测 Windows Git。普通目录使用「连接 Git 仓库」，已有仓库使用「重置 Git 数据」按所选远端分支重建元数据。重置保留工作文件，并将原 `.git` 备份到项目目录旁。
 3. 保存后勾选项目，依次执行 **构建 → 同步 → 推送**。同步前先核对变更清单。「推送」会先提交改动。构建成功且项目已配置预览命令时，可随时用「预览」查看已有产物，也可在项目设置中开启构建成功后自动打开浏览器。导入含可执行命令的配置时，请逐条核对命令。双击项目行可以修改设置。新建表单从空白开始，已保存的项目会继续显示在首页。
 
@@ -24,7 +24,7 @@
 ## 排查问题
 
 - **SSH**：在 Windows 终端运行 `git -C <仓库路径> ls-remote origin` 检查 SSH Host、密钥和仓库权限。路径含空格时加引号。
-- **HTTPS 登录**：在 Windows 终端对同一个仓库运行 `git fetch origin`，按 Git Credential Manager 的提示完成登录，然后回到 ProjectSync 重试。
+- **HTTPS 登录**：在 Windows 终端对同一个仓库运行 `git fetch origin`，按 Git Credential Manager 的提示完成登录，然后回到 SiteLift 重试。
 - **WSL**：运行 `wsl --list --verbose` 核对发行版名称，再运行 `wsl -d <发行版> -u <用户>` 检查能否进入环境，以及项目路径和构建命令是否可用。
 - 运行日志按天写入配置目录下的 `logs`。可通过「导出诊断」打包最近七个日志文件和配置摘要。分享前先检查日志中的命令、路径和其他敏感信息。
 
@@ -33,9 +33,9 @@
 需要 .NET 8 SDK。打包命令在 PowerShell 7 中运行。CLI 同步命令尚未实现。
 
 ```powershell
-dotnet build ProjectSync.sln --configuration Release
-dotnet run --project src/ProjectSync.App
+dotnet build SiteLift.sln --configuration Release
+dotnet run --project src/SiteLift.App
 ./tools/Publish-Windows.ps1 -OutputDirectory dist
 ```
 
-可参考 [EduSprout 配置示例](examples)。项目配置保存在 `%LOCALAPPDATA%\ProjectSync`。
+可参考 [EduSprout 配置示例](examples)。项目配置保存在 `%LOCALAPPDATA%\SiteLift`。

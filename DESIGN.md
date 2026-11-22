@@ -1,4 +1,4 @@
-# ProjectSync WPF UI 规范
+# SiteLift WPF UI 规范
 
 界面使用 [lepoco/wpfui](https://github.com/lepoco/wpfui)。全局通过 ThemesDictionary 和 ControlsDictionary 加载主题，全窗口使用 FluentWindow、TitleBar 和 Mica。按钮、图标、文本输入、数据表、开关、菜单项和状态徽章使用库控件。
 
