@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -20,6 +22,11 @@ public partial class MainWindow
             HomeStatus.ShowFeedback($"请先在「{project.Name}」的本地构建环境中填写{operation}命令。", InfoBarSeverity.Warning);
             return;
         }
+        if (command.Contains('\0'))
+        {
+            HomeStatus.ShowFeedback($"{operation}命令不能包含空字符。", InfoBarSeverity.Warning);
+            return;
+        }
         try
         {
             distribution = SyncPath.ValidateWslDistribution(distribution);
@@ -36,13 +43,19 @@ public partial class MainWindow
         command = command.ReplaceLineEndings("\n");
         if (!ConfirmMaintenanceCommand(project.Name, distribution, user, directory, command, operation, confirmLabel)) return;
 
+        using var cancellation = new CancellationTokenSource();
+        batchCancellation = cancellation;
+        StopBatchButton.Content = $"停止{operation}";
+        StopBatchButton.IsEnabled = true;
+        SetActivityText(BatchProgressText, $"正在{operation}「{project.Name}」");
+        BatchProgressPanel.Visibility = Visibility.Visible;
+        HomeStatus.IsOpen = false;
         running = true;
         HomePage.Tag = true;
         HomeActions.IsEnabled = false;
         UpdateHomeActions();
         ResetHomeLog();
         HomeResults.SelectedItem = HomeLogTab;
-        HomeStatus.ShowFeedback($"正在为「{project.Name}」执行{operation}…");
         WriteHomeLog($"[{project.Name}] {operation}");
         // Maintenance may change the dependency lockfile, so refresh any cached preview.
         if (projectRuns.TryGetValue(project.Id, out var state) && state.Progress != "已提交，待推送")
@@ -53,28 +66,26 @@ public partial class MainWindow
 
         try
         {
-            if (stoppingPreviews is { } stopping) await stopping;
-            await StopPreviewServerAsync(project.Id);
-
-            const string script = """if [[ -n $1 ]]; then export PATH="$1:$PATH"; fi; exec bash -e -o pipefail -s""";
-            var start = new ProcessStartInfo(ProcessRunner.WslExecutablePath)
+            if (stoppingPreviews is { } stopping)
             {
-                StandardInputEncoding = new UTF8Encoding(false),
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
-            foreach (string arg in new[] { "-d", distribution, "-u", user, "--cd", directory,
-                "--exec", "bash", "-c", script, "sitelift-reinstall", nodeBin })
-                start.ArgumentList.Add(arg);
+                try { await stopping.WaitAsync(cancellation.Token); }
+                catch when (!cancellation.IsCancellationRequested) { }
+            }
+            cancellation.Token.ThrowIfCancellationRequested();
+            await StopPreviewServerAsync(project.Id);
+            cancellation.Token.ThrowIfCancellationRequested();
 
-            var result = await ProcessRunner.RunAsync(start,
-                onStdout: line => Dispatcher.BeginInvoke(() => WriteHomeLog(line)),
-                onStderr: line => Dispatcher.BeginInvoke(() => WriteHomeLog(line)),
-                stdinContent: command + "\n");
-            if (result.ExitCode != 0)
-                throw new InvalidOperationException($"命令返回退出代码 {result.ExitCode}，请查看日志。");
+            int exitCode = await RunCancellableWslMaintenanceAsync(
+                distribution, user, directory, nodeBin, command, cancellation.Token);
+            if (exitCode != 0)
+                throw new InvalidOperationException($"命令返回退出代码 {exitCode}，请查看日志。");
             HomeStatus.ShowFeedback($"「{project.Name}」{operation}完成。", InfoBarSeverity.Success);
             WriteHomeLog($"{operation}完成。");
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            HomeStatus.ShowFeedback($"已停止「{project.Name}」的{operation}。", InfoBarSeverity.Informational);
+            WriteHomeLog($"{operation}已停止。");
         }
         catch (Exception error)
         {
@@ -85,9 +96,139 @@ public partial class MainWindow
         finally
         {
             running = false;
+            batchCancellation = null;
+            BatchProgressPanel.Visibility = Visibility.Collapsed;
             HomePage.Tag = false;
             HomeActions.IsEnabled = true;
             RefreshProjects();
+            if (closeAfterBatch)
+            {
+                closeAfterBatch = false;
+                Close();
+            }
+        }
+    }
+
+    private async Task<int> RunCancellableWslMaintenanceAsync(
+        string distribution,
+        string user,
+        string directory,
+        string nodeBin,
+        string command,
+        CancellationToken cancellation)
+    {
+        // Keep stdin open after sending the NUL-terminated command so closing stdin signals the WSL process group to stop.
+        const string script = """
+            exec 3<&0
+            if [[ -n $1 ]]; then export PATH="$1:$PATH"; fi
+            IFS= read -r -d '' command <&3 || exit 130
+            setsid bash -e -o pipefail -c "$command" </dev/null 3<&- &
+            job=$!
+            (
+                while IFS= read -r _; do :; done
+                if kill -TERM -- "-$job" 2>/dev/null || kill -TERM "$job" 2>/dev/null; then
+                    for _ in 1 2 3 4 5 6 7 8 9 10; do
+                        kill -0 -- "-$job" 2>/dev/null || kill -0 "$job" 2>/dev/null || break
+                        sleep 0.2
+                    done
+                    kill -KILL -- "-$job" 2>/dev/null || kill -KILL "$job" 2>/dev/null || true
+                fi
+            ) <&3 >/dev/null 2>&1 &
+            watcher=$!
+            cleanup() {
+                kill "$watcher" 2>/dev/null || true
+                if kill -TERM -- "-$job" 2>/dev/null || kill -TERM "$job" 2>/dev/null; then
+                    sleep 1
+                    kill -KILL -- "-$job" 2>/dev/null || kill -KILL "$job" 2>/dev/null || true
+                fi
+            }
+            trap cleanup EXIT
+            wait "$job"
+            status=$?
+            kill "$watcher" 2>/dev/null || true
+            wait "$watcher" 2>/dev/null || true
+            if kill -0 -- "-$job" 2>/dev/null; then
+                kill -TERM -- "-$job" 2>/dev/null || true
+                for _ in 1 2 3 4 5; do
+                    kill -0 -- "-$job" 2>/dev/null || break
+                    sleep 0.2
+                done
+                kill -KILL -- "-$job" 2>/dev/null || true
+            fi
+            trap - EXIT
+            exit "$status"
+            """;
+
+        var start = new ProcessStartInfo(ProcessRunner.WslExecutablePath)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardInputEncoding = new UTF8Encoding(false),
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+        foreach (string arg in new[] { "-d", distribution, "-u", user, "--cd", directory,
+            "--exec", "bash", "-c", script.ReplaceLineEndings("\n"), "sitelift-reinstall", nodeBin })
+            start.ArgumentList.Add(arg);
+
+        cancellation.ThrowIfCancellationRequested();
+        using var process = Process.Start(start)
+            ?? throw new InvalidOperationException("无法启动 WSL 进程。");
+        using var logCts = new CancellationTokenSource();
+
+        Task ReadLog(StreamReader reader) => Task.Run(async () =>
+        {
+            try
+            {
+                while (await reader.ReadLineAsync(logCts.Token) is { } raw)
+                {
+                    string line = raw.Trim('\0', '\uFEFF', '\r');
+                    if (line.Length > 0)
+                        _ = Dispatcher.BeginInvoke(() => WriteHomeLog(line));
+                }
+            }
+            catch (OperationCanceledException) when (logCts.IsCancellationRequested) { }
+        });
+
+        Task stdoutTask = ReadLog(process.StandardOutput);
+        Task stderrTask = ReadLog(process.StandardError);
+        Task execution = Task.WhenAll(stdoutTask, stderrTask, process.WaitForExitAsync());
+        try
+        {
+            try
+            {
+                await process.StandardInput.WriteAsync((command + "\0").AsMemory(), cancellation);
+                await process.StandardInput.FlushAsync(cancellation);
+            }
+            catch (IOException) { }
+
+            await execution.WaitAsync(cancellation);
+            cancellation.ThrowIfCancellationRequested();
+            return process.ExitCode;
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            try { process.StandardInput.Close(); }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
+
+            if (await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(4))) != execution)
+            {
+                ProcessRunner.TryKillTree(process);
+                logCts.Cancel();
+            }
+            try { await execution; }
+            catch (OperationCanceledException) when (logCts.IsCancellationRequested) { }
+            throw;
+        }
+        finally
+        {
+            try { process.StandardInput.Close(); }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
         }
     }
 
