@@ -23,7 +23,23 @@
         <EventSetter Event="Opened" Handler="ContextMenuPopupOpened"/>
       </Style>
       <Style TargetType="{x:Type ui:Badge}" BasedOn="{StaticResource {x:Type ui:Badge}}">
+        <Setter Property="FontFamily" Value="{StaticResource WorkspaceSmallTypeface}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Padding" Value="8,2.5,8,3"/>
         <Style.Triggers>
+          <Trigger Property="Appearance" Value="Secondary">
+            <Setter Property="Background">
+              <Setter.Value>
+                <SolidColorBrush Color="{DynamicResource TextFillColorPrimary}" Opacity="0.08"/>
+              </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground">
+              <Setter.Value>
+                <SolidColorBrush Color="{DynamicResource TextFillColorPrimary}" Opacity="0.78"/>
+              </Setter.Value>
+            </Setter>
+          </Trigger>
           <Trigger Property="Appearance" Value="Success">
             <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>

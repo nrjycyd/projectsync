@@ -56,6 +56,7 @@ public partial class MainWindow
         UpdateHomeActions();
         ResetHomeLog();
         HomeResults.SelectedItem = HomeLogTab;
+        SetResultsCollapsed(false);
         WriteHomeLog($"[{project.Name}] {operation}");
         // Maintenance may change the dependency lockfile, so refresh any cached preview.
         if (projectRuns.TryGetValue(project.Id, out var state) && state.Progress != "已提交，待推送")
