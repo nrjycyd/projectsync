@@ -202,6 +202,7 @@ public static class SyncEngine
         ProjectConfig config,
         RepositoryInitMode mode,
         Action<string>? log = null,
+        bool backupGitMetadata = false,
         CancellationToken cancellation = default)
     {
         string git = RequireGitExecutable();
@@ -304,11 +305,12 @@ public static class SyncEngine
                 if (readTree.ExitCode != 0)
                     throw new SyncException(SyncErrorCode.WindowsRepo, "无法建立远端分支的暂存区基线。");
 
+                string? rollback = null;
                 if (mode == RepositoryInitMode.Reset)
                 {
-                    backup = Path.Combine(directory.Parent.FullName,
+                    rollback = Path.Combine(directory.Parent.FullName,
                         ".sitelift-git-backup-" + Guid.NewGuid().ToString("N"));
-                    Directory.Move(metadata, backup);
+                    Directory.Move(metadata, rollback);
                 }
 
                 try
@@ -317,16 +319,24 @@ public static class SyncEngine
                 }
                 catch
                 {
-                    if (backup is not null)
+                    if (rollback is not null)
                     {
-                        try { Directory.Move(backup, metadata); }
+                        try { Directory.Move(rollback, metadata); }
                         catch
                         {
                             throw new SyncException(SyncErrorCode.WindowsRepo,
-                                $"重置失败，无法自动恢复。旧 Git 数据保存在：{backup}");
+                                $"重置失败，无法自动恢复。旧 Git 数据保存在：{rollback}");
                         }
                     }
                     throw;
+                }
+
+                if (rollback is not null)
+                {
+                    if (backupGitMetadata)
+                        backup = rollback;
+                    else
+                        TryDeleteDirectoryForce(rollback);
                 }
             }
         }

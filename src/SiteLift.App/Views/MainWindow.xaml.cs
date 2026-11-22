@@ -18,7 +18,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 {
     private bool running;
     private string? displayedBranchKey;
-    private bool initializingTheme = true;
+    private string selectedThemePreference = "Light";
+    private bool resultsCollapsed;
+    private GridLength savedProjectsRowHeight = new(40, GridUnitType.Star);
+    private GridLength savedResultsRowHeight = new(60, GridUnitType.Star);
 
     private readonly Dictionary<string, TextBox> fields;
     private JsonObject current = new();
@@ -30,27 +33,124 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private void DashboardTableSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var table = (DataGrid)sender;
-        var frame = (Border)table.Parent;
-        var radius = frame.CornerRadius.TopLeft - frame.BorderThickness.Left;
+        var frame = FindAncestorBorder(table);
+        if (frame is null) return;
+        double radius = Math.Max(0, frame.CornerRadius.TopLeft - frame.BorderThickness.Left);
         table.Clip = new System.Windows.Media.RectangleGeometry(new Rect(e.NewSize), radius, radius);
+    }
+
+    private static Border? FindAncestorBorder(DependencyObject element)
+    {
+        for (var current = LogicalTreeHelper.GetParent(element); current is not null; current = LogicalTreeHelper.GetParent(current))
+        {
+            if (current is Border border) return border;
+        }
+        return null;
+    }
+
+    private void HomeResultsTabChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, HomeResults)) return;
+        UpdateHomeResultsHeaderTools();
+        if (resultsCollapsed)
+            SetResultsCollapsed(false);
+    }
+
+    private void HomeResultsTabHeaderMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (resultsCollapsed)
+            SetResultsCollapsed(false);
+    }
+
+    private void ToggleResultsCollapse(object sender, RoutedEventArgs e) =>
+        SetResultsCollapsed(!resultsCollapsed);
+
+    private void SetResultsCollapsed(bool collapsed)
+    {
+        if (resultsCollapsed == collapsed || HomeProjectsRow is null || HomeResultsRow is null || HomeSplitterRow is null)
+            return;
+
+        resultsCollapsed = collapsed;
+        if (collapsed)
+        {
+            if (HomeProjectsRow.ActualHeight > 0 && HomeResultsRow.ActualHeight > 0)
+            {
+                savedProjectsRowHeight = new GridLength(HomeProjectsRow.ActualHeight, GridUnitType.Star);
+                savedResultsRowHeight = new GridLength(HomeResultsRow.ActualHeight, GridUnitType.Star);
+            }
+            HomeSplitterRow.Height = new GridLength(12);
+            HomeWorkspaceSplitter.Visibility = Visibility.Collapsed;
+            HomeResults.Tag = "Collapsed";
+            HomeProjectsRow.Height = new GridLength(1, GridUnitType.Star);
+            HomeResultsRow.MinHeight = 40;
+            HomeResultsRow.Height = new GridLength(40);
+            ResultsCollapseChevron.Data = System.Windows.Media.Geometry.Parse("M 2.5,7.8 L 6,4.2 L 9.5,7.8");
+            ToggleResultsCollapseButton.ToolTip = "展开结果区";
+        }
+        else
+        {
+            HomeResults.Tag = null;
+            HomeWorkspaceSplitter.Visibility = Visibility.Visible;
+            HomeSplitterRow.Height = new GridLength(16);
+            HomeResultsRow.MinHeight = 140;
+            HomeProjectsRow.Height = savedProjectsRowHeight;
+            HomeResultsRow.Height = savedResultsRowHeight;
+            ResultsCollapseChevron.Data = System.Windows.Media.Geometry.Parse("M 2.5,4.2 L 6,7.8 L 9.5,4.2");
+            ToggleResultsCollapseButton.ToolTip = "收起结果区";
+        }
+    }
+
+    private void UpdateHomeResultsHeaderTools()
+    {
+        if (HomeChangesHeaderTools is null || HomeLogHeaderTools is null || HomeResults is null)
+            return;
+        bool isLog = ReferenceEquals(HomeResults.SelectedItem, HomeLogTab);
+        HomeChangesHeaderTools.Visibility = isLog ? Visibility.Collapsed : Visibility.Visible;
+        HomeLogHeaderTools.Visibility = isLog ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private bool followingSystemTheme;
 
-    private void ChooseTheme(object sender, SelectionChangedEventArgs e)
+    private void CycleTheme(object sender, RoutedEventArgs e)
     {
-        if (sender is not ComboBox { SelectedItem: ComboBoxItem item } || item.Tag is not string theme) return;
-        ApplyTheme(theme, persist: !initializingTheme);
+        string nextTheme = selectedThemePreference switch
+        {
+            "Light" => "Dark",
+            "Dark" => "System",
+            _ => "Light"
+        };
+        ApplyTheme(nextTheme, persist: true);
+    }
+
+    private void UpdateThemeMenuVisuals()
+    {
+        if (ThemeSunIcon is null || ThemeMoonIcon is null || ThemeSystemIcon is null || ThemeMenuButton is null)
+            return;
+
+        ThemeSunIcon.Visibility = selectedThemePreference == "Light" ? Visibility.Visible : Visibility.Collapsed;
+        ThemeMoonIcon.Visibility = selectedThemePreference == "Dark" ? Visibility.Visible : Visibility.Collapsed;
+        ThemeSystemIcon.Visibility = selectedThemePreference == "System" ? Visibility.Visible : Visibility.Collapsed;
+
+        (string current, string next) = selectedThemePreference switch
+        {
+            "Dark" => ("深色", "跟随系统"),
+            "System" => ("跟随系统", "浅色"),
+            _ => ("浅色", "深色")
+        };
+        string hint = $"主题：{current}（点击切换为{next}）";
+        ThemeMenuButton.ToolTip = hint;
+        System.Windows.Automation.AutomationProperties.SetName(ThemeMenuButton, hint);
     }
 
     private void ApplyTheme(string theme, bool persist)
     {
+        selectedThemePreference = theme is "System" or "Dark" or "Light" ? theme : "Light";
         if (followingSystemTheme)
         {
             Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(this);
             followingSystemTheme = false;
         }
-        if (theme == "System")
+        if (selectedThemePreference == "System")
         {
             if (IsLoaded)
             {
@@ -62,40 +162,44 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         else
         {
             Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
-                theme == "Dark" ? Wpf.Ui.Appearance.ApplicationTheme.Dark : Wpf.Ui.Appearance.ApplicationTheme.Light,
+                selectedThemePreference == "Dark" ? Wpf.Ui.Appearance.ApplicationTheme.Dark : Wpf.Ui.Appearance.ApplicationTheme.Light,
                 Wpf.Ui.Controls.WindowBackdropType.Mica);
         }
 
         if (persist)
-            SiteLift.App.App.Store.SavePreferences(new AppPreferences(theme));
+            SiteLift.App.App.Store.SavePreferences(new AppPreferences(selectedThemePreference));
+        UpdateThemeMenuVisuals();
+        RefreshFrameworkVisuals();
+    }
+
+    private void OnApplicationThemeChanged(Wpf.Ui.Appearance.ApplicationTheme currentTheme, System.Windows.Media.Color systemAccent)
+    {
+        UpdateThemeMenuVisuals();
+        RefreshFrameworkVisuals();
     }
 
     public MainWindow()
     {
         InitializeComponent();
         var savedTheme = SiteLift.App.App.Store.LoadPreferences().Theme;
-        foreach (ComboBoxItem item in ThemeChoice.Items)
-        {
-            if (item.Tag as string == savedTheme)
-            {
-                ThemeChoice.SelectedItem = item;
-                break;
-            }
-        }
-        initializingTheme = false;
+        ApplyTheme(savedTheme, persist: false);
         Loaded += (_, _) =>
         {
-            if (ThemeChoice.SelectedItem is ComboBoxItem { Tag: "System" } && !followingSystemTheme)
+            if (selectedThemePreference == "System" && !followingSystemTheme)
             {
                 Wpf.Ui.Appearance.SystemThemeWatcher.Watch(this, Wpf.Ui.Controls.WindowBackdropType.Mica);
                 followingSystemTheme = true;
             }
+            UpdateThemeMenuVisuals();
         };
+        Wpf.Ui.Appearance.ApplicationThemeManager.Changed += OnApplicationThemeChanged;
         Closed += (_, _) =>
         {
+            Wpf.Ui.Appearance.ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
             if (followingSystemTheme) Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(this);
         };
         AppVersionText.Text = $"v{CurrentVersion.ToString(3)}";
+        UpdateHomeResultsHeaderTools();
         fields = new()
         {
             ["windowsRepo"] = windowsRepo,
@@ -237,6 +341,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
         CleanUntracked.IsChecked = clean;
         PreviewAfterBuild.IsChecked = parsed["previewAfterBuild"]?.GetValue<bool>() ?? false;
+        BackupGitOnReset.IsChecked = false;
         ProjectName.Text = name;
         loading = false;
         jsonDraft = false;

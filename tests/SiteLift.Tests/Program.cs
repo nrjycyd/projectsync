@@ -377,4 +377,42 @@ foreach (string legacyDirName in AppDataStore.LegacyDataDirectoryNames)
     }
 }
 
+// 7. SiteFrameworkDetector tests
+{
+    Check(SiteFrameworkDetector.DetectFromPackageJsonContent("""{"devDependencies":{"vuepress":"2.0.0","vuepress-theme-plume":"1.0.0"}}""") == SiteFramework.VuePress, "VuePress package.json detection.");
+    Check(SiteFrameworkDetector.DetectFromPackageJsonContent("""{"devDependencies":{"vitepress":"1.6.0"}}""") == SiteFramework.VitePress, "VitePress package.json detection.");
+    Check(SiteFrameworkDetector.DetectFromPackageJsonContent("""{"dependencies":{"@docusaurus/core":"3.0.0"}}""") == SiteFramework.Docusaurus, "Docusaurus package.json detection.");
+    Check(SiteFrameworkDetector.DetectFromPackageJsonContent("""{"dependencies":{"astro":"5.0.0"}}""") == SiteFramework.Astro, "Astro package.json detection.");
+    Check(SiteFrameworkDetector.DetectFromPackageJsonContent("""{"dependencies":{"hexo":"7.0.0"}}""") == SiteFramework.Hexo, "Hexo package.json detection.");
+    Check(SiteFrameworkDetector.DetectFromPackageJsonContent("""{"devDependencies":{"rspress":"1.0.0"}}""") == SiteFramework.Rspress, "Rspress package.json detection.");
+    Check(SiteFrameworkDetector.DetectFromPackageJsonContent("""{"dependencies":{"nuxt":"3.0.0"}}""") == SiteFramework.Nuxt, "Nuxt package.json detection.");
+    Check(SiteFrameworkDetector.DetectFromPackageJsonContent("""{"dependencies":{"next":"15.0.0"}}""") == SiteFramework.NextJs, "Next.js package.json detection.");
+
+    Check(SiteFrameworkDetector.DetectFromConfiguration("""{"exclude":["docs/.vuepress/.temp"],"themeUpgradeCommand":"pnpm dlx vp-update"}""") == SiteFramework.VuePress, "VuePress config hint detection.");
+    Check(SiteFrameworkDetector.DetectFromConfiguration("""{"exclude":["docs/.vitepress/cache"],"buildCommand":"pnpm docs:build"}""") == SiteFramework.VitePress, "VitePress config hint detection.");
+    Check(SiteFrameworkDetector.DetectFromConfiguration("""{"buildCommand":"hugo --minify"}""") == SiteFramework.Hugo, "Hugo config hint detection.");
+    Check(SiteFrameworkDetector.DetectFromConfiguration("""{"buildCommand":"mkdocs build"}""") == SiteFramework.MkDocs, "MkDocs config hint detection.");
+    Check(SiteFrameworkDetector.DetectFromConfiguration("""{"buildCommand":"echo custom"}""") == SiteFramework.Generic, "Unknown project falls back to Generic.");
+
+    string fwRoot = Directory.CreateTempSubdirectory("sitelift-fw-").FullName;
+    try
+    {
+        string vpDir = Directory.CreateDirectory(Path.Combine(fwRoot, "vp")).FullName;
+        Directory.CreateDirectory(Path.Combine(vpDir, "docs", ".vitepress"));
+        Check(SiteFrameworkDetector.DetectFromDirectory(vpDir) == SiteFramework.VitePress, "VitePress directory detection.");
+
+        string hugoDir = Directory.CreateDirectory(Path.Combine(fwRoot, "hugo")).FullName;
+        File.WriteAllText(Path.Combine(hugoDir, "hugo.toml"), "baseURL = 'https://example.org/'\n");
+        Check(SiteFrameworkDetector.DetectFromDirectory(hugoDir) == SiteFramework.Hugo, "Hugo directory detection.");
+
+        string mkDir = Directory.CreateDirectory(Path.Combine(fwRoot, "mk")).FullName;
+        File.WriteAllText(Path.Combine(mkDir, "mkdocs.yml"), "site_name: Demo\n");
+        Check(SiteFrameworkDetector.DetectFromDirectory(mkDir) == SiteFramework.MkDocs, "MkDocs directory detection.");
+    }
+    finally
+    {
+        Directory.Delete(fwRoot, recursive: true);
+    }
+}
+
 Console.WriteLine("All SiteLift.Core unit and Git integration checks passed.");

@@ -282,6 +282,7 @@ public partial class MainWindow
                 ? "等待预览服务响应超时。" : error.Message;
             WriteHomeLog($"[{project.Name}] 无法打开浏览器预览：{reason}");
             HomeResults.SelectedItem = HomeLogTab;
+            SetResultsCollapsed(false);
             return false;
         }
         finally
