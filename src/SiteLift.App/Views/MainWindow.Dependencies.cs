@@ -40,7 +40,7 @@ public partial class MainWindow
         HomePage.Tag = true;
         HomeActions.IsEnabled = false;
         UpdateHomeActions();
-        HomeLog.Clear();
+        ResetHomeLog();
         HomeResults.SelectedItem = HomeLogTab;
         HomeStatus.ShowFeedback($"正在为「{project.Name}」执行{operation}…");
         WriteHomeLog($"[{project.Name}] {operation}");

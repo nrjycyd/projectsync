@@ -23,6 +23,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private readonly Dictionary<string, TextBox> fields;
     private JsonObject current = new();
     private bool loading;
+    private bool suppressPathAutoInspect;
     private bool jsonDraft;
     private bool restoreDetectedOptions = true;
 
@@ -128,13 +129,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         windowsRepo.TextChanged += (_, _) =>
         {
             LocalGitStatus.IsOpen = false;
-            UpdateLocalGitAction();
-            if (loading) return;
+            LocalInspectStatus.IsOpen = false;
+            if (loading)
+            {
+                UpdateRepositoryStateUi();
+                return;
+            }
+            ResetLocalInspectionState();
             string text = remote.Text;
             loading = true;
             remote.ItemsSource = null;
             remote.Text = text;
             loading = false;
+            UpdateRepositoryStateUi();
+            if (!suppressPathAutoInspect)
+                _ = ScheduleLocalRepositoryInspectionAsync(autoFillBlanks: false, debounceMs: 250, showFeedback: false);
         };
         wslRepo.TextChanged += (_, _) =>
         {
@@ -197,17 +206,23 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         string name = parsed["name"]?.GetValue<string>() ?? "";
         bool clean = parsed["cleanUntracked"]?.GetValue<bool>() ?? false;
         loading = true;
+        ResetLocalInspectionState();
         current = parsed;
         remote.Text = configuredRemote;
         branch.Text = configuredBranch;
         foreach (var field in fields)
             field.Value.Text = values[field.Key];
-        RemoteDetectionStatus.IsOpen = false;
+        LocalInspectStatus.IsOpen = false;
         RemoteTestStatus.IsOpen = false;
+        LocalGitStatus.IsOpen = false;
+        WindowsGitStatus.IsOpen = false;
         EnvironmentFeedback.IsOpen = false;
         JsonStatus.IsOpen = false;
         RemoteConnectionOptions.IsExpanded = !string.IsNullOrWhiteSpace(githubUsername.Text) ||
             !string.IsNullOrWhiteSpace(gitSshCommand.Text);
+        ExtraPathOptions.IsExpanded = false;
+        MaintenanceCommandOptions.IsExpanded = !string.IsNullOrWhiteSpace(reinstallCommand.Text) ||
+            !string.IsNullOrWhiteSpace(themeUpgradeCommand.Text);
         RestoreChoices(remote, configuredRemote, ReadChoices<string[]>(RemoteChoiceKey()));
         displayedBranchKey = BranchChoiceKey();
         RestoreChoices(branch, configuredBranch, ReadChoices<string[]>(displayedBranchKey));
@@ -253,7 +268,37 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             loading = false;
         }
         ResetPreview();
+        UpdateRepositoryStateUi();
+        UpdateWslEnvironmentUi();
+        UpdateSyncSettingsUi();
         UpdateSaveProjectAction();
+    }
+
+    private void UpdateSyncSettingsUi()
+    {
+        int includeCount = Lines(include.Text).Length;
+        SyncIncludeBadge.Content = includeCount > 0 ? $"已配 {includeCount} 项" : "未配置";
+        SyncIncludeBadge.Appearance = includeCount > 0 ? Wpf.Ui.Controls.ControlAppearance.Success : Wpf.Ui.Controls.ControlAppearance.Secondary;
+
+        int excludeCount = Lines(exclude.Text).Length;
+        int suffixCount = Lines(excludeSuffixes.Text).Length;
+        if (excludeCount == 0 && suffixCount == 0)
+        {
+            SyncExcludeBadge.Content = "无排除规则";
+            SyncExcludeBadge.Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
+        }
+        else
+        {
+            SyncExcludeBadge.Content = (excludeCount, suffixCount) switch
+            {
+                ( > 0, > 0) => $"{excludeCount} 路径 · {suffixCount} 后缀",
+                ( > 0, 0) => $"{excludeCount} 条排除路径",
+                _ => $"{suffixCount} 个排除后缀"
+            };
+            SyncExcludeBadge.Appearance = Wpf.Ui.Controls.ControlAppearance.Info;
+        }
+
+        CleanUntrackedWarning.IsOpen = CleanUntracked.IsChecked == true;
     }
 
     private bool JsonMatchesForm()
@@ -303,11 +348,29 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void Browse(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = "选择 Windows Git 仓库" };
+        var dialog = new OpenFolderDialog { Title = "选择 Windows 本地项目目录" };
         if (Directory.Exists(windowsRepo.Text))
             dialog.InitialDirectory = windowsRepo.Text;
-        if (dialog.ShowDialog(this) == true)
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        suppressPathAutoInspect = true;
+        try
+        {
             windowsRepo.Text = dialog.FolderName;
+            if (string.IsNullOrWhiteSpace(ProjectName.Text))
+            {
+                string folderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(dialog.FolderName));
+                if (!string.IsNullOrWhiteSpace(folderName))
+                    ProjectName.Text = folderName;
+            }
+        }
+        finally
+        {
+            suppressPathAutoInspect = false;
+        }
+
+        _ = ScheduleLocalRepositoryInspectionAsync(autoFillBlanks: true, debounceMs: 0, showFeedback: false);
     }
 
     private void ClearConfiguration(object sender, RoutedEventArgs e)
@@ -333,12 +396,46 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         LocalGitStatus.IsOpen = false;
     }
 
+    private void UpdateJsonSyncBadge()
+    {
+        if (!jsonDraft)
+        {
+            JsonSyncBadge.Content = "已与表单同步";
+            JsonSyncBadge.Appearance = Wpf.Ui.Controls.ControlAppearance.Success;
+            return;
+        }
+
+        bool validObject;
+        try { validObject = ProjectConfig.ParseRawObject(Config.Text) is not null; }
+        catch (Exception error) when (error is JsonException or ArgumentException) { validObject = false; }
+
+        JsonSyncBadge.Content = validObject ? "待应用到表单" : "JSON 格式错误";
+        JsonSyncBadge.Appearance = validObject
+            ? Wpf.Ui.Controls.ControlAppearance.Caution
+            : Wpf.Ui.Controls.ControlAppearance.Danger;
+    }
+
+    private void CopyJson(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetText(Config.Text);
+            JsonStatus.ShowFeedback("已复制当前 JSON 配置到剪贴板。", InfoBarSeverity.Success);
+        }
+        catch (Exception error)
+        {
+            JsonStatus.ShowFeedback($"无法写入剪贴板：{error.Message}", InfoBarSeverity.Error);
+        }
+    }
+
     private void ApplyJson(object sender, RoutedEventArgs e)
     {
         try
         {
             if (!ConfirmExternalConfiguration(Config.Text, onlyChanged: true)) return;
             LoadConfig(Config.Text);
+            JsonStatus.ShowFeedback("已将 JSON 配置应用到表单。", InfoBarSeverity.Success);
+            _ = ScheduleLocalRepositoryInspectionAsync(autoFillBlanks: false, debounceMs: 0, showFeedback: false);
         }
         catch (Exception error) { JsonStatus.ShowFeedback($"配置无效：{error.Message}", InfoBarSeverity.Error); }
     }
@@ -365,6 +462,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             string configuration = File.ReadAllText(dialog.FileName);
             if (!ConfirmExternalConfiguration(configuration)) return;
             LoadConfig(configuration);
+            _ = ScheduleLocalRepositoryInspectionAsync(autoFillBlanks: false, debounceMs: 0, showFeedback: false);
         }
         catch (IOException error) { JsonStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
         catch (UnauthorizedAccessException error) { JsonStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
@@ -406,47 +504,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         FormChanged();
     }
 
-    private async void DetectRemotes(object sender, RoutedEventArgs e)
-    {
-        if (running || detectingWsl) return;
-        if (string.IsNullOrWhiteSpace(windowsRepo.Text))
-        {
-            RemoteDetectionStatus.ShowFeedback("请先在「Git 本地仓库」填写仓库路径。", InfoBarSeverity.Warning);
-            return;
-        }
-
-        RemoteDetectionStatus.ShowFeedback("正在读取本地仓库的远端名称…");
-        running = true;
-        SettingsTabs.IsEnabled = Actions.IsEnabled = false;
-        try
-        {
-            var config = ProjectConfig.Parse(SerializeConfig());
-            string[] output = await SyncEngine.ListRemotesAsync(config);
-
-            string text = remote.Text;
-            if (string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(remoteUrl.Text))
-                text = output.Contains("origin") ? "origin" : output.Length == 1 ? output[0] : text;
-            loading = true;
-            RestoreChoices(remote, text, output);
-            loading = false;
-            ClearRemoteBranches();
-            FormChanged();
-            string? cacheError = SaveChoices(RemoteChoiceKey(), output);
-            RemoteDetectionStatus.ShowFeedback(cacheError ?? (output.Length == 0 ? "本地仓库没有配置远端名称，可以直接填写远端仓库地址。" :
-                $"已读取 {output.Length} 个远端名称。可从下拉列表选择。"), cacheError is not null || output.Length == 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
-        }
-        catch (SyncException error) when (error.Code == SyncErrorCode.WindowsGitMissing)
-        {
-            ShowWindowsGitMissing(RemoteDetectionStatus, error.Message);
-        }
-        catch (Exception error) { RemoteDetectionStatus.ShowFeedback(error.Message, InfoBarSeverity.Error); }
-        finally
-        {
-            running = false;
-            SettingsTabs.IsEnabled = Actions.IsEnabled = true;
-        }
-    }
-
     private void ClearRemoteBranches()
     {
         string key = BranchChoiceKey();
@@ -465,22 +522,74 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             if (jsonDraft) ShowPendingJson("请先应用到表单，再测试远端连接。");
             return;
         }
+
+        string urlText = remoteUrl.Text.Trim();
+        string localPath = windowsRepo.Text.Trim();
+        if (urlText.Length == 0)
+        {
+            if (!IsLocalDirectoryGitRepository(localPath))
+            {
+                RemoteTestStatus.ShowFeedback("本地目录尚未连接 Git，请先填写「远端仓库地址」再测试连接。", InfoBarSeverity.Warning);
+                remoteUrl.Focus();
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(remote.Text))
+            {
+                RemoteTestStatus.ShowFeedback("请填写或选择「远端名称」（例如 origin），或直接填写「远端仓库地址」。", InfoBarSeverity.Warning);
+                remote.Focus();
+                return;
+            }
+        }
+
         running = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
         ClearRemoteBranches();
-        RemoteTestStatus.ShowFeedback("正在读取远端分支。如弹出浏览器，请完成 GitHub 登录。");
+        RemoteTestStatus.ShowFeedback("正在连接远端并读取分支列表… 如弹出浏览器，请完成 GitHub 登录。");
         try
         {
             var config = ProjectConfig.Parse(SerializeConfig());
             string[] branches = await SyncEngine.TestConnectionAsync(config);
-            string text = branch.Text;
+            string text = branch.Text.Trim();
+            bool autoSelected = false;
+            if (text.Length == 0 && branches.Length > 0)
+            {
+                text = branches.Contains("main") ? "main"
+                    : branches.Contains("master") ? "master"
+                    : branches.Length == 1 ? branches[0] : "";
+                autoSelected = text.Length > 0;
+            }
+
             loading = true;
             RestoreChoices(branch, text, branches);
             loading = false;
+            if (autoSelected)
+                FormChanged();
+
             string? cacheError = SaveChoices(BranchChoiceKey(), branches);
-            RemoteTestStatus.ShowFeedback(cacheError ?? (branches.Length == 0 ? "连接成功，远端暂无分支。" :
-                branches.Contains(text) ? $"连接成功，已读取 {branches.Length} 个分支。" :
-                $"连接成功，已读取 {branches.Length} 个分支。请从下拉列表选择目标分支。"), cacheError is not null ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+            if (cacheError is not null)
+            {
+                RemoteTestStatus.ShowFeedback(cacheError, InfoBarSeverity.Warning);
+            }
+            else if (branches.Length == 0)
+            {
+                RemoteTestStatus.ShowFeedback("连接成功，但远端暂无分支。", InfoBarSeverity.Informational);
+            }
+            else if (autoSelected)
+            {
+                RemoteTestStatus.ShowFeedback($"连接成功，已读取 {branches.Length} 个远端分支，并自动选中「{text}」。", InfoBarSeverity.Success);
+            }
+            else if (text.Length == 0)
+            {
+                RemoteTestStatus.ShowFeedback($"连接成功，已读取 {branches.Length} 个远端分支，请从「目标分支」下拉列表选择。", InfoBarSeverity.Success);
+            }
+            else if (branches.Contains(text))
+            {
+                RemoteTestStatus.ShowFeedback($"连接成功，已读取 {branches.Length} 个远端分支，目标分支「{text}」可用。", InfoBarSeverity.Success);
+            }
+            else
+            {
+                RemoteTestStatus.ShowFeedback($"连接成功，已读取 {branches.Length} 个远端分支，但远端未找到「{text}」，请从下拉列表重新选择。", InfoBarSeverity.Warning);
+            }
         }
         catch (SyncException error) when (error.Code == SyncErrorCode.WindowsGitMissing)
         {
@@ -494,6 +603,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             running = false;
             SettingsTabs.IsEnabled = Actions.IsEnabled = true;
+            UpdateRepositoryStateUi();
         }
     }
 
@@ -534,6 +644,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             }
         }
         if (!e.Cancel)
+        {
+            CancelLocalInspection();
             ForceStopAllPreviews();
+        }
     }
 }

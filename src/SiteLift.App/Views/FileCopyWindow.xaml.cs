@@ -33,6 +33,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         SourceLocation.Items.Add(pc);
         TargetLocation.Items.Add(pc);
         SourceLocation.SelectedIndex = TargetLocation.SelectedIndex = 0;
+        UpdateEndpointHints();
         UpdateCopyActions();
         bool isClosed = false;
         Closed += (_, _) => isClosed = true;
@@ -59,8 +60,16 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
 
     private void CopyBodySizeChanged(object sender, SizeChangedEventArgs e)
     {
-        const double minimumPreviewHeight = 148;
+        const double minimumPreviewHeight = 168;
         CopyFormScroller.MaxHeight = Math.Max(0, e.NewSize.Height - minimumPreviewHeight);
+    }
+
+    private void ChangesTableSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var table = (DataGrid)sender;
+        var frame = (Border)table.Parent;
+        double radius = frame.CornerRadius.TopLeft - frame.BorderThickness.Left;
+        table.Clip = new System.Windows.Media.RectangleGeometry(new Rect(e.NewSize), radius, radius);
     }
 
     private void BrowseSourceKeyDown(object sender, System.Windows.Input.KeyEventArgs e) =>
@@ -68,11 +77,18 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
 
     private static string? Distribution(ComboBox selector) => (selector.SelectedItem as Location)?.Distribution;
 
-    private void EndpointChanged(object sender, RoutedEventArgs e)
+    private void UpdateEndpointHints()
     {
         if (SourcePath is null || TargetPath is null) return;
-        SourcePath.ToolTip = PathHint(SourceLocation);
-        TargetPath.ToolTip = PathHint(TargetLocation);
+        string sourceHint = PathHint(SourceLocation);
+        string targetHint = PathHint(TargetLocation);
+        SourcePath.ToolTip = SourcePath.PlaceholderText = sourceHint;
+        TargetPath.ToolTip = TargetPath.PlaceholderText = targetHint;
+    }
+
+    private void EndpointChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateEndpointHints();
         OptionsChanged(sender, e);
     }
 
@@ -86,6 +102,9 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         swapRejected = false;
         PathFeedback.IsOpen = false;
         Changes.ItemsSource = null;
+        EmptyPreviewHint.Visibility = Visibility.Visible;
+        PreviewCountBadge.Content = "未预览";
+        PreviewCountBadge.Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
         CopyStatus.IsOpen = false;
         UpdateCopyActions();
     }
@@ -101,6 +120,11 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         StartCopy.IsEnabled = idle && canCopy;
         PreviewCopy.Appearance = canCopy ? Wpf.Ui.Controls.ControlAppearance.Secondary : Wpf.Ui.Controls.ControlAppearance.Primary;
         StartCopy.Appearance = canCopy ? Wpf.Ui.Controls.ControlAppearance.Primary : Wpf.Ui.Controls.ControlAppearance.Secondary;
+        CopyProgressRing.Visibility = idle ? Visibility.Collapsed : Visibility.Visible;
+        FooterHint.Text = !idle ? "正在执行操作，可点击右侧「取消」中止。"
+            : canCopy ? "清单已就绪，点击右侧「开始复制」执行。"
+            : pathsEntered ? "点击「预览复制」检查待复制文件与同名冲突。"
+            : "请先填写路径并预览复制清单，确认无误后再执行复制。";
     }
 
     private async void SwapClick(object sender, RoutedEventArgs e) => await SwapEndpointsAsync();
@@ -223,7 +247,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
             var plan = await Task.Run(() => FileCopy.Preview(source, target, replace, skipMarks, cancellation.Token));
             bool changed = preview is not null && !preview.SequenceEqual(plan);
             preview = plan;
-            Changes.ItemsSource = plan.Select(entry => new PreviewRow(entry.Action switch
+            var rows = plan.Select(entry => new PreviewRow(entry.Action switch
             {
                 CopyAction.CreateDirectory => "创建目录",
                 CopyAction.Copy => "复制",
@@ -231,10 +255,28 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
                 CopyAction.SkipExisting => "跳过同名",
                 _ => "跳过下载标记"
             }, entry.RelativePath)).ToList();
+            Changes.ItemsSource = rows;
+            EmptyPreviewHint.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             int copies = plan.Count(entry => entry.Action == CopyAction.Copy);
             int replacements = plan.Count(entry => entry.Action == CopyAction.Replace);
             int skips = plan.Count(entry => entry.Action is CopyAction.SkipExisting or CopyAction.SkipDownloadMark);
             int folders = plan.Count(entry => entry.Action == CopyAction.CreateDirectory);
+            int pendingWork = copies + replacements + folders;
+            if (pendingWork == 0)
+            {
+                PreviewCountBadge.Content = skips > 0 ? $"无需复制 · 跳过 {skips}" : "无项目";
+                PreviewCountBadge.Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary;
+            }
+            else if (replacements > 0)
+            {
+                PreviewCountBadge.Content = $"待处理 {pendingWork} 项（含 {replacements} 覆盖）";
+                PreviewCountBadge.Appearance = Wpf.Ui.Controls.ControlAppearance.Caution;
+            }
+            else
+            {
+                PreviewCountBadge.Content = $"待处理 {pendingWork} 项";
+                PreviewCountBadge.Appearance = Wpf.Ui.Controls.ControlAppearance.Success;
+            }
             CopyStatus.ShowFeedback($"复制 {copies} 个 · 覆盖 {replacements} 个 · 跳过 {skips} 个 · 创建目录 {folders} 个");
             if (!apply)
             {

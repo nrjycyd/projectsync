@@ -20,23 +20,56 @@ public partial class WslManagerWindow
     private void ConfigureDevelopmentClick(object sender, RoutedEventArgs e)
     {
         if (busy || Row(sender) is not { } instance) return;
-        var (dialog, form, footer) = CreateDialog("配置开发环境");
-        form.Children.Add(new TextBlock
+        var (dialog, form, footer) = CreateDialog("配置开发环境", 580);
+        form.Children.Add(CreateDialogBanner(
+            $"实例：{instance.Name}",
+            "适用于 APT 发行版，在 WSL 终端运行，按提示输入 sudo 密码"));
+
+        var user = new Wpf.Ui.Controls.TextBox
         {
-            Text = $"实例：{instance.Name}\n适用于 Ubuntu、Debian、Kali 等 APT 发行版。安装在 WSL 终端运行，可输入 sudo 密码。",
-            TextWrapping = TextWrapping.Wrap
+            Width = 200,
+            MinHeight = 34,
+            PlaceholderText = "默认用户"
+        };
+        System.Windows.Automation.AutomationProperties.SetName(user, "Linux 用户（留空使用默认用户）");
+        form.Children.Add(new Wpf.Ui.Controls.CardControl
+        {
+            Margin = new Thickness(0, 0, 0, 12),
+            Padding = new Thickness(14, 12, 14, 12),
+            IsTabStop = false,
+            Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Settings24 },
+            Header = CreateCardHeader("Linux 用户（可选）", "留空将使用该发行版的默认用户执行安装"),
+            Content = user
         });
-        var user = AddInput(form, "Linux 用户（留空使用默认用户）");
-        var git = ComponentInput(form, "Git", "latest", "latest");
-        var python = ComponentInput(form, "Python 3", "latest", "latest");
-        var alias = new Wpf.Ui.Controls.ToggleSwitch { OnContent = "提供 python 命令（python-is-python3）", OffContent = "提供 python 命令（python-is-python3）", Margin = new Thickness(0, 8, 0, 0) };
-        form.Children.Add(alias);
-        var node = ComponentInput(form, "Node.js（nvm）", "lts/*", "latest", "lts/*");
+
+        var componentsHeading = new TextBlock
+        {
+            Text = "开发组件与版本",
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 2, 0, 8)
+        };
+        componentsHeading.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+        form.Children.Add(componentsHeading);
+
+        bool darkTheme = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
+        var git = ComponentCard(form, "Git", "通过 APT 安装版本控制工具", "git.png", "latest", null, "latest");
+
+        var alias = new Wpf.Ui.Controls.ToggleSwitch
+        {
+            OnContent = "同时提供 python 命令（python-is-python3）",
+            OffContent = "同时提供 python 命令（python-is-python3）",
+            FontSize = 13,
+            Margin = new Thickness(32, 10, 0, 0)
+        };
+        var python = ComponentCard(form, "Python 3", "通过 APT 安装 Python 运行时", "python3.png", "latest", alias, "latest");
+
         var downloadNotice = new Wpf.Ui.Controls.InfoBar
         {
-            IsOpen = false, IsClosable = false, Margin = new Thickness(0, 6, 0, 0)
+            IsOpen = false, IsClosable = false, Margin = new Thickness(0, 10, 0, 0)
         };
-        form.Children.Add(downloadNotice);
+        var node = ComponentCard(form, "Node.js（nvm）", "通过 nvm 管理多版本 Node.js", "node.png", "lts/*", downloadNotice, "latest", "lts/*");
+
         bool closed = false;
         int probeVersion = 0;
         var dialogCts = new CancellationTokenSource();
@@ -83,9 +116,9 @@ public partial class WslManagerWindow
         node.Check.Checked += async (_, _) => await CheckDownloadToolAsync();
         node.Check.Unchecked += async (_, _) => await CheckDownloadToolAsync();
         user.LostKeyboardFocus += async (_, _) => { if (!closed) await CheckDownloadToolAsync(); };
-        var pnpm = ComponentInput(form, "pnpm（需要 nvm 管理的 Node.js）", "latest", "latest");
+        var pnpm = ComponentCard(form, "pnpm", "需要 nvm 管理的 Node.js", darkTheme ? "pnpm-dark.png" : "pnpm.png", "latest", null, "latest");
 
-        var versionStatus = new Wpf.Ui.Controls.InfoBar { IsClosable = false, Margin = new Thickness(0, 10, 0, 0) };
+        var versionStatus = new Wpf.Ui.Controls.InfoBar { IsClosable = false, Margin = new Thickness(0, 6, 0, 0) };
         versionStatus.ShowFeedback("正在读取可用版本…");
         form.Children.Add(versionStatus);
         dialog.Loaded += async (_, _) =>
@@ -146,15 +179,61 @@ public partial class WslManagerWindow
         internal string Version => (string?)Input.SelectedItem ?? "";
     }
 
-    private static Component ComponentInput(StackPanel form, string label, string version, params string[] choices)
+    private static Component ComponentCard(StackPanel form, string label, string subtitle, string iconFile,
+        string version, UIElement? extraContent, params string[] choices)
     {
-        var check = new Wpf.Ui.Controls.ToggleSwitch { OnContent = label, OffContent = label, IsChecked = true, Margin = new Thickness(0, 10, 0, 4) };
-        var input = new ComboBox { ItemsSource = choices, SelectedItem = version, MaxDropDownHeight = 250 };
+        var icon = new Image
+        {
+            Source = new System.Windows.Media.Imaging.BitmapImage(
+                new Uri($"pack://application:,,,/SiteLift.App;component/Assets/DevelopmentTools/{iconFile}", UriKind.Absolute)),
+            Width = 20,
+            Height = 20,
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var input = new ComboBox
+        {
+            ItemsSource = choices,
+            SelectedItem = version,
+            Width = 172,
+            MinHeight = 32,
+            MaxDropDownHeight = 250,
+            VerticalAlignment = VerticalAlignment.Center
+        };
         System.Windows.Automation.AutomationProperties.SetName(input, label + "版本");
+
+        var check = new Wpf.Ui.Controls.ToggleSwitch
+        {
+            IsChecked = true,
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        System.Windows.Automation.AutomationProperties.SetName(check, "安装 " + label);
         check.Checked += (_, _) => input.IsEnabled = true;
         check.Unchecked += (_, _) => input.IsEnabled = false;
-        form.Children.Add(check);
-        form.Children.Add(input);
+
+        var rightControls = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(12, 0, 0, 0)
+        };
+        rightControls.Children.Add(input);
+        rightControls.Children.Add(check);
+
+        var row = new DockPanel();
+        DockPanel.SetDock(rightControls, Dock.Right);
+        DockPanel.SetDock(icon, Dock.Left);
+        row.Children.Add(rightControls);
+        row.Children.Add(icon);
+        row.Children.Add(CreateCardHeader(label, subtitle));
+
+        var content = new StackPanel();
+        content.Children.Add(row);
+        if (extraContent is not null)
+            content.Children.Add(extraContent);
+
+        form.Children.Add(CreateDialogCard(content, new Thickness(14, 10, 14, 10), new Thickness(0, 0, 0, 8)));
         return new Component(check, input);
     }
 

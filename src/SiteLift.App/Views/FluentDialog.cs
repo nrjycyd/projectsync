@@ -19,13 +19,16 @@ internal static class FluentDialog
         titleBar.SetResourceReference(TitleBar.ButtonsForegroundProperty, "TextFillColorPrimaryBrush");
         DockPanel.SetDock(titleBar, Dock.Top);
         panel.Children.Add(titleBar);
-        panel.Children.Add(content);
+        var bodyHost = new Grid { Children = { content } };
+        bodyHost.SetResourceReference(Panel.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        panel.Children.Add(bodyHost);
         var window = new FluentWindow
         {
-            Title = title, Width = width, MinHeight = 0,
+            Title = title, Width = width, MinHeight = 0, FontSize = 14,
             SizeToContent = height.HasValue ? SizeToContent.Manual : SizeToContent.Height,
             ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Content = panel,
-            ExtendsContentIntoTitleBar = true, WindowBackdropType = WindowBackdropType.Mica,
+            ExtendsContentIntoTitleBar = true, WindowCornerPreference = WindowCornerPreference.Round,
+            WindowBackdropType = WindowBackdropType.Mica,
             WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner,
             UseLayoutRounding = true
         };
@@ -83,14 +86,23 @@ internal static class FluentDialog
     internal static MessageBoxResult Ask(Window? owner, string title, string message,
         string accept, string? decline = null, bool canCancel = false, bool destructive = false)
     {
-        var panel = new StackPanel { Margin = new Thickness(20) };
+        var panel = new DockPanel { Margin = new Thickness(20, 16, 20, 18) };
+        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        var footer = new Border
+        {
+            Margin = new Thickness(0, 16, 0, 0),
+            Padding = new Thickness(0, 12, 0, 0),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Child = actions
+        };
+        footer.SetResourceReference(Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
+        DockPanel.SetDock(footer, Dock.Bottom);
+        panel.Children.Add(footer);
         panel.Children.Add(new ScrollViewer
         {
             MaxHeight = 360, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = new System.Windows.Controls.TextBlock { Text = message, TextWrapping = TextWrapping.Wrap }
+            Content = new System.Windows.Controls.TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, LineHeight = 22 }
         });
-        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-        panel.Children.Add(actions);
 
         var dialog = Create(owner, title, panel, 460);
         var result = MessageBoxResult.Cancel;
@@ -106,7 +118,12 @@ internal static class FluentDialog
 
         Button AddAction(string label, MessageBoxResult choice, ControlAppearance appearance, bool isCancel)
         {
-            var button = new Button { Content = label, Appearance = appearance, IsCancel = isCancel, Margin = new Thickness(8, 0, 0, 0) };
+            var button = new Button
+            {
+                Content = label, Appearance = appearance, IsCancel = isCancel,
+                MinHeight = 34, MinWidth = 84, Padding = new Thickness(14, 5.5, 14, 6.5),
+                Margin = new Thickness(8, 0, 0, 0)
+            };
             button.Click += (_, _) => { result = choice; dialog.Close(); };
             actions.Children.Add(button);
             return button;

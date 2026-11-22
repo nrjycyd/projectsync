@@ -3,12 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Documents;
 using SiteLift.Core;
 using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
 using InfoBarSeverity = Wpf.Ui.Controls.InfoBarSeverity;
@@ -18,6 +20,7 @@ namespace SiteLift.App.Views;
 public partial class MainWindow
 {
     private const int MaxHomeLogLength = 200_000;
+    private readonly StringBuilder homeLogBuffer = new();
     private readonly string projectFile = SiteLift.App.App.Store.ProjectsFilePath;
     private readonly List<ProjectEntry> savedProjects = new();
     private ProjectEntry? activeProject;
@@ -28,10 +31,20 @@ public partial class MainWindow
 
     private void UpdateSaveProjectAction()
     {
-        bool canSave = !jsonDraft && HasConfigChanges;
+        bool hasChanges = HasConfigChanges;
+        bool canSave = !jsonDraft && hasChanges;
         SaveProjectButton.Appearance = canSave ? ControlAppearance.Primary : ControlAppearance.Secondary;
         SaveProjectButton.IsEnabled = canSave;
         ApplyJsonButton.Appearance = jsonDraft ? ControlAppearance.Primary : ControlAppearance.Secondary;
+        ApplyJsonButton.IsEnabled = jsonDraft;
+        UpdateJsonSyncBadge();
+
+        string displayName = ProjectName.Text.Trim();
+        if (displayName.Length == 0)
+            displayName = activeProject?.Name ?? "新建项目";
+        ActiveProjectHeaderTitle.Text = displayName;
+        UnsavedChangesBadge.Visibility = !jsonDraft && hasChanges ? Visibility.Visible : Visibility.Collapsed;
+        JsonPendingBadge.Visibility = jsonDraft ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private sealed record ProjectEntry(Guid Id, string Name, string Repository, string Branch, string Configuration)
@@ -106,11 +119,28 @@ public partial class MainWindow
             if (projectRuns.TryGetValue(project.Id, out var state) && state.Changes is { } changes)
                 foreach (var change in changes)
                     HomeChanges.Items.Add(change);
-        if (HomeChanges.Items.Count > 0)
-            HomeChangesSummary.Text = $"预览列出 {HomeChanges.Items.Count} 项变更";
+        int count = HomeChanges.Items.Count;
+        bool hasChanges = count > 0;
+        bool hasCompletedPlan = projectRuns.Values.Any(state => state.Plan is not null);
+        HomeChangesSummaryBar.Visibility = hasChanges ? Visibility.Visible : Visibility.Collapsed;
+        HomeChanges.Visibility = hasChanges ? Visibility.Visible : Visibility.Collapsed;
+        EmptyChangesPanel.Visibility = hasChanges ? Visibility.Collapsed : Visibility.Visible;
+        HomeChangesBadge.Content = count.ToString();
+        HomeChangesBadge.Visibility = hasChanges ? Visibility.Visible : Visibility.Collapsed;
+        if (hasChanges)
+        {
+            HomeChangesSummary.Text = $"预览列出 {count} 项待同步变更";
+        }
+        else if (hasCompletedPlan)
+        {
+            EmptyChangesTitle.Text = "未发现文件变更";
+            EmptyChangesSubtitle.Text = "最近一次构建产物与目标仓库完全一致，无需同步。";
+        }
         else
-            HomeChangesSummary.Text = projectRuns.Values.Any(state => state.Plan is not null)
-                ? "构建未发现文件变更。" : "构建后显示待同步变更。";
+        {
+            EmptyChangesTitle.Text = "暂无待同步变更";
+            EmptyChangesSubtitle.Text = "勾选上方项目并点击「构建」，此处将按分类展示待同步的文件变更。";
+        }
     }
 
     private ProjectEntry CreateEntry() => new(activeProject?.Id ?? Guid.NewGuid(), ProjectName.Text.Trim(),
@@ -137,9 +167,9 @@ public partial class MainWindow
         UpdateHomeActions();
     }
 
-    private async Task ShowProjectAsync(string configuration, ProjectEntry? entry, bool isBlankProject = false)
+    private Task ShowProjectAsync(string configuration, ProjectEntry? entry, bool isBlankProject = false)
     {
-        int openSequence = ++settingsOpenSequence;
+        ++settingsOpenSequence;
         restoreDetectedOptions = !isBlankProject;
         LoadConfig(configuration);
         LocalGitStatus.IsOpen = false;
@@ -147,38 +177,11 @@ public partial class MainWindow
         activeProject = entry;
         originalConfig = entry is not null || isBlankProject ? (JsonObject)current.DeepClone() : null;
         UpdateSaveProjectAction();
-        var selectedTab = RemoteSettingsTab;
-        if (!string.IsNullOrWhiteSpace(branch.Text))
-        {
-            if (!string.IsNullOrWhiteSpace(remoteUrl.Text))
-            {
-                selectedTab = LocalSettingsTab;
-            }
-            else
-            {
-                string localPath = windowsRepo.Text.Trim();
-                string remoteName = remote.Text.Trim();
-                if (remoteName.Length > 0 && Directory.Exists(localPath))
-                {
-                    try
-                    {
-                        if ((Directory.Exists(Path.Combine(localPath, ".git")) || File.Exists(Path.Combine(localPath, ".git"))) &&
-                            (await ReadShortcutRemoteAsync(localPath, remoteName)).Length > 0)
-                            selectedTab = LocalSettingsTab;
-                    }
-                    catch (Exception error) when (error is SyncException or ArgumentException or System.ComponentModel.Win32Exception)
-                    {
-                        // Git is unavailable or remote invalid. Keep the remote settings visible.
-                    }
-                }
-            }
-        }
-        if (openSequence != settingsOpenSequence)
-            return;
-
-        SettingsTabs.SelectedItem = selectedTab;
+        SettingsTabs.SelectedItem = RepositorySettingsTab;
         HomePage.Visibility = Visibility.Collapsed;
         ProjectPage.Visibility = Visibility.Visible;
+        _ = ScheduleLocalRepositoryInspectionAsync(autoFillBlanks: false, debounceMs: 0, showFeedback: false);
+        return Task.CompletedTask;
     }
 
     private async void NewProject(object sender, RoutedEventArgs e)
@@ -235,7 +238,7 @@ public partial class MainWindow
 
         if (string.IsNullOrWhiteSpace(ProjectName.Text))
         {
-            SettingsTabs.SelectedItem = LocalSettingsTab;
+            SettingsTabs.SelectedItem = RepositorySettingsTab;
             ProjectName.Focus();
             Status.ShowFeedback("请填写项目名称。", InfoBarSeverity.Warning);
             return false;
@@ -303,6 +306,7 @@ public partial class MainWindow
     {
         if (!CanLeaveProject())
             return;
+        CancelLocalInspection();
         ResetPreview();
         ProjectPage.Visibility = Visibility.Collapsed;
         HomePage.Visibility = Visibility.Visible;
@@ -314,6 +318,56 @@ public partial class MainWindow
     private void ProjectRowMenuOpening(object sender, System.Windows.Controls.ContextMenuEventArgs e)
     {
         if (running) e.Handled = true;
+    }
+
+    private async void EditProjectFromMenu(object sender, RoutedEventArgs e)
+    {
+        if (running || sender is not System.Windows.Controls.MenuItem { DataContext: ProjectEntry entry })
+            return;
+        try
+        {
+            Projects.SelectedItem = entry;
+            await ShowProjectAsync(entry.Configuration, entry);
+        }
+        catch (Exception error) { HomeStatus.ShowFeedback($"无法打开项目：{error.Message}", InfoBarSeverity.Error); }
+    }
+
+    private void ToggleSelectAllProjects(object sender, RoutedEventArgs e)
+    {
+        if (running || savedProjects.Count == 0)
+            return;
+        bool checkAll = savedProjects.Any(project => !project.Checked);
+        foreach (var project in savedProjects)
+            project.Checked = checkAll;
+        RefreshProjects();
+    }
+
+    private void CopyHomeLog(object sender, RoutedEventArgs e)
+    {
+        if (homeLogBuffer.Length == 0)
+        {
+            HomeStatus.ShowFeedback("当前运行日志为空。", InfoBarSeverity.Informational);
+            return;
+        }
+        try
+        {
+            Clipboard.SetText(homeLogBuffer.ToString());
+            HomeStatus.ShowFeedback("已复制运行日志到剪贴板。", InfoBarSeverity.Success);
+        }
+        catch (Exception error)
+        {
+            HomeStatus.ShowFeedback($"无法写入剪贴板：{error.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private void ClearHomeLog(object sender, RoutedEventArgs e) => ResetHomeLog();
+
+    private void ResetHomeLog()
+    {
+        homeLogBuffer.Clear();
+        HomeLog.Document.Blocks.Clear();
+        HomeLog.Document.PageWidth = double.NaN;
+        EmptyHomeLogPanel.Visibility = Visibility.Visible;
     }
 
     private void RemoveProject(object sender, RoutedEventArgs e)
@@ -347,6 +401,22 @@ public partial class MainWindow
     private sealed record BatchChange(string Project, string Action, string Path)
     {
         public string Group => Action == "目标清理" ? "目标清理（永久删除）" : "同步变更";
+        public string DirectoryPrefix
+        {
+            get
+            {
+                int separator = Path.LastIndexOfAny(new[] { '/', '\\' });
+                return separator >= 0 ? Path[..(separator + 1)] : string.Empty;
+            }
+        }
+        public string FileName
+        {
+            get
+            {
+                int separator = Path.LastIndexOfAny(new[] { '/', '\\' });
+                return separator >= 0 ? Path[(separator + 1)..] : Path;
+            }
+        }
     }
     private enum Operation { Build, BrowserPreview, Apply, Publish, RetryPush }
     private sealed record RunState(string? Plan, string? Synced, string Progress, BatchChange[]? Changes = null);
@@ -512,6 +582,22 @@ public partial class MainWindow
         var primaryAction = Array.Find(batchButtons, button => button.IsEnabled);
         foreach (var button in batchButtons)
             button.Appearance = button == primaryAction ? ControlAppearance.Primary : ControlAppearance.Secondary;
+
+        if (SelectAllProjectsCheckBox is not null)
+        {
+            SelectAllProjectsCheckBox.IsEnabled = !running && savedProjects.Count > 0;
+            SelectAllProjectsCheckBox.IsChecked = savedProjects.Count == 0 || selected.Length == 0
+                ? false
+                : selected.Length == savedProjects.Count ? true : null;
+        }
+        if (HomeFooterSummary is not null)
+        {
+            HomeFooterSummary.Text = savedProjects.Count == 0
+                ? "点击右上角「新建项目」或「导入 JSON」开始使用。"
+                : selected.Length > 0
+                ? $"已勾选 {selected.Length} / {savedProjects.Count} 个项目 · 双击行可打开项目配置"
+                : $"共 {savedProjects.Count} 个项目 · 双击行或右键可打开项目配置";
+        }
         NewProjectButton.Appearance = primaryAction is null ? ControlAppearance.Primary : ControlAppearance.Secondary;
     }
 
@@ -646,7 +732,7 @@ public partial class MainWindow
         HomePage.Tag = true;
         HomeActions.IsEnabled = false;
         UpdateHomeActions();
-        if (operation != Operation.BrowserPreview) HomeLog.Clear();
+        if (operation != Operation.BrowserPreview) ResetHomeLog();
         HomeResults.SelectedItem = HomeLogTab;
         if (operation == Operation.Build)
         {
@@ -875,11 +961,62 @@ public partial class MainWindow
     private void WriteHomeLog(string line)
     {
         if (string.IsNullOrWhiteSpace(line)) return;
-        if (HomeLog.Text.Length > MaxHomeLogLength)
-            HomeLog.Text = HomeLog.Text[^(MaxHomeLogLength / 2)..];
-        HomeLog.AppendText(line + Environment.NewLine);
+        if (homeLogBuffer.Length > MaxHomeLogLength)
+        {
+            int removeChars = homeLogBuffer.Length - (MaxHomeLogLength / 2);
+            int newline = homeLogBuffer.ToString().IndexOf('\n', removeChars);
+            int trimCount = newline >= 0 ? newline + 1 : removeChars;
+            homeLogBuffer.Remove(0, trimCount);
+            int dropBlocks = HomeLog.Document.Blocks.Count / 2;
+            for (int i = 0; i < dropBlocks && HomeLog.Document.Blocks.FirstBlock is not null; i++)
+                HomeLog.Document.Blocks.Remove(HomeLog.Document.Blocks.FirstBlock);
+        }
+        homeLogBuffer.AppendLine(line);
+        var run = new Run(line);
+        run.SetResourceReference(TextElement.ForegroundProperty, ResolveLogBrushKey(line));
+        var paragraph = new Paragraph(run)
+        {
+            Margin = new Thickness(0),
+            LineHeight = 20,
+            LineStackingStrategy = LineStackingStrategy.BlockLineHeight
+        };
+        double viewport = HomeLog.ActualWidth - HomeLog.Padding.Left - HomeLog.Padding.Right - 24;
+        double requiredWidth = line.Length * 8.4 + 48;
+        if (viewport > 100 && requiredWidth > viewport)
+        {
+            double currentWidth = double.IsNaN(HomeLog.Document.PageWidth) ? viewport : HomeLog.Document.PageWidth;
+            if (requiredWidth > currentWidth)
+                HomeLog.Document.PageWidth = requiredWidth;
+        }
+        HomeLog.Document.Blocks.Add(paragraph);
+        EmptyHomeLogPanel.Visibility = Visibility.Collapsed;
         HomeLog.ScrollToEnd();
         _ = Task.Run(() => SiteLift.App.App.AppendDiagnostic(line));
+    }
+
+    private static string ResolveLogBrushKey(string line)
+    {
+        string trimmed = line.TrimStart();
+        if (trimmed.StartsWith('[') && trimmed.IndexOf(']') > 1)
+            return "AccentTextFillColorPrimaryBrush";
+        if (trimmed.Contains("失败", StringComparison.Ordinal) ||
+            trimmed.Contains("无法", StringComparison.Ordinal) ||
+            trimmed.Contains("error:", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("ERR!", StringComparison.Ordinal) ||
+            trimmed.Contains("fatal:", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("Exception", StringComparison.Ordinal))
+            return "SystemFillColorCriticalBrush";
+        if (trimmed.Contains("已停止", StringComparison.Ordinal) ||
+            trimmed.Contains("警告", StringComparison.Ordinal) ||
+            trimmed.Contains("warning", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("WARN", StringComparison.Ordinal))
+            return "SystemFillColorCautionBrush";
+        if (trimmed.Contains("操作完成", StringComparison.Ordinal) ||
+            trimmed.Contains("已推送", StringComparison.Ordinal) ||
+            trimmed.Contains("built in", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains('✓'))
+            return "SystemFillColorSuccessBrush";
+        return "TextFillColorPrimaryBrush";
     }
 
     private void ExportDiagnostics(object sender, RoutedEventArgs e)

@@ -18,8 +18,29 @@
         <Setter Property="local:App.UseNativeComboBoxMotion" Value="True"/>
       </Style>
       <Style TargetType="ContextMenu" BasedOn="{StaticResource UiContextMenu}">
+        <Setter Property="MinWidth" Value="156"/>
         <Setter Property="Popup.PopupAnimation" Value="{DynamicResource {x:Static SystemParameters.MenuPopupAnimationKey}}"/>
         <EventSetter Event="Opened" Handler="ContextMenuPopupOpened"/>
+      </Style>
+      <Style TargetType="{x:Type ui:Badge}" BasedOn="{StaticResource {x:Type ui:Badge}}">
+        <Style.Triggers>
+          <Trigger Property="Appearance" Value="Success">
+            <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+          </Trigger>
+          <Trigger Property="Appearance" Value="Info">
+            <Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+          </Trigger>
+          <Trigger Property="Appearance" Value="Caution">
+            <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}"/>
+          </Trigger>
+          <Trigger Property="Appearance" Value="Danger">
+            <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+          </Trigger>
+        </Style.Triggers>
       </Style>
     </ResourceDictionary>
   </Application.Resources>

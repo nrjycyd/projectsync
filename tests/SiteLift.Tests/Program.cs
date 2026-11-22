@@ -319,6 +319,25 @@ foreach (string legacyDirName in AppDataStore.LegacyDataDirectoryNames)
         var remotes = await SyncEngine.ListRemotesAsync(cfg);
         Check(remotes.SequenceEqual(new[] { "origin" }), "ListRemotesAsync should find origin.");
 
+        var inspectedRepo = await SyncEngine.InspectLocalRepositoryAsync(work);
+        Check(inspectedRepo.IsGitRepository && !inspectedRepo.IsInsideAnotherRepository,
+            "InspectLocalRepositoryAsync should identify valid Git repository root.");
+        Check(inspectedRepo.CurrentBranch == "main",
+            $"InspectLocalRepositoryAsync expected branch 'main', got '{inspectedRepo.CurrentBranch}'.");
+        Check(inspectedRepo.Remotes.Length == 1 && inspectedRepo.Remotes[0].Name == "origin" &&
+            inspectedRepo.Remotes[0].Url == bare,
+            "InspectLocalRepositoryAsync should return origin name and URL.");
+
+        string subDir = Directory.CreateDirectory(Path.Combine(work, "nested")).FullName;
+        var inspectedSub = await SyncEngine.InspectLocalRepositoryAsync(subDir);
+        Check(!inspectedSub.IsGitRepository && inspectedSub.IsInsideAnotherRepository,
+            "InspectLocalRepositoryAsync should detect subdirectory inside another Git repository.");
+
+        string plainDir = Directory.CreateDirectory(Path.Combine(gitRoot, "plain")).FullName;
+        var inspectedPlain = await SyncEngine.InspectLocalRepositoryAsync(plainDir);
+        Check(!inspectedPlain.IsGitRepository && !inspectedPlain.IsInsideAnotherRepository && inspectedPlain.Remotes.Length == 0,
+            "InspectLocalRepositoryAsync should identify non-Git directory.");
+
         var branches = await SyncEngine.TestConnectionAsync(cfg);
         Check(branches.SequenceEqual(new[] { "main" }), "TestConnectionAsync should list main.");
 

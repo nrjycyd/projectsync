@@ -4,22 +4,47 @@
  <FontFamily x:Key="WorkspaceTypeface">Segoe UI Variable Text, Segoe UI, Microsoft YaHei UI</FontFamily>
  <FontFamily x:Key="WorkspaceMonoTypeface">Cascadia Mono, Consolas, Microsoft YaHei UI</FontFamily>
  <Style x:Key="WorkspaceActionIcon" TargetType="{x:Type ui:SymbolIcon}">
-  <Setter Property="Width" Value="18"/>
-  <Setter Property="Height" Value="20"/>
+  <Setter Property="Width" Value="16"/>
+  <Setter Property="Height" Value="16"/>
   <Setter Property="FontSize" Value="16"/>
+  <Setter Property="HorizontalAlignment" Value="Center"/>
+  <Setter Property="VerticalAlignment" Value="Center"/>
+  <Setter Property="Margin" Value="0,0,-3,0"/>
   <Setter Property="RenderTransform">
    <Setter.Value>
-    <TranslateTransform Y="1.6"/>
+    <TranslateTransform Y="1.5"/>
    </Setter.Value>
   </Setter>
  </Style>
+ <Style x:Key="WorkspaceMenuIcon" TargetType="{x:Type ui:SymbolIcon}">
+  <Setter Property="Width" Value="16"/>
+  <Setter Property="Height" Value="16"/>
+  <Setter Property="FontSize" Value="16"/>
+  <Setter Property="HorizontalAlignment" Value="Center"/>
+  <Setter Property="VerticalAlignment" Value="Center"/>
+  <Setter Property="RenderTransform">
+   <Setter.Value>
+    <TranslateTransform Y="1.25"/>
+   </Setter.Value>
+  </Setter>
+ </Style>
+ <Style x:Key="WorkspaceTextButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
+  <Setter Property="MinHeight" Value="34"/>
+  <Setter Property="Padding" Value="12,5.5,12,6.5"/>
+  <Setter Property="HorizontalContentAlignment" Value="Center"/>
+  <Setter Property="VerticalContentAlignment" Value="Center"/>
+  <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+ </Style>
  <Style x:Key="WorkspaceIconButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
   <Setter Property="MinHeight" Value="34"/>
+  <Setter Property="Padding" Value="11,5.5,12.5,6.5"/>
+  <Setter Property="HorizontalContentAlignment" Value="Center"/>
+  <Setter Property="VerticalContentAlignment" Value="Center"/>
   <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
  </Style>
  <Style x:Key="WorkspaceCompactIconButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource WorkspaceIconButton}">
   <Setter Property="MinHeight" Value="30"/>
-  <Setter Property="Padding" Value="11,3"/>
+  <Setter Property="Padding" Value="9,3.5,10.5,4.5"/>
  </Style>
  <Style x:Key="WorkspacePanel" TargetType="Border">
   <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"/>
@@ -28,18 +53,97 @@
   <Setter Property="CornerRadius" Value="4"/>
  </Style>
  <Style x:Key="WorkspaceColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource DefaultUiDataGridColumnHeaderStyle}">
-  <Setter Property="Padding" Value="12,0"/>
+  <Setter Property="Margin" Value="0"/>
+  <Setter Property="Padding" Value="10,0"/>
+  <Setter Property="FontSize" Value="12.5"/>
   <Setter Property="FontWeight" Value="Normal"/>
   <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+  <Setter Property="BorderThickness" Value="0,0,0,1"/>
+  <Setter Property="Template">
+   <Setter.Value>
+    <ControlTemplate TargetType="DataGridColumnHeader">
+     <Border Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+      <Grid>
+       <Border x:Name="HeaderBorder" Background="{TemplateBinding Background}" CornerRadius="4" Margin="2,3" Padding="{TemplateBinding Padding}">
+        <Grid HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Grid.IsSharedSizeScope="True">
+         <Grid.ColumnDefinitions>
+          <ColumnDefinition x:Name="FirstColumn" Width="*"/>
+          <ColumnDefinition x:Name="SecondColumn" Width="Auto"/>
+         </Grid.ColumnDefinitions>
+         <ContentPresenter x:Name="ContentPresenter" Grid.Column="0"
+                           Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                           ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                           SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+         <ui:SymbolIcon x:Name="SortIcon" Grid.Column="1" Symbol="ArrowSortUp24" FontSize="16" Margin="4,0,0,0" RenderTransformOrigin="0.5,0.5">
+          <ui:SymbolIcon.RenderTransform>
+           <RotateTransform Angle="0"/>
+          </ui:SymbolIcon.RenderTransform>
+         </ui:SymbolIcon>
+        </Grid>
+       </Border>
+       <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left" Width="6" Cursor="SizeWE" Opacity="0"/>
+       <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right" Width="6" Cursor="SizeWE" Opacity="0"/>
+      </Grid>
+     </Border>
+     <ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+       <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource ListViewItemBackgroundPointerOver}"/>
+      </Trigger>
+      <Trigger Property="IsPressed" Value="True">
+       <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+      </Trigger>
+      <Trigger Property="IsEnabled" Value="False">
+       <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}"/>
+      </Trigger>
+      <Trigger Property="SortDirection" Value="{x:Null}">
+       <Setter TargetName="SortIcon" Property="Visibility" Value="Collapsed"/>
+      </Trigger>
+      <Trigger Property="SortDirection" Value="Descending">
+       <Setter TargetName="SortIcon" Property="RenderTransform">
+        <Setter.Value>
+         <RotateTransform Angle="180"/>
+        </Setter.Value>
+       </Setter>
+      </Trigger>
+      <Trigger Property="HorizontalContentAlignment" Value="Right">
+       <Setter TargetName="FirstColumn" Property="Width" Value="Auto"/>
+       <Setter TargetName="SecondColumn" Property="Width" Value="*"/>
+       <Setter TargetName="ContentPresenter" Property="Grid.Column" Value="1"/>
+       <Setter TargetName="SortIcon" Property="Grid.Column" Value="0"/>
+       <Setter TargetName="SortIcon" Property="Margin" Value="0,0,4,0"/>
+      </Trigger>
+     </ControlTemplate.Triggers>
+    </ControlTemplate>
+   </Setter.Value>
+  </Setter>
  </Style>
  <Style x:Key="WorkspaceCenteredColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource WorkspaceColumnHeader}">
   <Setter Property="HorizontalContentAlignment" Value="Center"/>
  </Style>
+ <Style x:Key="WorkspaceRowIconButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
+  <Setter Property="Appearance" Value="Transparent"/>
+  <Setter Property="Width" Value="30"/>
+  <Setter Property="Height" Value="28"/>
+  <Setter Property="Padding" Value="0"/>
+  <Setter Property="BorderThickness" Value="0"/>
+  <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+  <Style.Triggers>
+   <Trigger Property="IsMouseOver" Value="True">
+    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+   </Trigger>
+  </Style.Triggers>
+ </Style>
  <Style x:Key="WorkspaceTableText" TargetType="TextBlock">
   <Setter Property="Margin" Value="12,0"/>
   <Setter Property="VerticalAlignment" Value="Center"/>
+  <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+  <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
   <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
   <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+ </Style>
+ <Style x:Key="WorkspaceTableSecondaryText" TargetType="TextBlock" BasedOn="{StaticResource WorkspaceTableText}">
+  <Setter Property="FontSize" Value="13"/>
  </Style>
  <Style x:Key="WorkspaceSecondaryText" TargetType="TextBlock">
   <Setter Property="FontSize" Value="13"/>
@@ -47,9 +151,76 @@
  </Style>
  <Style x:Key="SettingsForm" TargetType="Border">
   <Setter Property="Width" Value="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"/>
-  <Setter Property="MaxWidth" Value="1008"/>
-  <Setter Property="HorizontalAlignment" Value="Left"/>
-  <Setter Property="Padding" Value="24,16,24,20"/>
+  <Setter Property="MaxWidth" Value="900"/>
+  <Setter Property="HorizontalAlignment" Value="Center"/>
+  <Setter Property="Padding" Value="32,20,32,24"/>
+ </Style>
+ <Style x:Key="SettingsPageTitle" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="20"/>
+  <Setter Property="FontWeight" Value="SemiBold"/>
+  <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+  <Setter Property="Margin" Value="0,0,0,2"/>
+ </Style>
+ <Style x:Key="SettingsPageSubtitle" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="13"/>
+  <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+  <Setter Property="TextWrapping" Value="Wrap"/>
+  <Setter Property="Margin" Value="0,0,0,16"/>
+ </Style>
+ <Style x:Key="SettingsGroupHeader" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="14"/>
+  <Setter Property="FontWeight" Value="SemiBold"/>
+  <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+  <Setter Property="Margin" Value="0,16,0,8"/>
+ </Style>
+ <Style x:Key="SettingsCard" TargetType="Border">
+  <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+  <Setter Property="BorderThickness" Value="1"/>
+  <Setter Property="CornerRadius" Value="6"/>
+  <Setter Property="Padding" Value="16,14"/>
+  <Setter Property="Margin" Value="0,0,0,8"/>
+ </Style>
+ <Style x:Key="SettingsSectionCard" TargetType="Border" BasedOn="{StaticResource SettingsCard}">
+  <Setter Property="Padding" Value="0"/>
+ </Style>
+ <Style x:Key="SettingsCardHeader" TargetType="Border">
+  <Setter Property="Padding" Value="14,14,14,14"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+  <Setter Property="BorderThickness" Value="0,0,0,1"/>
+ </Style>
+ <Style x:Key="SettingsCardHeaderIcon" TargetType="{x:Type ui:SymbolIcon}">
+  <Setter Property="FontSize" Value="24"/>
+  <Setter Property="Width" Value="24"/>
+  <Setter Property="Height" Value="24"/>
+  <Setter Property="Margin" Value="0,0,14,0"/>
+  <Setter Property="VerticalAlignment" Value="Center"/>
+ </Style>
+ <Style x:Key="SettingsCardBody" TargetType="Border">
+  <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}"/>
+  <Setter Property="CornerRadius" Value="0,0,5,5"/>
+  <Setter Property="Padding" Value="52,14,14,14"/>
+ </Style>
+ <Style x:Key="SettingsCardExpander" TargetType="{x:Type ui:CardExpander}" BasedOn="{StaticResource {x:Type ui:CardExpander}}">
+  <Setter Property="Margin" Value="0,0,0,8"/>
+  <Setter Property="ContentPadding" Value="52,14,14,16"/>
+ </Style>
+ <Style x:Key="SettingsCardTitle" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="14"/>
+  <Setter Property="FontWeight" Value="Medium"/>
+  <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+ </Style>
+ <Style x:Key="SettingsCardSubtitle" TargetType="TextBlock">
+  <Setter Property="FontSize" Value="12"/>
+  <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+  <Setter Property="TextWrapping" Value="Wrap"/>
+ </Style>
+ <Style x:Key="SettingsNavIcon" TargetType="{x:Type ui:SymbolIcon}">
+  <Setter Property="FontSize" Value="16"/>
+  <Setter Property="Width" Value="18"/>
+  <Setter Property="Height" Value="18"/>
+  <Setter Property="Margin" Value="0,0,10,0"/>
+  <Setter Property="VerticalAlignment" Value="Center"/>
  </Style>
  <Style x:Key="SettingsSectionTitle" TargetType="TextBlock">
   <Setter Property="FontSize" Value="16"/>
@@ -70,7 +241,24 @@
   <Setter Property="FontFamily" Value="{StaticResource WorkspaceMonoTypeface}"/>
   <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
   <Setter Property="FontSize" Value="13"/>
-  <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
-  <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+  <Setter Property="TextBlock.LineHeight" Value="20"/>
+  <Setter Property="TextBlock.LineStackingStrategy" Value="BlockLineHeight"/>
+  <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+  <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+ </Style>
+ <Style x:Key="WorkspaceRichLog" TargetType="RichTextBox">
+  <Setter Property="FontFamily" Value="{StaticResource WorkspaceMonoTypeface}"/>
+  <Setter Property="FontSize" Value="13"/>
+  <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+  <Setter Property="Background" Value="Transparent"/>
+  <Setter Property="BorderThickness" Value="0"/>
+  <Setter Property="Padding" Value="14,12"/>
+  <Setter Property="IsReadOnly" Value="True"/>
+  <Setter Property="IsDocumentEnabled" Value="False"/>
+  <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+  <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+  <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+  <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
  </Style>
 </ResourceDictionary>
