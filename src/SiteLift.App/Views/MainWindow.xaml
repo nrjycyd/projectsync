@@ -20,8 +20,8 @@
   </ContextMenu>
   <Style x:Key="WorkspaceCheckColumnHeader" TargetType="DataGridColumnHeader">
    <Setter Property="Background" Value="Transparent"/>
-   <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}"/>
-   <Setter Property="BorderThickness" Value="0,0,0,1"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Margin" Value="0,0,0,1"/>
    <Setter Property="HorizontalContentAlignment" Value="Center"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
    <Setter Property="Padding" Value="0"/>
@@ -35,6 +35,32 @@
     </Setter.Value>
    </Setter>
   </Style>
+  <Style x:Key="BreadcrumbRootButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
+   <Style.Resources>
+    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent"/>
+    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent"/>
+   </Style.Resources>
+   <Setter Property="Appearance" Value="Transparent"/>
+   <Setter Property="MinHeight" Value="34"/>
+   <Setter Property="Padding" Value="10,0"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="FontSize" Value="14"/>
+   <Setter Property="FontWeight" Value="Normal"/>
+   <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+   <Setter Property="MouseOverBackground" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+   <Setter Property="PressedBackground" Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+   <Setter Property="HorizontalContentAlignment" Value="Center"/>
+   <Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+   <Style.Triggers>
+    <Trigger Property="IsMouseOver" Value="True">
+     <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+    </Trigger>
+    <Trigger Property="IsPressed" Value="True">
+     <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
   <Style x:Key="SettingsNavigationItem" TargetType="TabItem">
    <Setter Property="MinHeight" Value="40"/>
    <Setter Property="Margin" Value="0,0,0,4"/>
@@ -44,11 +70,11 @@
    <Setter Property="Template">
     <Setter.Value>
      <ControlTemplate TargetType="TabItem">
-      <Border x:Name="ItemBackground" Background="Transparent" CornerRadius="4">
+      <Border x:Name="ItemBackground" Background="Transparent" CornerRadius="5">
        <Grid>
         <Border x:Name="SelectionIndicator" Width="3" Height="16" CornerRadius="1.5"
                 HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed"
-                Background="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                Background="{DynamicResource AccentFillColorDefaultBrush}"/>
         <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"
                           Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/>
        </Grid>
@@ -58,9 +84,16 @@
         <Setter TargetName="ItemBackground" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
        </Trigger>
        <Trigger Property="IsSelected" Value="True">
-        <Setter TargetName="ItemBackground" Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+        <Setter TargetName="ItemBackground" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
         <Setter TargetName="SelectionIndicator" Property="Visibility" Value="Visible"/>
        </Trigger>
+       <MultiTrigger>
+        <MultiTrigger.Conditions>
+         <Condition Property="IsSelected" Value="True"/>
+         <Condition Property="IsMouseOver" Value="True"/>
+        </MultiTrigger.Conditions>
+        <Setter TargetName="ItemBackground" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+       </MultiTrigger>
        <Trigger Property="IsEnabled" Value="False">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}"/>
        </Trigger>
@@ -75,34 +108,122 @@
      <ColumnDefinition Width="208"/>
      <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
-    <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0"
-            Background="{DynamicResource LayerOnMicaBaseAltFillColorSecondaryBrush}" Padding="12">
+    <Border Background="Transparent" Padding="12,2,12,12">
      <ItemsPresenter KeyboardNavigation.TabIndex="0"/>
     </Border>
-    <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent"/>
+    <Border Grid.Column="1" CornerRadius="8,0,0,0"
+            Background="{DynamicResource LayerFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1,1,0,0" ClipToBounds="True">
+     <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"/>
+    </Border>
    </Grid>
   </ControlTemplate>
-  <Style x:Key="HomeResultsTabItem" TargetType="TabItem">
-   <Setter Property="MinHeight" Value="38"/>
-   <Setter Property="Margin" Value="0,0,4,0"/>
-   <Setter Property="Padding" Value="12,8,12,9"/>
-   <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+  <Style x:Key="HomeStatusLinkButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
+   <Style.Resources>
+    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent"/>
+    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent"/>
+   </Style.Resources>
+   <Setter Property="Appearance" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="MinHeight" Value="24"/>
+   <Setter Property="Height" Value="24"/>
+   <Setter Property="Padding" Value="7,0"/>
+   <Setter Property="FontFamily" Value="{StaticResource WorkspaceSmallTypeface}"/>
+   <Setter Property="FontSize" Value="12"/>
    <Setter Property="FontWeight" Value="Normal"/>
-   <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}"/>
+   <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+   <Setter Property="MouseOverBackground" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+   <Setter Property="PressedBackground" Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+   <Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Style.Triggers>
+    <Trigger Property="IsMouseOver" Value="True">
+     <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+    </Trigger>
+    <Trigger Property="IsEnabled" Value="False">
+     <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
+  <Style x:Key="HomeHeaderIconButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
+   <Style.Resources>
+    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent"/>
+    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent"/>
+   </Style.Resources>
+   <Setter Property="Appearance" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Width" Value="28"/>
+   <Setter Property="Height" Value="28"/>
+   <Setter Property="Padding" Value="0"/>
+   <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+   <Setter Property="MouseOverBackground" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+   <Setter Property="PressedBackground" Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+   <Setter Property="HorizontalContentAlignment" Value="Center"/>
+   <Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+   <Style.Triggers>
+    <Trigger Property="IsMouseOver" Value="True">
+     <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
+  <Style x:Key="HomeResultsTabFocusVisual">
+   <Setter Property="Control.Template">
+    <Setter.Value>
+     <ControlTemplate>
+      <Border Margin="1,4,1,4" CornerRadius="4" BorderThickness="1.5"
+              BorderBrush="{DynamicResource FocusStrokeColorOuterBrush}" SnapsToDevicePixels="True"/>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="HomeResultsTabIcon" TargetType="{x:Type ui:SymbolIcon}">
+   <Setter Property="FontSize" Value="14"/>
+   <Setter Property="Margin" Value="0,1,6,0"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TabItem}}" Value="True">
+     <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+    </DataTrigger>
+   </Style.Triggers>
+  </Style>
+  <Style x:Key="HomeResultsTabText" TargetType="TextBlock">
+   <Setter Property="FontFamily" Value="{StaticResource WorkspaceTypeface}"/>
+   <Setter Property="FontSize" Value="13"/>
+   <Setter Property="FontWeight" Value="Normal"/>
+   <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style x:Key="HomeResultsTabItem" TargetType="TabItem">
+   <Setter Property="Height" Value="37"/>
+   <Setter Property="Margin" Value="0,0,4,0"/>
+   <Setter Property="Padding" Value="12,0,12,0"/>
+   <Setter Property="FontFamily" Value="{StaticResource WorkspaceTypeface}"/>
+   <Setter Property="FontSize" Value="13"/>
+   <Setter Property="FontWeight" Value="Normal"/>
+   <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+   <Setter Property="Foreground">
+    <Setter.Value>
+     <SolidColorBrush Color="{DynamicResource TextFillColorPrimary}" Opacity="0.72"/>
+    </Setter.Value>
+   </Setter>
+   <Setter Property="FocusVisualStyle" Value="{StaticResource HomeResultsTabFocusVisual}"/>
+   <EventSetter Event="PreviewMouseLeftButtonDown" Handler="HomeResultsTabHeaderMouseDown"/>
    <Setter Property="Template">
     <Setter.Value>
      <ControlTemplate TargetType="TabItem">
       <Grid Background="Transparent">
-       <Border x:Name="HoverPill" Background="Transparent" CornerRadius="4" Margin="0,3,0,5"/>
        <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"
+                         TextElement.FontFamily="{TemplateBinding FontFamily}"
+                         TextElement.FontSize="{TemplateBinding FontSize}"
+                         TextElement.FontWeight="{TemplateBinding FontWeight}"
                          Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-       <Border x:Name="SelectionIndicator" Height="2.5" CornerRadius="1.25" Margin="10,0,10,0"
+       <Border x:Name="SelectionIndicator" Height="2.5" CornerRadius="1.25" Margin="12,0,12,0"
                VerticalAlignment="Bottom" Visibility="Collapsed"
-               Background="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+               Background="{DynamicResource AccentFillColorDefaultBrush}"/>
       </Grid>
       <ControlTemplate.Triggers>
        <Trigger Property="IsMouseOver" Value="True">
-        <Setter TargetName="HoverPill" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
        </Trigger>
        <Trigger Property="IsSelected" Value="True">
@@ -117,13 +238,21 @@
   <ControlTemplate x:Key="HomeResultsTabLayout" TargetType="TabControl">
    <Border Style="{StaticResource SettingsCard}" Padding="0" Margin="0">
     <DockPanel>
-     <Border DockPanel.Dock="Top" Padding="10,2,10,0"
+     <Border x:Name="ResultsHeaderBand" DockPanel.Dock="Top" Height="38" Padding="10,0,10,0"
+             Background="{DynamicResource ControlAltFillColorSecondaryBrush}" CornerRadius="5,5,0,0"
              BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
       <TabPanel IsItemsHost="True"/>
      </Border>
      <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"/>
     </DockPanel>
    </Border>
+   <ControlTemplate.Triggers>
+    <Trigger Property="Tag" Value="Collapsed">
+     <Setter TargetName="ResultsHeaderBand" Property="CornerRadius" Value="5"/>
+     <Setter TargetName="ResultsHeaderBand" Property="BorderThickness" Value="0"/>
+     <Setter TargetName="PART_SelectedContentHost" Property="Visibility" Value="Collapsed"/>
+    </Trigger>
+   </ControlTemplate.Triggers>
   </ControlTemplate>
  </ui:FluentWindow.Resources>
  <DockPanel Background="Transparent">
@@ -132,46 +261,56 @@
     <ui:ImageIcon Source="/SiteLift.App;component/Assets/SiteLift.ico"/>
    </ui:TitleBar.Icon>
   </ui:TitleBar>
-  <Grid Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
-  <DockPanel x:Name="HomePage" Margin="24,14,24,14" Background="Transparent" TextElement.FontSize="14">
-   <Border DockPanel.Dock="Top" Style="{StaticResource SettingsCard}" Padding="12,12" Margin="0,0,0,12">
-   <local:HomeToolbarPanel>
-    <WrapPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
-     <WrapPanel.Resources>
-      <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{DynamicResource TextFillColorPrimary}" Opacity="0.8"/>
-      <Style x:Key="BatchActionButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource WorkspaceIconButton}">
-       <Setter Property="Margin" Value="0,0,8,0"/>
-      </Style>
-     </WrapPanel.Resources>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False">
-      <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="Box16" Style="{StaticResource WorkspaceActionIcon}"/>
-      </ui:Button.Icon>
-     </ui:Button>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BrowserPreviewButton" Content="预览" Click="OpenPreviewSelected" IsEnabled="False">
-      <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="Window16" Style="{StaticResource WorkspaceActionIcon}"/>
-      </ui:Button.Icon>
-     </ui:Button>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="ApplyBatchButton" Content="同步" Click="ApplySelected" IsEnabled="False">
-      <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="ArrowSync16" Style="{StaticResource WorkspaceActionIcon}"/>
-      </ui:Button.Icon>
-     </ui:Button>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="PublishBatchButton" Content="推送" Click="PublishSelected" IsEnabled="False">
-      <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource WorkspaceActionIcon}"/>
-      </ui:Button.Icon>
-     </ui:Button>
-     <ui:Button Style="{StaticResource BatchActionButton}" x:Name="RetryPushButton" Content="重试" Visibility="Collapsed" Click="RetryPushSelected">
-      <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="ArrowClockwise16" Style="{StaticResource WorkspaceActionIcon}"/>
-      </ui:Button.Icon>
-     </ui:Button>
-    </WrapPanel>
-     <WrapPanel x:Name="HomeActions" Orientation="Horizontal">
+  <Grid Background="Transparent">
+  <DockPanel x:Name="HomePage" Margin="24,8,24,10" Background="Transparent" TextElement.FontSize="14">
+   <Border x:Name="HomeCommandBar" DockPanel.Dock="Top" Style="{StaticResource SettingsCard}" Padding="10,6" Margin="0,0,0,12">
+    <local:HomeToolbarPanel>
+     <WrapPanel x:Name="BatchActions" Orientation="Horizontal" HorizontalAlignment="Left">
+      <WrapPanel.Resources>
+       <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent"/>
+       <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent"/>
+       <Style x:Key="BatchActionButton" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource WorkspaceIconButton}">
+        <Setter Property="Appearance" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="10,4.5,11.5,5.5"/>
+        <Setter Property="Margin" Value="0,0,4,0"/>
+        <Style.Triggers>
+         <Trigger Property="Appearance" Value="Primary">
+          <Setter Property="BorderThickness" Value="1"/>
+         </Trigger>
+        </Style.Triggers>
+       </Style>
+      </WrapPanel.Resources>
+      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BuildBatchButton" Content="构建" Click="BuildSelected" IsEnabled="False">
+       <ui:Button.Icon>
+        <ui:SymbolIcon Symbol="Box16" Style="{StaticResource WorkspaceActionIcon}"/>
+       </ui:Button.Icon>
+      </ui:Button>
+      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="BrowserPreviewButton" Content="预览" Click="OpenPreviewSelected" IsEnabled="False">
+       <ui:Button.Icon>
+        <ui:SymbolIcon Symbol="Window16" Style="{StaticResource WorkspaceActionIcon}"/>
+       </ui:Button.Icon>
+      </ui:Button>
+      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="ApplyBatchButton" Content="同步" Click="ApplySelected" IsEnabled="False">
+       <ui:Button.Icon>
+        <ui:SymbolIcon Symbol="ArrowSync16" Style="{StaticResource WorkspaceActionIcon}"/>
+       </ui:Button.Icon>
+      </ui:Button>
+      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="PublishBatchButton" Content="推送" Click="PublishSelected" IsEnabled="False">
+       <ui:Button.Icon>
+        <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource WorkspaceActionIcon}"/>
+       </ui:Button.Icon>
+      </ui:Button>
+      <ui:Button Style="{StaticResource BatchActionButton}" x:Name="RetryPushButton" Content="重试" Visibility="Collapsed" Click="RetryPushSelected">
+       <ui:Button.Icon>
+        <ui:SymbolIcon Symbol="ArrowClockwise16" Style="{StaticResource WorkspaceActionIcon}"/>
+       </ui:Button.Icon>
+      </ui:Button>
+     </WrapPanel>
+     <WrapPanel x:Name="HomeActions" Orientation="Horizontal" VerticalAlignment="Center">
       <ui:SplitButton x:Name="NewProjectButton" Content="新建项目" Appearance="Primary"
-                      MinWidth="116" MinHeight="34" Margin="0,0,8,0" Click="NewProject" PreviewKeyDown="MenuKeyDown">
+                      MinWidth="112" MinHeight="32" Margin="0,0,6,0" Click="NewProject" PreviewKeyDown="MenuKeyDown">
        <ui:SplitButton.Style>
         <Style TargetType="ui:SplitButton" BasedOn="{StaticResource {x:Type ui:SplitButton}}">
          <Style.Triggers>
@@ -195,7 +334,14 @@
         </ContextMenu>
        </ui:SplitButton.Flyout>
       </ui:SplitButton>
-      <ui:DropDownButton x:Name="ToolsButton" Content="工具" Appearance="Secondary" MinHeight="34" PreviewKeyDown="MenuKeyDown">
+      <ui:DropDownButton x:Name="ToolsButton" Content="工具" Appearance="Transparent" Background="Transparent" BorderThickness="0"
+                         MouseOverBackground="{DynamicResource SubtleFillColorSecondaryBrush}"
+                         PressedBackground="{DynamicResource SubtleFillColorTertiaryBrush}"
+                         MinHeight="32" PreviewKeyDown="MenuKeyDown">
+       <ui:DropDownButton.Resources>
+        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent"/>
+        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent"/>
+       </ui:DropDownButton.Resources>
        <ui:DropDownButton.Flyout>
         <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}">
          <ui:MenuItem Header="文件复制" Click="OpenFileCopy">
@@ -211,8 +357,31 @@
         </local:RightAlignedContextMenu>
        </ui:DropDownButton.Flyout>
       </ui:DropDownButton>
+      <Border Width="1" Height="16" Margin="6,0" VerticalAlignment="Center"
+              Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+      <ui:Button x:Name="ThemeMenuButton" Style="{StaticResource HomeHeaderIconButton}" Width="32" Height="32"
+                 Click="CycleTheme" ToolTip="主题：浅色（点击切换为深色）" AutomationProperties.Name="切换主题">
+       <Grid Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Path x:Name="ThemeSunIcon" Width="16" Height="16" Stretch="None"
+              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ui:Button}}"
+              StrokeThickness="1.35" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+              Data="M 8,1.8 V 3.4 M 8,12.6 V 14.2 M 1.8,8 H 3.4 M 12.6,8 H 14.2 M 3.6,3.6 L 4.7,4.7 M 11.3,11.3 L 12.4,12.4 M 12.4,3.6 L 11.3,4.7 M 4.7,11.3 L 3.6,12.4 M 10.7,8 A 2.7,2.7 0 1 1 5.3,8 A 2.7,2.7 0 1 1 10.7,8 Z"/>
+        <Path x:Name="ThemeMoonIcon" Width="16" Height="16" Stretch="None" Visibility="Collapsed"
+              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ui:Button}}"
+              StrokeThickness="1.35" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+              Data="M 13.4,9.6 A 5.6,5.6 0 1 1 6.4,2.6 A 4.4,4.4 0 0 0 13.4,9.6 Z"/>
+        <Grid x:Name="ThemeSystemIcon" Width="16" Height="16" Visibility="Collapsed">
+         <Ellipse Width="11.6" Height="11.6" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ui:Button}}"
+                  StrokeThickness="1.35"/>
+         <Path Width="16" Height="16" Stretch="None"
+               Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ui:Button}}"
+               Data="M 8,2.2 A 5.8,5.8 0 0 1 8,13.8 Z"/>
+        </Grid>
+       </Grid>
+      </ui:Button>
      </WrapPanel>
-   </local:HomeToolbarPanel>
+    </local:HomeToolbarPanel>
    </Border>
    <Border x:Name="BatchProgressPanel" DockPanel.Dock="Top" Style="{StaticResource SettingsCard}"
            Margin="0,0,0,10" Padding="14,8" Visibility="Collapsed">
@@ -239,179 +408,154 @@
      </StackPanel>
     </DockPanel>
    </Border>
-   <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="0,8,0,2"
-           BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
-    <DockPanel>
-     <StackPanel x:Name="FooterActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-      <ui:Button Style="{StaticResource WorkspaceIconButton}" Appearance="Secondary" x:Name="ExportDiagnosticsButton" VerticalAlignment="Stretch" FontSize="13" Margin="0,0,12,0" Content="导出诊断" Click="ExportDiagnostics">
-       <ui:Button.Icon>
-        <ui:SymbolIcon Symbol="Document16" Style="{StaticResource WorkspaceActionIcon}"/>
-       </ui:Button.Icon>
-      </ui:Button>
-      <TextBlock x:Name="ThemeChoiceCaption" Text="主题" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"
-                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-      <ComboBox x:Name="ThemeChoice" MinWidth="108" VerticalAlignment="Stretch" Margin="0,0,12,0" FontSize="13" SelectedIndex="1"
-                SelectionChanged="ChooseTheme" AutomationProperties.LabeledBy="{Binding ElementName=ThemeChoiceCaption}">
-       <ComboBox.Style>
-        <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-         <Setter Property="Popup.Placement" Value="Top"/>
-        </Style>
-       </ComboBox.Style>
-       <ComboBoxItem Content="跟随系统" Tag="System"/>
-       <ComboBoxItem Content="浅色" Tag="Light"/>
-       <ComboBoxItem Content="深色" Tag="Dark"/>
-      </ComboBox>
-      <ui:Button Appearance="Secondary" x:Name="CheckUpdatesButton" MinWidth="116" MinHeight="34" VerticalAlignment="Stretch" Padding="12,5.5,12,6.5"
-                 FontSize="13" Click="CheckUpdates" AutomationProperties.Name="{Binding Text, ElementName=UpdateActionText}">
-       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <TextBlock x:Name="UpdateActionText" Text="检查更新" MinWidth="52" VerticalAlignment="Center"/>
-        <TextBlock x:Name="AppVersionText" Margin="6,0,0,0" VerticalAlignment="Center">
-         <TextBlock.Style>
-          <Style TargetType="TextBlock">
-           <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
-           <Style.Triggers>
-            <DataTrigger Binding="{Binding IsEnabled, RelativeSource={RelativeSource AncestorType=ui:Button}}" Value="False">
-             <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}"/>
-            </DataTrigger>
-           </Style.Triggers>
-          </Style>
-         </TextBlock.Style>
-        </TextBlock>
-       </StackPanel>
-      </ui:Button>
-     </StackPanel>
-     <TextBlock x:Name="HomeFooterSummary" Style="{StaticResource SettingsCardSubtitle}" VerticalAlignment="Center" Margin="2,0,16,0"
-                Text="双击项目行可打开配置，勾选后可执行批量操作。"/>
-    </DockPanel>
-   </Border>
+   <DockPanel DockPanel.Dock="Bottom" Margin="2,8,2,0" Height="24">
+    <StackPanel x:Name="FooterActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+     <ui:Button Style="{StaticResource HomeStatusLinkButton}" x:Name="ExportDiagnosticsButton" Content="导出诊断" Click="ExportDiagnostics"/>
+     <Border Width="1" Height="11" Margin="4,0" VerticalAlignment="Center"
+             Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+     <ui:Button Style="{StaticResource HomeStatusLinkButton}" x:Name="CheckUpdatesButton" Click="CheckUpdates"
+                AutomationProperties.Name="{Binding Text, ElementName=UpdateActionText}">
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+       <TextBlock x:Name="UpdateActionText" Text="检查更新" VerticalAlignment="Center"/>
+       <TextBlock x:Name="AppVersionText" Margin="5,0,0,0" VerticalAlignment="Center" Opacity="0.8"/>
+      </StackPanel>
+     </ui:Button>
+    </StackPanel>
+    <TextBlock x:Name="HomeFooterSummary" Style="{StaticResource SettingsCardSubtitle}" VerticalAlignment="Center" Margin="2,0,16,0"
+               Text="双击项目行可打开配置，勾选后可执行批量操作。"/>
+   </DockPanel>
    <ScrollViewer DockPanel.Dock="Bottom" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <ui:InfoBar x:Name="HomeStatus" IsOpen="False" IsClosable="True" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
    </ScrollViewer>
-   <Grid>
+   <Grid x:Name="HomeWorkspaceGrid">
     <Grid.RowDefinitions>
-     <RowDefinition Height="40*" MinHeight="112"/>
-     <RowDefinition Height="16"/>
-     <RowDefinition Height="60*" MinHeight="140"/>
+     <RowDefinition x:Name="HomeProjectsRow" Height="40*" MinHeight="112"/>
+     <RowDefinition x:Name="HomeSplitterRow" Height="16"/>
+     <RowDefinition x:Name="HomeResultsRow" Height="60*" MinHeight="140"/>
     </Grid.RowDefinitions>
-    <Grid>
+    <Grid Grid.Row="0">
      <Border x:Name="ProjectTableFrame" Style="{StaticResource SettingsCard}" Padding="0" Margin="0">
-    <ui:DataGrid x:Name="Projects" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" SizeChanged="DashboardTableSizeChanged" RowHeight="42" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
-              HeadersVisibility="Column" SelectionMode="Single" ColumnHeaderHeight="38" Background="Transparent" BorderThickness="0"
-              SelectionChanged="ProjectSelectionChanged">
-     <DataGrid.RowStyle>
-      <Style TargetType="DataGridRow">
-       <EventSetter Event="MouseDoubleClick" Handler="OpenProjectRow"/>
-       <EventSetter Event="ContextMenuOpening" Handler="ProjectRowMenuOpening"/>
-       <Setter Property="ContextMenu" Value="{DynamicResource ProjectRowMenu}"/>
-       <Setter Property="Background" Value="Transparent"/>
-       <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/></Trigger>
-        <DataTrigger Binding="{Binding Checked}" Value="True"><Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}"/></DataTrigger>
-       </Style.Triggers>
-      </Style>
-     </DataGrid.RowStyle>
-     <DataGrid.Columns>
-      <DataGridTemplateColumn Width="64" MinWidth="64" CanUserSort="False" HeaderStyle="{StaticResource WorkspaceCheckColumnHeader}">
-       <DataGridTemplateColumn.Header>
-        <CheckBox x:Name="SelectAllProjectsCheckBox" IsThreeState="True" Width="20" Height="20" MinWidth="20" MinHeight="20" Padding="0"
-                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                  Click="ToggleSelectAllProjects" ToolTip="全选或取消全选" AutomationProperties.Name="全选项目"/>
-       </DataGridTemplateColumn.Header>
-       <DataGridTemplateColumn.CellTemplate><DataTemplate>
-        <CheckBox Width="20" Height="20" MinWidth="20" MinHeight="20" Padding="0"
-                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                  IsChecked="{Binding Checked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                  Click="ProjectCheckChanged" AutomationProperties.Name="{Binding Name}"/>
-       </DataTemplate></DataGridTemplateColumn.CellTemplate>
-      </DataGridTemplateColumn>
-      <DataGridTemplateColumn Header="项目名称" Width="1.45*" MinWidth="104" SortMemberPath="Name">
-       <DataGridTemplateColumn.CellTemplate><DataTemplate>
-        <DockPanel Margin="12,0" VerticalAlignment="Center">
-         <ui:SymbolIcon DockPanel.Dock="Left" Symbol="Folder16" FontSize="16" Width="16" Height="16" Margin="0,1,8,0"
-                        VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-         <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="Normal"
-                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextOptions.TextRenderingMode="ClearType"
-                    TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
-        </DockPanel>
-       </DataTemplate></DataGridTemplateColumn.CellTemplate>
-      </DataGridTemplateColumn>
-      <DataGridTextColumn Header="Git 本地仓库" Width="2.8*" MinWidth="120" Binding="{Binding Repository}" ElementStyle="{StaticResource WorkspaceTableSecondaryText}"/>
-      <DataGridTextColumn Header="Git 远端仓库" Width="2.65*" MinWidth="120" Binding="{Binding RemoteRepository}" ElementStyle="{StaticResource WorkspaceTableSecondaryText}"/>
-      <DataGridTemplateColumn Header="快捷访问" Width="216" MinWidth="210" CanUserSort="False" HeaderStyle="{StaticResource WorkspaceCenteredColumnHeader}">
-       <DataGridTemplateColumn.CellTemplate><DataTemplate>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-         <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Local" Click="OpenRepositoryShortcut"
-                 ToolTip="打开 Git 本地仓库" AutomationProperties.Name="打开 Git 本地仓库">
-          <ui:SymbolIcon Symbol="FolderOpen24" FontSize="16"/>
-         </ui:Button>
-         <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Wsl" Click="OpenRepositoryShortcut"
-                 ToolTip="打开本地构建环境" AutomationProperties.Name="打开本地构建环境">
-          <ui:SymbolIcon Symbol="Desktop24" FontSize="16"/>
-         </ui:Button>
-         <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="WslTerminal" Click="OpenRepositoryShortcut"
-                 ToolTip="在终端打开 WSL 项目目录" AutomationProperties.Name="在终端打开 WSL 项目目录">
-          <ui:SymbolIcon Symbol="WindowConsole20" FontSize="16"/>
-         </ui:Button>
-         <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Remote" Click="OpenRepositoryShortcut"
-                 ToolTip="打开 Git 远端仓库" AutomationProperties.Name="打开 Git 远端仓库">
-          <ui:SymbolIcon Symbol="Globe24" FontSize="16"/>
-         </ui:Button>
-         <Border Width="1" Height="14" Margin="4,0" VerticalAlignment="Center"
-                 Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
-         <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Reinstall" Click="OpenRepositoryShortcut"
-                 ToolTip="重装依赖" AutomationProperties.Name="重装依赖">
-          <ui:SymbolIcon Symbol="Box24" FontSize="16"/>
-         </ui:Button>
-         <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="UpgradeTheme" Click="OpenRepositoryShortcut"
-                 ToolTip="升级主题" AutomationProperties.Name="升级主题">
-          <ui:SymbolIcon Symbol="PaintBrush24" FontSize="16"/>
-         </ui:Button>
-        </StackPanel>
-       </DataTemplate></DataGridTemplateColumn.CellTemplate>
-      </DataGridTemplateColumn>
-      <DataGridTemplateColumn Header="进度" Width="1.45*" MinWidth="104" SortMemberPath="Progress">
-       <DataGridTemplateColumn.CellTemplate><DataTemplate>
-        <ui:Badge HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0">
-         <ui:Badge.Style>
-          <Style TargetType="ui:Badge" BasedOn="{StaticResource {x:Type ui:Badge}}">
-           <Setter Property="Appearance" Value="Secondary"/>
-           <Setter Property="Content" Value="{Binding Progress}"/>
-           <Style.Triggers>
-            <DataTrigger Binding="{Binding Progress}" Value="待构建">
-             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="无需推送">
-             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="可同步"><Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="可推送"><Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="已提交，待推送">
-             <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}"/>
-             <Setter Property="Content" Value="待推送"/>
-             <Setter Property="ToolTip" Value="{Binding Progress}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="已推送"><Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding Progress}" Value="操作失败"><Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}"/><Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/></DataTrigger>
-           </Style.Triggers>
-          </Style>
-         </ui:Badge.Style>
-        </ui:Badge>
-       </DataTemplate></DataGridTemplateColumn.CellTemplate>
-      </DataGridTemplateColumn>
-     </DataGrid.Columns>
-    </ui:DataGrid>
+      <Grid>
+       <Border VerticalAlignment="Top" Height="38" CornerRadius="5,5,0,0"
+               Background="{DynamicResource ControlAltFillColorSecondaryBrush}"
+               BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
+               IsHitTestVisible="False"/>
+       <ui:DataGrid x:Name="Projects" ColumnHeaderStyle="{StaticResource WorkspaceProjectColumnHeader}" SizeChanged="DashboardTableSizeChanged" RowHeight="42" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                    HeadersVisibility="Column" SelectionMode="Single" ColumnHeaderHeight="38" Background="Transparent" BorderThickness="0"
+                    SelectionChanged="ProjectSelectionChanged">
+        <DataGrid.RowStyle>
+         <Style TargetType="DataGridRow">
+          <EventSetter Event="MouseDoubleClick" Handler="OpenProjectRow"/>
+          <EventSetter Event="ContextMenuOpening" Handler="ProjectRowMenuOpening"/>
+          <Setter Property="ContextMenu" Value="{DynamicResource ProjectRowMenu}"/>
+          <Setter Property="Background" Value="Transparent"/>
+          <Style.Triggers>
+           <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}"/></Trigger>
+           <DataTrigger Binding="{Binding Checked}" Value="True"><Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}"/></DataTrigger>
+          </Style.Triggers>
+         </Style>
+        </DataGrid.RowStyle>
+        <DataGrid.Columns>
+         <DataGridTemplateColumn Width="64" MinWidth="64" CanUserSort="False" HeaderStyle="{StaticResource WorkspaceCheckColumnHeader}">
+          <DataGridTemplateColumn.Header>
+           <CheckBox x:Name="SelectAllProjectsCheckBox" Style="{StaticResource WorkspaceTableCheckBox}" IsThreeState="True"
+                     Click="ToggleSelectAllProjects" ToolTip="全选或取消全选" AutomationProperties.Name="全选项目"/>
+          </DataGridTemplateColumn.Header>
+          <DataGridTemplateColumn.CellTemplate><DataTemplate>
+           <CheckBox Style="{StaticResource WorkspaceTableCheckBox}"
+                     IsChecked="{Binding Checked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Click="ProjectCheckChanged" AutomationProperties.Name="{Binding Name}"/>
+          </DataTemplate></DataGridTemplateColumn.CellTemplate>
+         </DataGridTemplateColumn>
+         <DataGridTemplateColumn Header="项目名称" Width="1.45*" MinWidth="104" SortMemberPath="Name">
+          <DataGridTemplateColumn.CellTemplate><DataTemplate>
+           <DockPanel Margin="12,0" VerticalAlignment="Center">
+            <Grid DockPanel.Dock="Left" Width="18" Height="18" Margin="0,1.5,8,0" VerticalAlignment="Center"
+                  ToolTip="{Binding FrameworkLabel}">
+             <ui:SymbolIcon Symbol="Folder20" FontSize="17" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                            Visibility="{Binding FallbackFolderVisibility}"/>
+             <Image Source="{Binding FrameworkImage}" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    SnapsToDevicePixels="True" Visibility="{Binding CustomFrameworkVisibility}"/>
+            </Grid>
+            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="14" FontWeight="Normal"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextOptions.TextRenderingMode="ClearType"
+                       TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
+           </DockPanel>
+          </DataTemplate></DataGridTemplateColumn.CellTemplate>
+         </DataGridTemplateColumn>
+         <DataGridTextColumn Header="Git 本地仓库" Width="2.8*" MinWidth="120" Binding="{Binding Repository}" ElementStyle="{StaticResource WorkspaceTableSecondaryText}"/>
+         <DataGridTextColumn Header="Git 远端仓库" Width="2.65*" MinWidth="120" Binding="{Binding RemoteRepository}" ElementStyle="{StaticResource WorkspaceTableSecondaryText}"/>
+         <DataGridTemplateColumn Header="快捷访问" Width="216" MinWidth="210" CanUserSort="False" HeaderStyle="{StaticResource WorkspaceProjectCenteredColumnHeader}">
+          <DataGridTemplateColumn.CellTemplate><DataTemplate>
+           <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Local" Click="OpenRepositoryShortcut"
+                    ToolTip="打开 Git 本地仓库" AutomationProperties.Name="打开 Git 本地仓库">
+             <ui:SymbolIcon Symbol="FolderOpen20" FontSize="17"/>
+            </ui:Button>
+            <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Wsl" Click="OpenRepositoryShortcut"
+                    ToolTip="打开本地构建环境" AutomationProperties.Name="打开本地构建环境">
+             <ui:SymbolIcon Symbol="Desktop20" FontSize="17"/>
+            </ui:Button>
+            <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="WslTerminal" Click="OpenRepositoryShortcut"
+                    ToolTip="在终端打开 WSL 项目目录" AutomationProperties.Name="在终端打开 WSL 项目目录">
+             <ui:SymbolIcon Symbol="WindowConsole20" FontSize="17"/>
+            </ui:Button>
+            <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Remote" Click="OpenRepositoryShortcut"
+                    ToolTip="打开 Git 远端仓库" AutomationProperties.Name="打开 Git 远端仓库">
+             <ui:SymbolIcon Symbol="Globe20" FontSize="17"/>
+            </ui:Button>
+            <Border Width="1" Height="14" Margin="4,0" VerticalAlignment="Center"
+                    Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+            <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Reinstall" Click="OpenRepositoryShortcut"
+                    ToolTip="重装依赖" AutomationProperties.Name="重装依赖">
+             <ui:SymbolIcon Symbol="Box20" FontSize="17"/>
+            </ui:Button>
+            <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="UpgradeTheme" Click="OpenRepositoryShortcut"
+                    ToolTip="升级主题" AutomationProperties.Name="升级主题">
+             <ui:SymbolIcon Symbol="PaintBrush20" FontSize="17"/>
+            </ui:Button>
+           </StackPanel>
+          </DataTemplate></DataGridTemplateColumn.CellTemplate>
+         </DataGridTemplateColumn>
+         <DataGridTemplateColumn Header="进度" Width="1.45*" MinWidth="104" SortMemberPath="Progress">
+          <DataGridTemplateColumn.CellTemplate><DataTemplate>
+           <ui:Badge HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0">
+            <ui:Badge.Style>
+             <Style TargetType="ui:Badge" BasedOn="{StaticResource {x:Type ui:Badge}}">
+              <Setter Property="Appearance" Value="Secondary"/>
+              <Setter Property="Content" Value="{Binding Progress}"/>
+              <Style.Triggers>
+               <DataTrigger Binding="{Binding Progress}" Value="可同步"><Setter Property="Appearance" Value="Success"/></DataTrigger>
+               <DataTrigger Binding="{Binding Progress}" Value="可推送"><Setter Property="Appearance" Value="Info"/></DataTrigger>
+               <DataTrigger Binding="{Binding Progress}" Value="已提交，待推送">
+                <Setter Property="Appearance" Value="Caution"/>
+                <Setter Property="Content" Value="待推送"/>
+                <Setter Property="ToolTip" Value="{Binding Progress}"/>
+               </DataTrigger>
+               <DataTrigger Binding="{Binding Progress}" Value="已推送"><Setter Property="Appearance" Value="Success"/></DataTrigger>
+               <DataTrigger Binding="{Binding Progress}" Value="操作失败"><Setter Property="Appearance" Value="Danger"/></DataTrigger>
+              </Style.Triggers>
+             </Style>
+            </ui:Badge.Style>
+           </ui:Badge>
+          </DataTemplate></DataGridTemplateColumn.CellTemplate>
+         </DataGridTemplateColumn>
+        </DataGrid.Columns>
+       </ui:DataGrid>
+      </Grid>
      </Border>
      <Border x:Name="EmptyProjects" Style="{StaticResource SettingsCard}" Margin="0" Visibility="Collapsed">
       <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-       <ui:SymbolIcon Symbol="FolderOpen24" FontSize="28" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+       <ui:SymbolIcon Symbol="FolderOpen24" FontSize="28" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,8"/>
        <TextBlock Text="还没有项目" Style="{StaticResource SettingsCardTitle}" HorizontalAlignment="Center"/>
        <TextBlock Text="点击右上角「新建项目」或「导入 JSON」开始管理站点。" Style="{StaticResource SettingsCardSubtitle}" Margin="0,4,0,0" HorizontalAlignment="Center" TextAlignment="Center"/>
       </StackPanel>
      </Border>
     </Grid>
-    <GridSplitter Grid.Row="1" Height="16" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+    <GridSplitter Grid.Row="1" x:Name="HomeWorkspaceSplitter" Height="16" HorizontalAlignment="Stretch" VerticalAlignment="Center"
                   ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Cursor="SizeNS"
-                  AutomationProperties.Name="调整项目列表和结果区高度">
+                  ToolTip="上下拖动调整项目列表和结果区高度" AutomationProperties.Name="调整项目列表和结果区高度">
      <GridSplitter.Template>
       <ControlTemplate TargetType="GridSplitter">
        <Grid Background="Transparent">
@@ -423,34 +567,37 @@
          <Setter TargetName="SplitterPill" Property="Background" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
          <Setter TargetName="SplitterPill" Property="Width" Value="48"/>
         </Trigger>
+        <Trigger Property="IsDragging" Value="True">
+         <Setter TargetName="SplitterPill" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+         <Setter TargetName="SplitterPill" Property="Width" Value="56"/>
+        </Trigger>
        </ControlTemplate.Triggers>
       </ControlTemplate>
      </GridSplitter.Template>
     </GridSplitter>
-    <TabControl Grid.Row="2" x:Name="HomeResults" Template="{StaticResource HomeResultsTabLayout}"
-                ItemContainerStyle="{StaticResource HomeResultsTabItem}">
-     <TabItem x:Name="HomeChangesTab" AutomationProperties.Name="变更清单">
-      <TabItem.Header>
-       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <ui:SymbolIcon Symbol="Document16" FontSize="16" Margin="0,1.5,6,0" VerticalAlignment="Center"/>
-        <TextBlock Text="变更清单" VerticalAlignment="Center"/>
-        <ui:Badge x:Name="HomeChangesBadge" Appearance="Info" Visibility="Collapsed" VerticalAlignment="Center" Margin="8,0,0,0"/>
-       </StackPanel>
-      </TabItem.Header>
-      <DockPanel TextElement.FontWeight="Normal">
-       <Border x:Name="HomeChangesSummaryBar" DockPanel.Dock="Top" Padding="14,10" Visibility="Collapsed"
-               BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
-        <TextBlock x:Name="HomeChangesSummary" Style="{StaticResource SettingsCardSubtitle}" Text="构建后显示待同步变更。"/>
-       </Border>
-       <Grid>
+    <Grid Grid.Row="2">
+     <TabControl x:Name="HomeResults" Template="{StaticResource HomeResultsTabLayout}"
+                 ItemContainerStyle="{StaticResource HomeResultsTabItem}"
+                 SelectionChanged="HomeResultsTabChanged">
+      <TabItem x:Name="HomeChangesTab" AutomationProperties.Name="变更清单">
+       <TabItem.Header>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+         <ui:SymbolIcon Symbol="Document16" Style="{StaticResource HomeResultsTabIcon}"/>
+         <TextBlock Text="变更清单" Style="{StaticResource HomeResultsTabText}"/>
+         <TextBlock x:Name="HomeChangesBadge" FontFamily="{StaticResource WorkspaceSmallTypeface}" FontSize="11.5" FontWeight="SemiBold"
+                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Visibility="Collapsed" VerticalAlignment="Center" Margin="5,0.5,0,0"/>
+        </StackPanel>
+       </TabItem.Header>
+       <Grid TextElement.FontWeight="Normal">
         <ui:DataGrid x:Name="HomeChanges" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" Background="Transparent" BorderThickness="0" RowHeight="36" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}" ScrollViewer.HorizontalScrollBarVisibility="Auto" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" ColumnHeaderHeight="36" Visibility="Collapsed">
          <DataGrid.GroupStyle>
           <GroupStyle>
            <GroupStyle.HeaderTemplate>
             <DataTemplate>
-             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Padding="12,6">
+             <TextBlock Text="{Binding Name}" FontFamily="{StaticResource WorkspaceSmallTypeface}" FontSize="12" FontWeight="SemiBold" Padding="12,8,12,6">
               <TextBlock.Style>
                <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
                 <Style.Triggers>
                  <DataTrigger Binding="{Binding Name}" Value="目标清理（永久删除）">
                   <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
@@ -473,26 +620,11 @@
                <Style TargetType="ui:Badge" BasedOn="{StaticResource {x:Type ui:Badge}}">
                 <Setter Property="Appearance" Value="Secondary"/>
                 <Style.Triggers>
-                 <DataTrigger Binding="{Binding Action}" Value="新增">
-                  <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
-                 </DataTrigger>
-                 <DataTrigger Binding="{Binding Action}" Value="修改">
-                  <Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
-                 </DataTrigger>
-                 <DataTrigger Binding="{Binding Action}" Value="类型变更">
-                  <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}"/>
-                 </DataTrigger>
-                 <DataTrigger Binding="{Binding Action}" Value="源端删除">
-                  <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
-                 </DataTrigger>
-                 <DataTrigger Binding="{Binding Action}" Value="目标清理">
-                  <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
-                 </DataTrigger>
+                 <DataTrigger Binding="{Binding Action}" Value="新增"><Setter Property="Appearance" Value="Success"/></DataTrigger>
+                 <DataTrigger Binding="{Binding Action}" Value="修改"><Setter Property="Appearance" Value="Info"/></DataTrigger>
+                 <DataTrigger Binding="{Binding Action}" Value="类型变更"><Setter Property="Appearance" Value="Caution"/></DataTrigger>
+                 <DataTrigger Binding="{Binding Action}" Value="源端删除"><Setter Property="Appearance" Value="Danger"/></DataTrigger>
+                 <DataTrigger Binding="{Binding Action}" Value="目标清理"><Setter Property="Appearance" Value="Danger"/></DataTrigger>
                 </Style.Triggers>
                </Style>
               </ui:Badge.Style>
@@ -503,7 +635,7 @@
           <DataGridTemplateColumn Header="路径" Width="2.75*" MinWidth="160" SortMemberPath="Path">
            <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
-             <TextBlock Style="{StaticResource WorkspaceTableText}" FontSize="13" ToolTip="{Binding Path}">
+             <TextBlock Style="{StaticResource WorkspaceTableText}" ToolTip="{Binding Path}">
               <Run Text="{Binding DirectoryPrefix, Mode=OneWay}" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/><Run Text="{Binding FileName, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
              </TextBlock>
             </DataTemplate>
@@ -512,84 +644,106 @@
          </DataGrid.Columns>
         </ui:DataGrid>
         <StackPanel x:Name="EmptyChangesPanel" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-         <ui:SymbolIcon Symbol="DocumentText24" FontSize="26" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,8"/>
-         <TextBlock x:Name="EmptyChangesTitle" Text="暂无待同步变更" Style="{StaticResource SettingsCardTitle}" HorizontalAlignment="Center"/>
-         <TextBlock x:Name="EmptyChangesSubtitle" Text="勾选上方项目并点击「构建」，此处将按分类展示待同步的文件变更。"
-                    Style="{StaticResource SettingsCardSubtitle}" HorizontalAlignment="Center" TextAlignment="Center" Margin="24,4,24,0"/>
+         <ui:SymbolIcon Symbol="DocumentText24" FontSize="22" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+         <TextBlock x:Name="EmptyChangesTitle" Text="暂无待同步变更" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center"/>
+         <TextBlock x:Name="EmptyChangesSubtitle" Text="构建后显示待同步文件" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    HorizontalAlignment="Center" TextAlignment="Center" Margin="0,2,0,0"/>
         </StackPanel>
        </Grid>
-      </DockPanel>
-     </TabItem>
-     <TabItem x:Name="HomeLogTab" AutomationProperties.Name="运行日志">
-      <TabItem.Header>
-       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <ui:SymbolIcon Symbol="WindowConsole20" FontSize="16" Margin="0,1.5,6,0" VerticalAlignment="Center"/>
-        <TextBlock Text="运行日志" VerticalAlignment="Center"/>
-       </StackPanel>
-      </TabItem.Header>
-      <DockPanel TextElement.FontWeight="Normal">
-       <Border DockPanel.Dock="Top" Padding="14,8" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
-        <DockPanel>
-         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-          <ui:Button Style="{StaticResource WorkspaceCompactIconButton}" Appearance="Secondary" Content="复制日志" Margin="0,0,8,0" Click="CopyHomeLog">
-           <ui:Button.Icon>
-            <ui:SymbolIcon Symbol="Copy16" Style="{StaticResource WorkspaceActionIcon}"/>
-           </ui:Button.Icon>
-          </ui:Button>
-          <ui:Button Style="{StaticResource WorkspaceCompactIconButton}" Appearance="Secondary" Content="清空日志" Click="ClearHomeLog">
-           <ui:Button.Icon>
-            <ui:SymbolIcon Symbol="Delete16" Style="{StaticResource WorkspaceActionIcon}"/>
-           </ui:Button.Icon>
-          </ui:Button>
-         </StackPanel>
-         <TextBlock Text="构建、预览、同步与推送的实时输出日志" Style="{StaticResource SettingsCardSubtitle}" VerticalAlignment="Center"/>
-        </DockPanel>
-       </Border>
-       <Grid>
-        <RichTextBox x:Name="HomeLog" Style="{StaticResource WorkspaceRichLog}" AutomationProperties.Name="运行日志">
-         <FlowDocument PagePadding="0" LineHeight="20" LineStackingStrategy="BlockLineHeight"/>
+      </TabItem>
+      <TabItem x:Name="HomeLogTab" AutomationProperties.Name="运行日志">
+       <TabItem.Header>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+         <ui:SymbolIcon Symbol="WindowConsole20" Style="{StaticResource HomeResultsTabIcon}"/>
+         <TextBlock Text="运行日志" Style="{StaticResource HomeResultsTabText}"/>
+        </StackPanel>
+       </TabItem.Header>
+       <Grid Background="Transparent" TextElement.FontWeight="Normal">
+        <RichTextBox x:Name="HomeLog" Style="{StaticResource WorkspaceRichLog}" Padding="16,12" AutomationProperties.Name="运行日志">
+         <FlowDocument PagePadding="0" LineHeight="19" LineStackingStrategy="BlockLineHeight"/>
         </RichTextBox>
         <StackPanel x:Name="EmptyHomeLogPanel" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-         <ui:SymbolIcon Symbol="WindowConsole20" FontSize="26" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,8"/>
-         <TextBlock Text="暂无运行日志" Style="{StaticResource SettingsCardTitle}" HorizontalAlignment="Center"/>
-         <TextBlock Text="执行构建、预览、同步或推送后，实时命令输出将显示在此处。"
-                    Style="{StaticResource SettingsCardSubtitle}" HorizontalAlignment="Center" TextAlignment="Center" Margin="24,4,24,0"/>
+         <ui:SymbolIcon Symbol="WindowConsole20" FontSize="22" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+         <TextBlock Text="暂无运行日志" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center"/>
+         <TextBlock Text="执行构建或维护操作后实时输出" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
         </StackPanel>
        </Grid>
-      </DockPanel>
-     </TabItem>
-    </TabControl>
+      </TabItem>
+     </TabControl>
+     <!-- Inline Right Tools inside the 38px Results Header Bar -->
+     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Height="38" Margin="0,1,11,0">
+      <StackPanel x:Name="HomeChangesHeaderTools" Orientation="Horizontal" VerticalAlignment="Center">
+       <TextBlock x:Name="HomeChangesSummary" FontFamily="{StaticResource WorkspaceSmallTypeface}" FontSize="12"
+                  Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" Text="待同步 0"/>
+       <ui:Badge x:Name="HomeChangesAddedBadge" Appearance="Success" Visibility="Collapsed" VerticalAlignment="Center" Margin="0,0,6,0"/>
+       <ui:Badge x:Name="HomeChangesModifiedBadge" Appearance="Info" Visibility="Collapsed" VerticalAlignment="Center" Margin="0,0,6,0"/>
+       <ui:Badge x:Name="HomeChangesDeletedBadge" Appearance="Danger" Visibility="Collapsed" VerticalAlignment="Center"/>
+      </StackPanel>
+      <StackPanel x:Name="HomeLogHeaderTools" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+       <ui:Button Style="{StaticResource HomeHeaderIconButton}" Click="CopyHomeLog" ToolTip="复制日志" AutomationProperties.Name="复制日志">
+        <ui:SymbolIcon Symbol="Copy16" FontSize="15"/>
+       </ui:Button>
+       <ui:Button Style="{StaticResource HomeHeaderIconButton}" Click="ClearHomeLog" Margin="2,0,0,0" ToolTip="清空日志" AutomationProperties.Name="清空日志">
+        <ui:SymbolIcon Symbol="Delete16" FontSize="15"/>
+       </ui:Button>
+      </StackPanel>
+      <Border Width="1" Height="14" Margin="8,0,6,0" VerticalAlignment="Center"
+              Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+      <ui:Button x:Name="ToggleResultsCollapseButton" Style="{StaticResource HomeHeaderIconButton}"
+                 Click="ToggleResultsCollapse" ToolTip="收起结果区" AutomationProperties.Name="收起或展开结果区">
+       <Path x:Name="ResultsCollapseChevron" Width="12" Height="12" Stretch="None"
+             Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ui:Button}}"
+             StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+             Data="M 2.5,4.2 L 6,7.8 L 9.5,4.2"/>
+      </ui:Button>
+     </StackPanel>
+    </Grid>
    </Grid>
   </DockPanel>
   <DockPanel x:Name="ProjectPage" Visibility="Collapsed" Background="Transparent" TextElement.FontSize="14" TextElement.FontWeight="Normal">
-  <Border DockPanel.Dock="Top" Background="{DynamicResource LayerFillColorDefaultBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="24,12">
-   <StackPanel>
-   <DockPanel>
-    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-     <TextBlock x:Name="ActiveProjectHeaderTitle" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
-                MaxWidth="260" TextTrimming="CharacterEllipsis" Text="新建项目"/>
-     <ui:Badge x:Name="UnsavedChangesBadge" Appearance="Caution" Content="未保存" Visibility="Collapsed" VerticalAlignment="Center" Margin="8,0,0,0"/>
-     <ui:Badge x:Name="JsonPendingBadge" Appearance="Caution" Content="JSON 待应用" Visibility="Collapsed" VerticalAlignment="Center" Margin="8,0,0,0"/>
-    </StackPanel>
-    <WrapPanel x:Name="Actions">
-     <ui:Button Style="{StaticResource WorkspaceIconButton}" Appearance="Secondary" Margin="0,0,8,0" Content="返回项目列表" Click="BackToHome">
+  <StackPanel DockPanel.Dock="Top" Margin="14,6,24,10">
+   <DockPanel x:Name="Actions">
+    <WrapPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+     <ui:Button Style="{StaticResource WorkspaceIconButton}" Appearance="Transparent" BorderThickness="0"
+                Margin="0,0,8,0" Content="导出 JSON" Click="Save" ToolTip="将当前表单导出成 JSON 文件">
+      <ui:Button.Resources>
+       <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent"/>
+       <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent"/>
+      </ui:Button.Resources>
       <ui:Button.Icon>
-       <ui:SymbolIcon Symbol="ArrowLeft16" Style="{StaticResource WorkspaceActionIcon}"/>
+       <ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource WorkspaceActionIcon}"/>
       </ui:Button.Icon>
      </ui:Button>
-     <ui:Button x:Name="SaveProjectButton" Style="{StaticResource WorkspaceIconButton}" Appearance="Secondary" IsEnabled="False" Margin="0,0,8,0" Content="保存项目" Click="SaveProject">
+     <ui:Button x:Name="SaveProjectButton" Style="{StaticResource WorkspaceIconButton}" Appearance="Secondary" IsEnabled="False" Content="保存项目" Click="SaveProject">
       <ui:Button.Icon>
        <ui:SymbolIcon Symbol="Save16" Style="{StaticResource WorkspaceActionIcon}"/>
       </ui:Button.Icon>
      </ui:Button>
-     <ui:Button Style="{StaticResource WorkspaceTextButton}" Appearance="Secondary" Content="导出 JSON" Click="Save" ToolTip="将当前表单导出成 JSON 文件"/>
     </WrapPanel>
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+     <ui:Button Style="{StaticResource BreadcrumbRootButton}" Content="项目列表" Click="BackToHome"
+                ToolTip="返回项目列表" AutomationProperties.Name="返回项目列表"/>
+     <Path Data="M 4.5,2.5 L 8.5,6.5 L 4.5,10.5" Width="13" Height="13"
+           Stroke="{DynamicResource TextFillColorTertiaryBrush}" StrokeThickness="1.35"
+           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+           VerticalAlignment="Center" Margin="1,1,5,0" IsHitTestVisible="False"/>
+     <Grid x:Name="ActiveProjectIconChip" Width="18" Height="18" Margin="0,1.5,8,0" VerticalAlignment="Center" ToolTip="通用项目">
+      <ui:SymbolIcon x:Name="ActiveProjectFallbackIcon" Symbol="Folder20" FontSize="17" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+      <Image x:Name="ActiveProjectFrameworkImage" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+             SnapsToDevicePixels="True" Visibility="Collapsed"/>
+     </Grid>
+     <TextBlock x:Name="ActiveProjectHeaderTitle" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextOptions.TextRenderingMode="ClearType"
+                MaxWidth="320" TextTrimming="CharacterEllipsis" Text="新建项目"/>
+     <ui:Badge x:Name="UnsavedChangesBadge" Appearance="Caution" Content="未保存" Visibility="Collapsed" VerticalAlignment="Center" Margin="10,0,0,0"/>
+     <ui:Badge x:Name="JsonPendingBadge" Appearance="Caution" Content="JSON 待应用" Visibility="Collapsed" VerticalAlignment="Center" Margin="8,0,0,0"/>
+    </StackPanel>
    </DockPanel>
    <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <ui:InfoBar x:Name="Status" IsOpen="False" IsClosable="True" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
+    <ui:InfoBar x:Name="Status" IsOpen="False" IsClosable="True" Margin="10,8,0,0" AutomationProperties.LiveSetting="Polite"/>
    </ScrollViewer>
-   </StackPanel>
-  </Border>
+  </StackPanel>
    <TabControl x:Name="SettingsTabs" TabStripPlacement="Left" Template="{StaticResource SettingsTabsLayout}"
                ItemContainerStyle="{StaticResource SettingsNavigationItem}"
                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="Transparent">
@@ -605,7 +759,7 @@
        <TextBlock Text="项目与 Git 仓库" VerticalAlignment="Center"/>
       </StackPanel>
      </TabItem.Header>
-     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <ui:DynamicScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <Border Style="{StaticResource SettingsForm}">
        <StackPanel>
         <TextBlock Text="项目与 Git 仓库" Style="{StaticResource SettingsPageTitle}"/>
@@ -758,15 +912,27 @@
            <TextBlock Text="当前目录已是 Git 仓库；仅在元数据损坏或需要切换远端基线时重建 .git" Style="{StaticResource SettingsCardSubtitle}" Margin="0,2,0,0"/>
           </StackPanel>
          </ui:CardExpander.Header>
-         <DockPanel>
-          <ui:Button x:Name="LocalGitResetAction" Style="{StaticResource WorkspaceTextButton}" DockPanel.Dock="Right" Appearance="Danger" Margin="16,0,0,0"
-                     Content="重置 Git 数据" VerticalAlignment="Center" Click="ConfigureLocalRepository"/>
-          <StackPanel VerticalAlignment="Center">
-           <TextBlock Text="按上方远端基线重建 Git 元数据" Style="{StaticResource SettingsCardTitle}"/>
-           <TextBlock x:Name="LocalResetDescription" Style="{StaticResource SettingsCardSubtitle}" Margin="0,2,0,0"
-                      Text="保留当前工作目录中的全部文件，原 .git 目录会自动备份到上级目录。"/>
-          </StackPanel>
-         </DockPanel>
+         <StackPanel>
+          <DockPanel>
+           <ui:ToggleSwitch x:Name="BackupGitOnReset" DockPanel.Dock="Right" IsChecked="False"
+                            OnContent="开启" OffContent="关闭" VerticalAlignment="Center" Margin="16,0,0,0"
+                            AutomationProperties.Name="重置前备份原 .git 目录"/>
+           <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="备份原 .git 目录" Style="{StaticResource SettingsCardTitle}"/>
+            <TextBlock Text="重置前备份到上级目录" Style="{StaticResource SettingsCardSubtitle}" Margin="0,2,0,0"/>
+           </StackPanel>
+          </DockPanel>
+          <Border Height="1" Margin="0,12" Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+          <DockPanel>
+           <ui:Button x:Name="LocalGitResetAction" Style="{StaticResource WorkspaceTextButton}" DockPanel.Dock="Right" Appearance="Danger" Margin="16,0,0,0"
+                      Content="重置 Git 数据" VerticalAlignment="Center" Click="ConfigureLocalRepository"/>
+           <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="重建 Git 元数据" Style="{StaticResource SettingsCardTitle}"/>
+            <TextBlock x:Name="LocalResetDescription" Style="{StaticResource SettingsCardSubtitle}" Margin="0,2,0,0"
+                       Text="按目标分支重建 .git，保留工作目录文件"/>
+           </StackPanel>
+          </DockPanel>
+         </StackPanel>
         </ui:CardExpander>
 
         <ui:InfoBar x:Name="LocalGitStatus" IsOpen="False" IsClosable="True" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
@@ -783,7 +949,7 @@
         <ui:InfoBar x:Name="WindowsGitStatus" IsOpen="False" IsClosable="True" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
        </StackPanel>
       </Border>
-     </ScrollViewer>
+     </ui:DynamicScrollViewer>
     </TabItem>
     <TabItem AutomationProperties.Name="本地构建环境">
      <TabItem.Header>
@@ -792,7 +958,7 @@
        <TextBlock Text="本地构建环境" VerticalAlignment="Center"/>
       </StackPanel>
      </TabItem.Header>
-     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <ui:DynamicScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <Border Style="{StaticResource SettingsForm}">
        <StackPanel>
         <TextBlock Text="本地构建环境" Style="{StaticResource SettingsPageTitle}"/>
@@ -952,7 +1118,7 @@
         </ui:CardExpander>
        </StackPanel>
       </Border>
-     </ScrollViewer>
+     </ui:DynamicScrollViewer>
     </TabItem>
     <TabItem AutomationProperties.Name="同步与清理">
      <TabItem.Header>
@@ -961,7 +1127,7 @@
        <TextBlock Text="同步与清理" VerticalAlignment="Center"/>
       </StackPanel>
      </TabItem.Header>
-     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <ui:DynamicScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <Border Style="{StaticResource SettingsForm}">
        <StackPanel>
         <TextBlock Text="同步与清理" Style="{StaticResource SettingsPageTitle}"/>
@@ -1047,7 +1213,7 @@
                     AutomationProperties.LiveSetting="Polite"/>
        </StackPanel>
       </Border>
-     </ScrollViewer>
+     </ui:DynamicScrollViewer>
     </TabItem>
     <TabItem x:Name="JsonSettingsTab" AutomationProperties.Name="快速配置">
      <TabItem.Header>
@@ -1101,17 +1267,14 @@
            </StackPanel>
           </DockPanel>
          </Border>
-         <Border Padding="14,12,14,14" Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="0,0,5,5">
+         <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="0,0,5,5" ClipToBounds="True">
           <DockPanel>
            <ScrollViewer DockPanel.Dock="Top" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <ui:InfoBar x:Name="JsonStatus" IsOpen="False" IsClosable="True" Margin="0,0,0,10" AutomationProperties.LiveSetting="Polite"/>
+            <ui:InfoBar x:Name="JsonStatus" IsOpen="False" IsClosable="True" Margin="14,12,14,0" AutomationProperties.LiveSetting="Polite"/>
            </ScrollViewer>
-           <ui:TextBox x:Name="Config" Style="{StaticResource WorkspaceLog}"
-                       FontFamily="{StaticResource WorkspaceMonoTypeface}" FontSize="13" FontWeight="Normal"
-                       Padding="14,12"
-                       CaretBrush="{Binding Foreground, RelativeSource={RelativeSource Self}}"
-                       AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Auto"
-                       HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="JSON 配置"/>
+           <TextBox x:Name="Config" Style="{StaticResource WorkspaceCodeEditor}"
+                    AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="JSON 配置"/>
           </DockPanel>
          </Border>
         </DockPanel>

@@ -189,9 +189,9 @@ public partial class MainWindow
             LocalInitCard.Visibility = Visibility.Collapsed;
             LocalMaintenanceCard.Visibility = Visibility.Visible;
             LocalGitResetAction.IsEnabled = hasValidDir && !running;
-            LocalResetDescription.Text = effectiveAddress.Length > 0 && hasBranch
-                ? $"将按 {effectiveAddress} 的「{targetBranch}」分支重建 .git 元数据，保留工作目录文件，原 .git 自动备份。"
-                : "保留当前工作目录中的全部文件，原 .git 目录会自动备份到上级目录。执行前需配置有效远端地址（或本地远端）与目标分支。";
+            LocalResetDescription.Text = hasBranch
+                ? $"按「{targetBranch}」分支重建 .git，保留工作目录文件"
+                : "按目标分支重建 .git，保留工作目录文件";
         }
         else
         {
@@ -482,9 +482,12 @@ public partial class MainWindow
             return;
         }
 
+        bool backupGit = BackupGitOnReset.IsChecked == true;
         string operation = reset ? "重置 Git 数据" : hasFiles ? "接入 Git 仓库" : "克隆到本地";
         string confirmation = reset
-            ? "按所选远端分支重建 Git 元数据，保留工作目录中的文件。原有本地提交、分支、暂存区和仓库设置会保存在原 .git 的备份中。"
+            ? (backupGit
+                ? "按所选远端分支重建 Git 元数据，保留工作目录中的文件。原 .git 目录会备份到上级目录。"
+                : "按所选远端分支重建 Git 元数据，保留工作目录中的文件。原有本地提交、分支、暂存区和仓库设置将被直接删除且不会备份。")
             : hasFiles
             ? "接入所选远端分支的历史，保留现有文件。完成后将显示本地差异。"
             : "将所选远端分支克隆到此空目录。";
@@ -509,12 +512,15 @@ public partial class MainWindow
                 : hasFiles ? RepositoryInitMode.Existing
                 : RepositoryInitMode.Empty;
             var outcome = await SyncEngine.InitializeRepositoryAsync(config, mode,
-                line => messages.Add(line));
+                line => messages.Add(line), backupGitMetadata: backupGit);
 
             succeeded = true;
             InvalidateLocalRepositoryPlans(path);
-            string result = reset ? $"Git 数据已重置，工作文件已保留。原 .git 备份：{outcome.BackupPath}" :
-                hasFiles ? "Git 仓库已接入，现有文件已保留。" : "克隆完成，可以开始构建与同步。";
+            string result = reset
+                ? (outcome.BackupPath is not null
+                    ? $"Git 数据已重置，工作文件已保留。原 .git 备份：{outcome.BackupPath}"
+                    : "Git 数据已重置，工作文件已保留。")
+                : hasFiles ? "Git 仓库已接入，现有文件已保留。" : "克隆完成，可以开始构建与同步。";
             if (outcome.StatusUnavailable)
                 result += "\n无法读取差异。请在本地仓库查看 Git 状态。";
             LocalGitStatus.ShowFeedback(result, outcome.StatusUnavailable ? InfoBarSeverity.Warning : InfoBarSeverity.Success);

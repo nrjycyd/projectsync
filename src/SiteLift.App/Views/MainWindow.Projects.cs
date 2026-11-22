@@ -43,8 +43,89 @@ public partial class MainWindow
         if (displayName.Length == 0)
             displayName = activeProject?.Name ?? "新建项目";
         ActiveProjectHeaderTitle.Text = displayName;
+        UpdateActiveProjectFrameworkVisual();
         UnsavedChangesBadge.Visibility = !jsonDraft && hasChanges ? Visibility.Visible : Visibility.Collapsed;
         JsonPendingBadge.Visibility = jsonDraft ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private readonly HashSet<string> probedWslFrameworks = new(StringComparer.Ordinal);
+
+    private static bool IsDarkThemeActive() =>
+        Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
+
+    private void UpdateActiveProjectFrameworkVisual()
+    {
+        if (ActiveProjectIconChip is null) return;
+        string cfg = SerializeConfig();
+        var framework = SiteFrameworkDetector.Detect(cfg, windowsRepo.Text.Trim());
+        if (framework == SiteFramework.Generic && activeProject is { Framework: not SiteFramework.Generic } currentEntry)
+            framework = currentEntry.Framework;
+        var visual = SiteFrameworkVisuals.Resolve(framework, IsDarkThemeActive());
+        ActiveProjectIconChip.ToolTip = visual.DisplayName;
+        var fallbackVis = visual.IsGeneric ? Visibility.Visible : Visibility.Collapsed;
+        var customVis = visual.IsGeneric ? Visibility.Collapsed : Visibility.Visible;
+        ActiveProjectFallbackIcon.Visibility = fallbackVis;
+        ActiveProjectFrameworkImage.Source = visual.Image;
+        ActiveProjectFrameworkImage.Visibility = customVis;
+    }
+
+    private void ApplyProjectFramework(ProjectEntry project, SiteFramework framework)
+    {
+        project.Framework = framework;
+        var visual = SiteFrameworkVisuals.Resolve(framework, IsDarkThemeActive());
+        project.FrameworkLabel = visual.DisplayName;
+        project.FrameworkImage = visual.Image;
+        project.FrameworkChipBackground = visual.ChipBackground;
+        project.CustomFrameworkVisibility = visual.IsGeneric ? Visibility.Collapsed : Visibility.Visible;
+        project.FallbackFolderVisibility = visual.IsGeneric ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void DetectProjectFramework(ProjectEntry project)
+    {
+        var detected = SiteFrameworkDetector.Detect(project.Configuration, project.Repository);
+        ApplyProjectFramework(project, detected);
+        if (detected != SiteFramework.Generic) return;
+
+        string distroName = ProjectConfig.TryReadString(project.Configuration, "distro");
+        string linuxRepo = ProjectConfig.TryReadString(project.Configuration, "wslRepo");
+        if (string.IsNullOrWhiteSpace(distroName) || string.IsNullOrWhiteSpace(linuxRepo))
+            return;
+
+        string probeKey = $"{project.Id:N}|{distroName}|{linuxRepo}";
+        if (!probedWslFrameworks.Add(probeKey))
+            return;
+
+        _ = Task.Run(() =>
+        {
+            string wslUnc;
+            try { wslUnc = FileCopy.ResolvePath(linuxRepo, distroName); }
+            catch (ArgumentException) { return SiteFramework.Generic; }
+            return SiteFrameworkDetector.DetectFromDirectory(wslUnc);
+        }).ContinueWith(task =>
+        {
+            if (task.IsFaulted || task.Result == SiteFramework.Generic) return;
+            var found = task.Result;
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                var target = savedProjects.Find(p => p.Id == project.Id);
+                if (target is null || target.Framework != SiteFramework.Generic) return;
+                ApplyProjectFramework(target, found);
+                RefreshProjects();
+                if (activeProject?.Id == target.Id)
+                    UpdateActiveProjectFrameworkVisual();
+            });
+        }, TaskScheduler.Default);
+    }
+
+    private void RefreshFrameworkVisuals()
+    {
+        if (savedProjects is null || Projects is null) return;
+        foreach (var project in savedProjects)
+            ApplyProjectFramework(project, project.Framework);
+        if (savedProjects.Count > 0)
+            RefreshProjects();
+        if (ProjectPage?.Visibility == Visibility.Visible)
+            UpdateActiveProjectFrameworkVisual();
     }
 
     private sealed record ProjectEntry(Guid Id, string Name, string Repository, string Branch, string Configuration)
@@ -57,6 +138,24 @@ public partial class MainWindow
 
         [System.Text.Json.Serialization.JsonIgnore]
         public string Progress { get; set; } = "待构建";
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public SiteFramework Framework { get; set; } = SiteFramework.Generic;
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string FrameworkLabel { get; set; } = "通用项目";
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public System.Windows.Media.ImageSource? FrameworkImage { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public System.Windows.Media.Brush? FrameworkChipBackground { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public Visibility CustomFrameworkVisibility { get; set; } = Visibility.Collapsed;
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public Visibility FallbackFolderVisibility { get; set; } = Visibility.Visible;
     }
 
     private void InitializeProjects()
@@ -73,6 +172,7 @@ public partial class MainWindow
         }
         foreach (var project in savedProjects)
         {
+            DetectProjectFramework(project);
             RestoreBuildReceipt(project);
             try
             {
@@ -115,31 +215,52 @@ public partial class MainWindow
     private void ShowSavedChanges()
     {
         HomeChanges.Items.Clear();
+        int added = 0;
+        int modified = 0;
+        int deleted = 0;
         foreach (var project in savedProjects)
             if (projectRuns.TryGetValue(project.Id, out var state) && state.Changes is { } changes)
                 foreach (var change in changes)
+                {
                     HomeChanges.Items.Add(change);
+                    switch (change.Action)
+                    {
+                        case "新增": added++; break;
+                        case "修改":
+                        case "类型变更": modified++; break;
+                        case "源端删除":
+                        case "目标清理": deleted++; break;
+                    }
+                }
         int count = HomeChanges.Items.Count;
         bool hasChanges = count > 0;
         bool hasCompletedPlan = projectRuns.Values.Any(state => state.Plan is not null);
-        HomeChangesSummaryBar.Visibility = hasChanges ? Visibility.Visible : Visibility.Collapsed;
         HomeChanges.Visibility = hasChanges ? Visibility.Visible : Visibility.Collapsed;
         EmptyChangesPanel.Visibility = hasChanges ? Visibility.Collapsed : Visibility.Visible;
-        HomeChangesBadge.Content = count.ToString();
+        HomeChangesBadge.Text = count.ToString();
         HomeChangesBadge.Visibility = hasChanges ? Visibility.Visible : Visibility.Collapsed;
-        if (hasChanges)
+
+        HomeChangesAddedBadge.Content = $"+{added} 新增";
+        HomeChangesAddedBadge.Visibility = added > 0 ? Visibility.Visible : Visibility.Collapsed;
+        HomeChangesModifiedBadge.Content = $"~{modified} 修改";
+        HomeChangesModifiedBadge.Visibility = modified > 0 ? Visibility.Visible : Visibility.Collapsed;
+        HomeChangesDeletedBadge.Content = $"-{deleted} 删除";
+        HomeChangesDeletedBadge.Visibility = deleted > 0 ? Visibility.Visible : Visibility.Collapsed;
+        HomeChangesSummary.Visibility = hasChanges ? Visibility.Collapsed : Visibility.Visible;
+
+        if (!hasChanges)
         {
-            HomeChangesSummary.Text = $"预览列出 {count} 项待同步变更";
-        }
-        else if (hasCompletedPlan)
-        {
-            EmptyChangesTitle.Text = "未发现文件变更";
-            EmptyChangesSubtitle.Text = "最近一次构建产物与目标仓库完全一致，无需同步。";
-        }
-        else
-        {
-            EmptyChangesTitle.Text = "暂无待同步变更";
-            EmptyChangesSubtitle.Text = "勾选上方项目并点击「构建」，此处将按分类展示待同步的文件变更。";
+            HomeChangesSummary.Text = hasCompletedPlan ? "无变更" : "待同步 0";
+            if (hasCompletedPlan)
+            {
+                EmptyChangesTitle.Text = "无文件变更";
+                EmptyChangesSubtitle.Text = "与目标仓库一致";
+            }
+            else
+            {
+                EmptyChangesTitle.Text = "暂无待同步变更";
+                EmptyChangesSubtitle.Text = "构建后显示待同步文件";
+            }
         }
     }
 
@@ -248,6 +369,7 @@ public partial class MainWindow
         if (!HasConfigChanges) return true;
 
         ProjectEntry entry = CreateEntry();
+        DetectProjectFramework(entry);
         int index = savedProjects.FindIndex(item => item.Id == entry.Id);
         ProjectEntry? previous = index < 0 ? null : savedProjects[index];
         entry.Checked = previous?.Checked ?? false;
@@ -581,7 +703,8 @@ public partial class MainWindow
         var batchButtons = new[] { RetryPushButton, PublishBatchButton, ApplyBatchButton, BuildBatchButton };
         var primaryAction = Array.Find(batchButtons, button => button.IsEnabled);
         foreach (var button in batchButtons)
-            button.Appearance = button == primaryAction ? ControlAppearance.Primary : ControlAppearance.Secondary;
+            button.Appearance = button == primaryAction ? ControlAppearance.Primary : ControlAppearance.Transparent;
+        BrowserPreviewButton.Appearance = ControlAppearance.Transparent;
 
         if (SelectAllProjectsCheckBox is not null)
         {
@@ -734,10 +857,16 @@ public partial class MainWindow
         UpdateHomeActions();
         if (operation != Operation.BrowserPreview) ResetHomeLog();
         HomeResults.SelectedItem = HomeLogTab;
+        SetResultsCollapsed(false);
         if (operation == Operation.Build)
         {
             HomeChanges.Items.Clear();
-            HomeChangesSummary.Text = "正在生成变更清单…";
+            HomeChangesBadge.Visibility = Visibility.Collapsed;
+            HomeChangesAddedBadge.Visibility = Visibility.Collapsed;
+            HomeChangesModifiedBadge.Visibility = Visibility.Collapsed;
+            HomeChangesDeletedBadge.Visibility = Visibility.Collapsed;
+            HomeChangesSummary.Text = "正在生成…";
+            HomeChangesSummary.Visibility = Visibility.Visible;
         }
         int completed = 0;
         int failed = 0;
@@ -919,6 +1048,7 @@ public partial class MainWindow
             ShowSavedChanges();
             if (operation == Operation.Build && completed == selected.Length && !autoPreviewFailed)
                 HomeResults.SelectedItem = HomeChangesTab;
+                SetResultsCollapsed(false);
             string result = (cancellation.IsCancellationRequested ? "已停止 · " : "") +
                 $"完成 {completed} 个 · 失败 {failed} 个";
             if (windowsGitMissing && windowsGitMissingMessage is not null)
@@ -977,7 +1107,7 @@ public partial class MainWindow
         var paragraph = new Paragraph(run)
         {
             Margin = new Thickness(0),
-            LineHeight = 20,
+            LineHeight = 19,
             LineStackingStrategy = LineStackingStrategy.BlockLineHeight
         };
         double viewport = HomeLog.ActualWidth - HomeLog.Padding.Left - HomeLog.Padding.Right - 24;
@@ -1016,7 +1146,7 @@ public partial class MainWindow
             trimmed.Contains("built in", StringComparison.OrdinalIgnoreCase) ||
             trimmed.Contains('✓'))
             return "SystemFillColorSuccessBrush";
-        return "TextFillColorPrimaryBrush";
+        return "TextFillColorSecondaryBrush";
     }
 
     private void ExportDiagnostics(object sender, RoutedEventArgs e)
