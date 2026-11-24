@@ -93,9 +93,9 @@ public static class WslDevelopmentEnvironment
 {
     /// <summary>
     /// Single read-only bash script probing all supported static-site development tools in a WSL instance.
-    /// Avoids Corepack network activation and checks standard user-local paths as well as /usr/local/bin.
+    /// Normalized to LF so Windows CRLF source checkouts never break bash execution in WSL.
     /// </summary>
-    public const string ProbeScript = """
+    public static string ProbeScript { get; } = NormalizeLf("""
         cd /tmp || exit 1
         export COREPACK_ENABLE_NETWORK=0 COREPACK_ENABLE_AUTO_PIN=0 npm_config_manage_package_manager_versions=false
         export PATH="$HOME/.local/bin:$HOME/.gems/bin:$HOME/.cargo/bin:/usr/local/go/bin:$PATH"
@@ -108,22 +108,25 @@ public static class WslDevelopmentEnvironment
           printf 'nvm\t0\n'
         fi
         if command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1; then printf 'dltool\t1\n'; else printf 'dltool\t0\n'; fi
-        if v=$(git --version 2>/dev/null | head -n1); then printf 'git\t%s\n' "$v"; fi
-        if v=$(node --version 2>/dev/null | head -n1); then printf 'node\t%s\n' "$v"; fi
-        if v=$(pnpm --version 2>/dev/null | head -n1); then printf 'pnpm\t%s\n' "$v"; fi
-        if v=$(python3 --version 2>/dev/null | head -n1); then
+        if command -v git >/dev/null 2>&1 && v=$(git --version 2>/dev/null | head -n1); then printf 'git\t%s\n' "$v"; fi
+        if command -v node >/dev/null 2>&1 && v=$(node --version 2>/dev/null | head -n1); then printf 'node\t%s\n' "$v"; fi
+        if command -v pnpm >/dev/null 2>&1 && v=$(pnpm --version 2>/dev/null | head -n1); then printf 'pnpm\t%s\n' "$v"; fi
+        if command -v python3 >/dev/null 2>&1 && v=$(python3 --version 2>/dev/null | head -n1); then
           printf 'python3\t%s\n' "$v"
           if python3 -m pip --version >/dev/null 2>&1; then printf 'pypip\t1\n'; else printf 'pypip\t0\n'; fi
           if python3 -c "import venv, ensurepip" >/dev/null 2>&1; then printf 'pyvenv\t1\n'; else printf 'pyvenv\t0\n'; fi
         fi
         if command -v pipx >/dev/null 2>&1; then printf 'pipx\t1\n'; else printf 'pipx\t0\n'; fi
-        if v=$(hugo version 2>/dev/null | head -n1); then printf 'hugo\t%s\n' "$v"; fi
-        if v=$(go version 2>/dev/null | head -n1); then printf 'go\t%s\n' "$v"; fi
-        if v=$(ruby --version 2>/dev/null | head -n1); then printf 'ruby\t%s\n' "$v"; fi
+        if command -v hugo >/dev/null 2>&1 && v=$(hugo version 2>/dev/null | head -n1); then printf 'hugo\t%s\n' "$v"; fi
+        if command -v go >/dev/null 2>&1 && v=$(go version 2>/dev/null | head -n1); then printf 'go\t%s\n' "$v"; fi
+        if command -v ruby >/dev/null 2>&1 && v=$(ruby --version 2>/dev/null | head -n1); then printf 'ruby\t%s\n' "$v"; fi
         if command -v bundle >/dev/null 2>&1; then printf 'bundler\t1\n'; else printf 'bundler\t0\n'; fi
-        if v=$(mdbook --version 2>/dev/null | head -n1); then printf 'mdbook\t%s\n' "$v"; fi
-        if v=$(rustc --version 2>/dev/null | head -n1); then printf 'rustc\t%s\n' "$v"; fi
-        """;
+        if command -v mdbook >/dev/null 2>&1 && v=$(mdbook --version 2>/dev/null | head -n1); then printf 'mdbook\t%s\n' "$v"; fi
+        if command -v rustc >/dev/null 2>&1 && v=$(rustc --version 2>/dev/null | head -n1); then printf 'rustc\t%s\n' "$v"; fi
+        """);
+
+    private static string NormalizeLf(string script) =>
+        script.Replace("\r\n", "\n").Replace('\r', '\n');
 
     public static WslToolProbeResult ParseProbeOutput(string output)
     {
@@ -595,7 +598,7 @@ public static class WslDevelopmentEnvironment
         };
         args.AddRange(aptPackages);
 
-        return (string.Join("\n", commands), args.ToArray());
+        return (NormalizeLf(string.Join("\n", commands)), args.ToArray());
     }
 
     private static string AptPackage(string name, string version) =>

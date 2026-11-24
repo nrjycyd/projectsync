@@ -269,12 +269,9 @@ public partial class MainWindow
         };
         var footer = new Border
         {
-            Margin = new Thickness(0, 14, 0, 0),
-            Padding = new Thickness(0, 12, 0, 0),
-            BorderThickness = new Thickness(0, 1, 0, 0),
+            Margin = new Thickness(0, 18, 0, 0),
             Child = actions
         };
-        footer.SetResourceReference(Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
         panel.Children.Add(footer);
         var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Margin = new Thickness(0, 0, 8, 0) };
         cancel.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
