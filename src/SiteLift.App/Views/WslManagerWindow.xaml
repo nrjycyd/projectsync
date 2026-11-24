@@ -173,7 +173,32 @@
             <ItemsControl.ItemTemplate><DataTemplate>
              <Border Background="Transparent" Height="24" ToolTip="{Binding Caption}"
                      AutomationProperties.Name="{Binding Caption}">
-              <Image Width="16" Height="16" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" Source="{Binding Icon}"/>
+              <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+               <Image Width="16" Height="16" Stretch="Uniform" Source="{Binding Icon}">
+                <Image.Style>
+                 <Style TargetType="Image">
+                  <Setter Property="Visibility" Value="Visible"/>
+                  <Style.Triggers>
+                   <DataTrigger Binding="{Binding IsOverflow}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                   </DataTrigger>
+                  </Style.Triggers>
+                 </Style>
+                </Image.Style>
+               </Image>
+               <ui:Badge Content="{Binding OverflowLabel}" Appearance="Info" Padding="5,1">
+                <ui:Badge.Style>
+                 <Style TargetType="ui:Badge" BasedOn="{StaticResource {x:Type ui:Badge}}">
+                  <Setter Property="Visibility" Value="Collapsed"/>
+                  <Style.Triggers>
+                   <DataTrigger Binding="{Binding IsOverflow}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                   </DataTrigger>
+                  </Style.Triggers>
+                 </Style>
+                </ui:Badge.Style>
+               </ui:Badge>
+              </Grid>
              </Border>
             </DataTemplate></ItemsControl.ItemTemplate>
            </ItemsControl>
