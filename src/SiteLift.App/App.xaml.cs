@@ -3,6 +3,7 @@ using System.Security.Principal;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Threading;
 using SiteLift.Core;
@@ -11,6 +12,13 @@ namespace SiteLift.App;
 
 public partial class App : Application
 {
+    static App()
+    {
+        FrameworkElement.LanguageProperty.OverrideMetadata(
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(XmlLanguage.GetLanguage("zh-CN")));
+    }
+
     internal const string DataDirectoryName = AppDataStore.DataDirectoryName;
     internal static AppDataStore Store { get; } = new();
     private Mutex? instance;

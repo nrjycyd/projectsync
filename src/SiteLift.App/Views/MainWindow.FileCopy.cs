@@ -12,7 +12,7 @@ public partial class MainWindow
         var dialog = new FileCopyWindow(async () => Lines(await QueryWslAsync(Encoding.Unicode, "-l", "-q"))
             .Select(name => name.Trim('\0')).Where(name => name.Length > 0).ToArray())
         {
-            Owner = this, Icon = Icon, FontFamily = FontFamily
+            Owner = this, Icon = Icon
         };
         dialog.ShowDialog();
     }

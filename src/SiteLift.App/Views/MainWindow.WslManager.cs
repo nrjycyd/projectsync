@@ -11,7 +11,7 @@ public partial class MainWindow
     private void OpenWslManager(object sender, RoutedEventArgs e)
     {
         if (running || detectingWsl) return;
-        new WslManagerWindow(ProjectsUsingWsl) { Owner = this, Icon = Icon, FontFamily = FontFamily }.ShowDialog();
+        new WslManagerWindow(ProjectsUsingWsl) { Owner = this, Icon = Icon }.ShowDialog();
     }
 
     private IEnumerable<string> ProjectsUsingWsl(string instance)
