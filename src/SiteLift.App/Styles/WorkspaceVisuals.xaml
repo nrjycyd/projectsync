@@ -70,12 +70,6 @@
   <Setter Property="FontSize" Value="12"/>
   <Setter Property="Padding" Value="6,0"/>
  </Style>
- <Style x:Key="WorkspacePanel" TargetType="Border">
-  <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"/>
-  <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}"/>
-  <Setter Property="BorderThickness" Value="1"/>
-  <Setter Property="CornerRadius" Value="4"/>
- </Style>
  <Style x:Key="WorkspaceColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource DefaultUiDataGridColumnHeaderStyle}">
   <Setter Property="Margin" Value="0"/>
   <Setter Property="Padding" Value="10,0"/>
@@ -92,7 +86,7 @@
      <Border Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
       <Grid>
        <Border x:Name="HeaderBorder" Background="{TemplateBinding Background}" CornerRadius="4" Margin="2,4" Padding="{TemplateBinding Padding}">
-        <Grid x:Name="HeaderContent" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Grid.IsSharedSizeScope="True">
+        <Grid HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Grid.IsSharedSizeScope="True">
          <Grid.ColumnDefinitions>
           <ColumnDefinition x:Name="FirstColumn" Width="*"/>
           <ColumnDefinition x:Name="SecondColumn" Width="Auto"/>

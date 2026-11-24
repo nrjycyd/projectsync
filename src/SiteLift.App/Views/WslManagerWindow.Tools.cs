@@ -12,7 +12,11 @@ public partial class WslManagerWindow
 {
     private sealed record DevelopmentTool(string Caption, string Tool)
     {
-        public string Icon => $"/SiteLift.App;component/Assets/DevelopmentTools/{Tool}.png";
+        public string Icon =>
+            Tool == "pnpm" &&
+            Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark
+                ? "/SiteLift.App;component/Assets/DevelopmentTools/pnpm-dark.png"
+                : $"/SiteLift.App;component/Assets/DevelopmentTools/{Tool}.png";
     }
 
     private static async Task<(DevelopmentTool[] Tools, string Status)> ReadInstalledToolsAsync(string instance)

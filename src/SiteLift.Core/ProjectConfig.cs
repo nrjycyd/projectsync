@@ -181,6 +181,8 @@ public sealed record ProjectConfig(
             config.Remove("name");
             config.Remove("previewAfterBuild");
             config.Remove("previewCommand");
+            config.Remove("reinstallCommand");
+            config.Remove("themeUpgradeCommand");
             return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(config.ToJsonString())));
         }
         catch (JsonException) { return null; }

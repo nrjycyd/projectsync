@@ -25,6 +25,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
     private CancellationTokenSource? operation;
     private bool checkingSwap;
     private bool swapRejected;
+    private bool closeAfterOperation;
 
     internal FileCopyWindow(Func<Task<string[]>> getDistributions)
     {
@@ -67,8 +68,7 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
     private void ChangesTableSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var table = (DataGrid)sender;
-        var frame = (Border)table.Parent;
-        double radius = frame.CornerRadius.TopLeft - frame.BorderThickness.Left;
+        double radius = Math.Max(0, PreviewTableFrame.CornerRadius.BottomLeft - PreviewTableFrame.BorderThickness.Left);
         table.Clip = new System.Windows.Media.RectangleGeometry(new Rect(e.NewSize), radius, radius);
     }
 
@@ -157,6 +157,11 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
         {
             checkingSwap = false;
             UpdateCopyActions();
+            if (closeAfterOperation)
+            {
+                closeAfterOperation = false;
+                Close();
+            }
         }
     }
 
@@ -219,9 +224,18 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
     protected override void OnClosing(CancelEventArgs e)
     {
         base.OnClosing(e);
-        if (operation is null) return;
-        e.Cancel = true;
-        operation.Cancel();
+        if (operation is not null)
+        {
+            e.Cancel = true;
+            closeAfterOperation = true;
+            operation.Cancel();
+        }
+        else if (checkingSwap)
+        {
+            e.Cancel = true;
+            closeAfterOperation = true;
+            CopyStatus.ShowFeedback("正在检查目录，请稍候…", InfoBarSeverity.Informational);
+        }
     }
 
     private async Task RunAsync(bool apply)
@@ -322,6 +336,11 @@ public partial class FileCopyWindow : Wpf.Ui.Controls.FluentWindow
             operation = null;
             UpdateCopyActions();
             CancelCopy.Visibility = Visibility.Collapsed;
+            if (closeAfterOperation)
+            {
+                closeAfterOperation = false;
+                Close();
+            }
         }
     }
 }

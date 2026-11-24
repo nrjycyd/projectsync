@@ -258,6 +258,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             WslUserChoice.ItemsSource = null;
             distro.Clear();
             wslUser.Clear();
+            nodeBin.Clear();
             EnvironmentFeedback.ShowFeedback("仓库路径已修改，请检测环境。");
         };
         PreviewAfterBuild.Checked += (_, _) => FormChanged();
@@ -414,8 +415,26 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void NormalizeSyncPathField(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
     {
-        if (!loading && sender is TextBox field)
-            TryNormalizeSyncPaths(field);
+        if (loading || sender is not TextBox field)
+            return;
+        try
+        {
+            if (field == excludeSuffixes)
+            {
+                foreach (string suffix in Lines(excludeSuffixes.Text))
+                    SyncPath.ValidateSuffix(suffix);
+                return;
+            }
+            string label = field == include ? "同步路径" : field == pullPath ? "拉取目录" : "排除路径";
+            string normalized = string.Join(Environment.NewLine,
+                Lines(field.Text).Select(path => NormalizeSyncPath(path, label)));
+            if (field.Text != normalized)
+                field.Text = normalized;
+        }
+        catch (ArgumentException error)
+        {
+            Status.ShowFeedback(error.Message, InfoBarSeverity.Error);
+        }
     }
 
     private bool TryNormalizeSyncPaths(params TextBox[] boxes)
@@ -622,7 +641,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private async void TestRemote(object sender, RoutedEventArgs e)
     {
-        if (running || jsonDraft)
+        if (running || detectingWsl || jsonDraft)
         {
             if (jsonDraft) ShowPendingJson("请先应用到表单，再测试远端连接。");
             return;

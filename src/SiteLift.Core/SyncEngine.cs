@@ -149,7 +149,7 @@ public static class SyncEngine
         string? repo = string.IsNullOrWhiteSpace(config.RemoteUrl)
             ? await ResolveValidatedWindowsRepoAsync(git, config.WindowsRepo, testConnection: true, cancellation)
             : null;
-        var remote = await PrepareRemoteAsync(git, config, cancellation);
+        var remote = await PrepareRemoteAsync(git, config, repo, cancellation);
         var args = new List<string>(remote.GitOptions) { "ls-remote", "--heads", "--", remote.Target };
         var result = await RunGitAsync(git, repo ?? Path.GetTempPath(), args, remote.Environment,
             onStderr: log, cancellation: cancellation);
@@ -226,7 +226,7 @@ public static class SyncEngine
         string remoteName = string.IsNullOrWhiteSpace(config.Remote)
             ? "origin"
             : ValidateRemoteNameOrThrow(config.Remote);
-        var remote = await PrepareRemoteAsync(git, config, cancellation);
+        var remote = await PrepareRemoteAsync(git, config, localRepo: null, cancellation);
 
         // Lock externally so Windows never blocks Directory.Move(".git", backup) during reset.
         using var repoLock = AcquireRepositoryLock(repo);
@@ -393,7 +393,7 @@ public static class SyncEngine
         string git = RequireGitExecutable();
         string repo = await ResolveValidatedWindowsRepoAsync(git, config.WindowsRepo, testConnection: false, cancellation);
         string branch = ValidateBranchOrThrow(config.Branch);
-        var remote = await PrepareRemoteAsync(git, config, cancellation);
+        var remote = await PrepareRemoteAsync(git, config, repo, cancellation);
 
         var tokenMatch = Regex.Match(expectedSyncedOrPending.Trim(),
             @"\A([0-9a-f]{40}):([0-9a-f]{40})(?::([0-9a-f]{40}))?\z");
@@ -528,7 +528,9 @@ public static class SyncEngine
 
         string git = RequireGitExecutable();
         string repo = await ResolveValidatedWindowsRepoAsync(git, config.WindowsRepo, testConnection: false, cancellation);
-        if (!Regex.IsMatch(repo, @"^[A-Za-z]:\\"))
+        var repoInfo = new DirectoryInfo(repo);
+        if (!Regex.IsMatch(repo, @"^[A-Za-z]:\\") || repoInfo.Parent is null ||
+            repoInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
             throw new SyncException(SyncErrorCode.Config, "Windows 仓库路径必须是本地磁盘绝对路径。");
 
         string distro = WrapValidation(() => SyncPath.ValidateWslDistribution(config.Distro));
@@ -561,7 +563,7 @@ public static class SyncEngine
         foreach (string sfx in suffixes)
             syncPathspecs.Add($":(exclude,glob)**/*{sfx}");
 
-        var remote = await PrepareRemoteAsync(git, config, cancellation);
+        var remote = await PrepareRemoteAsync(git, config, repo, cancellation);
 
         var crlfResult = await RunGitAsync(git, repo, new[] { "config", "--default", "false", "--get", "core.autocrlf" }, null, cancellation: cancellation);
         if (crlfResult.ExitCode != 0)
@@ -1001,11 +1003,12 @@ public static class SyncEngine
     private sealed record PreparedRemote(string Target, string? CleanUrl, List<string> GitOptions, Dictionary<string, string> Environment);
 
     private static async Task<PreparedRemote> PrepareRemoteAsync(
-        string git, ProjectConfig config, CancellationToken cancellation)
+        string git, ProjectConfig config, string? localRepo, CancellationToken cancellation)
     {
         string remoteUrl = config.RemoteUrl.Trim();
         string target;
         string? cleanUrl = null;
+        string effectiveUrl = remoteUrl;
         if (remoteUrl.Length > 0)
         {
             if (!RemoteUrlRegex.IsMatch(remoteUrl))
@@ -1015,7 +1018,15 @@ public static class SyncEngine
         }
         else
         {
-            target = ValidateRemoteNameOrThrow(config.Remote);
+            string remoteName = ValidateRemoteNameOrThrow(config.Remote);
+            target = remoteName;
+            if (!string.IsNullOrWhiteSpace(localRepo))
+            {
+                var urlResult = await RunGitAsync(git, localRepo, new[] { "remote", "get-url", "--", remoteName },
+                    null, timeout: TimeSpan.FromSeconds(10), cancellation: cancellation);
+                if (!urlResult.TimedOut && urlResult.ExitCode == 0)
+                    effectiveUrl = urlResult.Stdout.Trim();
+            }
         }
 
         string githubUser = config.GithubUsername.Trim();
@@ -1023,7 +1034,7 @@ public static class SyncEngine
         {
             if (!GithubUserRegex.IsMatch(githubUser))
                 throw new SyncException(SyncErrorCode.Config, "请输入有效的 GitHub 用户名。");
-            if (!Regex.IsMatch(remoteUrl, @"^https://github\.com/", RegexOptions.IgnoreCase))
+            if (!Regex.IsMatch(effectiveUrl, @"^https://github\.com/", RegexOptions.IgnoreCase))
                 throw new SyncException(SyncErrorCode.Config, "填写 GitHub 用户名时必须使用 https://github.com 仓库地址。");
         }
 
@@ -1033,9 +1044,9 @@ public static class SyncEngine
             ["GIT_TERMINAL_PROMPT"] = "0"
         };
 
-        if (Regex.IsMatch(remoteUrl, @"^https://", RegexOptions.IgnoreCase))
+        if (Regex.IsMatch(effectiveUrl, @"^https://", RegexOptions.IgnoreCase))
         {
-            if (!Uri.TryCreate(remoteUrl, UriKind.Absolute, out var uri) ||
+            if (!Uri.TryCreate(effectiveUrl, UriKind.Absolute, out var uri) ||
                 uri.UserInfo.Length > 0 || uri.Query.Length > 0 || uri.Fragment.Length > 0)
             {
                 throw new SyncException(SyncErrorCode.Config, "仓库地址不能包含内嵌凭据、查询参数或锚点。");
@@ -1045,13 +1056,17 @@ public static class SyncEngine
                 var gcm = await RunGitAsync(git, Path.GetTempPath(), new[] { "credential-manager", "--version" }, null, cancellation: cancellation);
                 if (gcm.ExitCode != 0)
                     throw new SyncException(SyncErrorCode.Config, "使用 GitHub HTTPS 认证需要安装 Git Credential Manager。");
-                target = remoteUrl.TrimEnd('/');
+                string normalizedHttps = effectiveUrl.TrimEnd('/');
                 if (githubUser.Length > 0)
                 {
-                    var builder = new UriBuilder(target) { UserName = githubUser };
+                    var builder = new UriBuilder(normalizedHttps) { UserName = githubUser };
                     target = builder.Uri.AbsoluteUri;
                     env["GCM_NAMESPACE"] = $"sitelift-github-{githubUser.ToLowerInvariant()}";
                     env["GCM_CREDENTIAL_STORE"] = "wincredman";
+                }
+                else if (remoteUrl.Length > 0)
+                {
+                    target = normalizedHttps;
                 }
                 options.AddRange(new[] { "-c", "credential.helper=", "-c", "credential.helper=manager", "-c", "credential.interactive=true" });
             }

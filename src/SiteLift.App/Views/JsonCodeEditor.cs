@@ -74,8 +74,6 @@ public sealed class JsonCodeEditor : TextBox
 
     public JsonCodeEditor()
     {
-        Foreground = Brushes.Transparent;
-        TextWrapping = TextWrapping.NoWrap;
         Loaded += OnEditorLoaded;
         Unloaded += OnEditorUnloaded;
         IsVisibleChanged += (_, _) => ScheduleInvalidateLayers();
@@ -244,7 +242,8 @@ public sealed class JsonCodeEditor : TextBox
     {
         int n = line.Length;
         int leadingSpaces = 0;
-        while (leadingSpaces < n && line[leadingSpaces] == ' ') leadingSpaces++;
+        for (int lead = 0; lead < n && (line[lead] == ' ' || line[lead] == '\t'); lead++)
+            leadingSpaces += line[lead] == '\t' ? 2 : 1;
 
         var spans = new List<TokenSpan>();
         int i = 0;

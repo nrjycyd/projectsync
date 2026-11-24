@@ -14,7 +14,7 @@ public static class FileCopy
 {
     public static string ResolvePath(string text, string? distribution)
     {
-        string path = text.Trim().Trim('"');
+        string path = SyncPath.UnquotePath(text);
         if (distribution is null)
         {
             if (path.Length < 3 || !char.IsAsciiLetter(path[0]) || path[1] != ':' ||
@@ -23,8 +23,7 @@ public static class FileCopy
             return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
         }
 
-        if (distribution.Length == 0 || distribution.IndexOfAny(new[] { '\\', '/', ':' }) >= 0)
-            throw new ArgumentException("请选择有效的 WSL 发行版。");
+        string validatedDistribution = SyncPath.ValidateWslDistribution(distribution);
         if (!path.StartsWith('/'))
             throw new ArgumentException("请输入 WSL 内的绝对路径，例如 /home/blog/edusprout。");
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -34,7 +33,7 @@ public static class FileCopy
                 part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 throw new ArgumentException($"此路径片段无法通过 Windows 访问：{part}");
         }
-        var share = $@"\\wsl.localhost\{distribution}";
+        var share = $@"\\wsl.localhost\{validatedDistribution}";
         return parts.Length == 0 ? share : Path.Combine(share, Path.Combine(parts));
     }
 

@@ -46,7 +46,7 @@
 2. （可选）校验压缩包完整性：
    ```powershell
    # Windows PowerShell
-   Get-FileHash .\SiteLift-v0.4.0-win-x64.zip -Algorithm SHA256
+   Get-FileHash .\SiteLift-vX.Y.Z-win-x64.zip -Algorithm SHA256
    ```
    ```bash
    # 或在 WSL 中使用 SHA256SUMS 直接校验
@@ -76,8 +76,7 @@
 sitelift/
 ├── src/
 │   ├── SiteLift.Core/       # 核心同步计划、Git / WSL 探测与文件复制引擎（纯 .NET 8 类库）
-│   ├── SiteLift.App/        # Windows WPF + WPF-UI 桌面客户端
-│   └── SiteLift.Cli/        # CLI 脚手架（同步命令待实现）
+│   └── SiteLift.App/        # Windows WPF + WPF-UI 桌面客户端
 ├── tests/
 │   └── SiteLift.Tests/      # SiteLift.Core 单元测试与真实 Git 集成测试
 ├── tools/

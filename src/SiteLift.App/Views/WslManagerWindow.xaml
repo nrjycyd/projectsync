@@ -5,7 +5,7 @@
  xmlns:local="clr-namespace:SiteLift.App.Views"
  Title="WSL 环境管理" Width="1140" Height="580" MinWidth="760" MinHeight="440"
  ExtendsContentIntoTitleBar="True" WindowCornerPreference="Round" WindowBackdropType="Mica"
- WindowStartupLocation="CenterOwner" Background="{DynamicResource ApplicationBackgroundBrush}" FontSize="14"
+ WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource ApplicationBackgroundBrush}" FontSize="14"
  FontFamily="{StaticResource WorkspaceTypeface}" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
  TextOptions.TextRenderingMode="ClearType" TextOptions.TextFormattingMode="Ideal" TextOptions.TextHintingMode="Fixed"
  Icon="/SiteLift.App;component/Assets/SiteLift.ico" UseLayoutRounding="True">
@@ -25,7 +25,7 @@
     <ui:ImageIcon Source="/SiteLift.App;component/Assets/SiteLift.ico"/>
    </ui:TitleBar.Icon>
   </ui:TitleBar>
-  <Grid Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+  <Grid Background="Transparent">
    <DockPanel Margin="24,14,24,16">
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
      <StackPanel x:Name="Toolbar" Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
@@ -47,7 +47,7 @@
       <ui:Button x:Name="WslSetupButton" Style="{StaticResource WorkspaceTextButton}" Content="WSL 安装与修复" Appearance="Primary" Visibility="Collapsed" Click="SetupWslClick"/>
      </StackPanel>
      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-      <ui:SymbolIcon Symbol="Desktop24" FontSize="22" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Center"/>
+      <ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource SettingsCardHeaderIcon}" Margin="0,0,10,0"/>
       <TextBlock Text="WSL 发行版" Style="{StaticResource SettingsPageTitle}" Margin="0" VerticalAlignment="Center"/>
       <ui:Badge x:Name="VersionBadge" Appearance="Secondary" Visibility="Collapsed" VerticalAlignment="Center" Margin="10,0,0,0"/>
       <ui:Badge x:Name="InstanceCountBadge" Appearance="Info" Visibility="Collapsed" VerticalAlignment="Center" Margin="6,0,0,0"/>
@@ -72,9 +72,14 @@
 
     <Grid>
      <Border x:Name="InstanceFrame" SnapsToDevicePixels="True" Style="{StaticResource SettingsCard}" Margin="0" Padding="0">
-      <ui:DataGrid x:Name="Instances" ColumnHeaderStyle="{StaticResource InstanceColumnHeader}" SizeChanged="InstanceGridSizeChanged" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                   HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                   RowHeight="46" ColumnHeaderHeight="38" BorderThickness="0" Background="Transparent">
+      <Grid>
+       <Border VerticalAlignment="Top" Height="38" CornerRadius="5,5,0,0"
+               Background="{DynamicResource ControlAltFillColorSecondaryBrush}"
+               BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
+               IsHitTestVisible="False"/>
+       <ui:DataGrid x:Name="Instances" ColumnHeaderStyle="{StaticResource InstanceColumnHeader}" SizeChanged="InstanceGridSizeChanged" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                    HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                    RowHeight="46" ColumnHeaderHeight="38" BorderThickness="0" Background="Transparent">
        <DataGrid.RowStyle>
         <Style TargetType="DataGridRow">
          <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
@@ -108,7 +113,7 @@
                      ToolTip="{Binding DistributionHint}" AutomationProperties.Name="{Binding DistributionHint}">
            <Grid DockPanel.Dock="Left" Width="18" Height="18" Margin="0,0,6,0" VerticalAlignment="Center">
             <Image Source="{Binding DistributionIcon}" Stretch="Uniform"/>
-            <ui:SymbolIcon Symbol="Desktop24" FontSize="16">
+            <ui:SymbolIcon Symbol="Desktop20" FontSize="16">
              <ui:SymbolIcon.Style>
               <Style TargetType="ui:SymbolIcon">
                <Setter Property="Visibility" Value="Collapsed"/>
@@ -168,22 +173,7 @@
             <ItemsControl.ItemTemplate><DataTemplate>
              <Border Background="Transparent" Height="24" ToolTip="{Binding Caption}"
                      AutomationProperties.Name="{Binding Caption}">
-              <Image Width="16" Height="16" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
-               <Image.Style>
-                <Style TargetType="Image">
-                 <Setter Property="Source" Value="{Binding Icon}"/>
-                 <Style.Triggers>
-                  <MultiDataTrigger>
-                   <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding Tool}" Value="pnpm"/>
-                    <Condition Binding="{Binding Foreground.Color, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="White"/>
-                   </MultiDataTrigger.Conditions>
-                   <Setter Property="Source" Value="/SiteLift.App;component/Assets/DevelopmentTools/pnpm-dark.png"/>
-                  </MultiDataTrigger>
-                 </Style.Triggers>
-                </Style>
-               </Image.Style>
-              </Image>
+              <Image Width="16" Height="16" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" Source="{Binding Icon}"/>
              </Border>
             </DataTemplate></ItemsControl.ItemTemplate>
            </ItemsControl>
@@ -198,12 +188,12 @@
             <ColumnDefinition Width="8"/>
             <ColumnDefinition Width="*"/>
            </Grid.ColumnDefinitions>
-           <ui:Button Style="{StaticResource WorkspaceCompactIconButton}" Height="30" HorizontalAlignment="Stretch" Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Padding="6,3.5,8,4.5" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+           <ui:Button Style="{StaticResource WorkspaceCompactIconButton}" HorizontalAlignment="Stretch" Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
             <ui:Button.Icon>
              <ui:SymbolIcon Symbol="WindowConsole20" Style="{StaticResource WorkspaceCompactActionIcon}"/>
             </ui:Button.Icon>
            </ui:Button>
-           <ui:DropDownButton Grid.Column="2" Style="{StaticResource WorkspaceCompactDropDownButton}" Height="30" HorizontalAlignment="Stretch" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
+           <ui:DropDownButton Grid.Column="2" Style="{StaticResource WorkspaceCompactDropDownButton}" HorizontalAlignment="Stretch" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
             <ui:DropDownButton.Flyout>
              <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}"
                                             DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
@@ -233,6 +223,7 @@
         </DataGridTemplateColumn>
        </DataGrid.Columns>
       </ui:DataGrid>
+      </Grid>
      </Border>
      <StackPanel x:Name="EmptyInstancesHint" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,24,24,0" Visibility="Collapsed" IsHitTestVisible="False">
       <ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource WorkspaceEmptyIcon}"/>

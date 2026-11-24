@@ -53,7 +53,13 @@ public partial class MainWindow
 
     private async void DetectWsl(object sender, RoutedEventArgs e)
     {
-        if (detectingWsl || running || !TryGetWslPath(out string path, out string namedDistro))
+        if (detectingWsl || running) return;
+        if (jsonDraft)
+        {
+            ShowPendingJson("请先应用到表单，再检测本地构建环境。");
+            return;
+        }
+        if (!TryGetWslPath(out string path, out string namedDistro))
             return;
 
         detectingWsl = true;
@@ -107,7 +113,14 @@ public partial class MainWindow
 
     private async void ChooseWslDistribution(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (loading || detectingWsl || WslDistribution.SelectedItem is not string name || !TryGetWslPath(out string path, out _))
+        if (loading || detectingWsl || running || WslDistribution.SelectedItem is not string name)
+            return;
+        if (jsonDraft)
+        {
+            ShowPendingJson("请先应用到表单，再切换 WSL 发行版。");
+            return;
+        }
+        if (!TryGetWslPath(out string path, out _))
             return;
         detectingWsl = true;
         SettingsTabs.IsEnabled = Actions.IsEnabled = false;
