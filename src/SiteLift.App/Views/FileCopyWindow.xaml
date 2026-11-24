@@ -7,14 +7,9 @@
  ExtendsContentIntoTitleBar="True" WindowCornerPreference="Round" WindowBackdropType="Mica"
  WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource ApplicationBackgroundBrush}"
  Foreground="{DynamicResource TextFillColorPrimaryBrush}" FontSize="14" FontFamily="{StaticResource WorkspaceTypeface}"
+ TextOptions.TextRenderingMode="ClearType" TextOptions.TextFormattingMode="Ideal" TextOptions.TextHintingMode="Fixed"
  Icon="/SiteLift.App;component/Assets/SiteLift.ico" UseLayoutRounding="True">
 
- <ui:FluentWindow.Resources>
-  <Style x:Key="CopyPathLabel" TargetType="Label">
-   <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
-   <Setter Property="Padding" Value="0,0,0,4"/>
-  </Style>
- </ui:FluentWindow.Resources>
  <DockPanel Background="Transparent">
   <ui:TitleBar DockPanel.Dock="Top" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" Title="文件复制">
    <ui:TitleBar.Icon>
@@ -57,7 +52,7 @@
                     ToolTip="仅在来源和目标均为现有目录时交换"
                     AutomationProperties.Name="交换来源和目标" VerticalAlignment="Center" Margin="12,0,0,0">
           <ui:Button.Icon>
-           <ui:SymbolIcon Symbol="ArrowSort16" Style="{StaticResource WorkspaceActionIcon}"/>
+           <ui:SymbolIcon Symbol="ArrowSort16" Style="{StaticResource WorkspaceCompactActionIcon}"/>
           </ui:Button.Icon>
          </ui:Button>
          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -69,7 +64,7 @@
          </StackPanel>
         </DockPanel>
 
-        <Label Content="来源文件或目录" Target="{Binding ElementName=SourcePath}" Style="{StaticResource CopyPathLabel}"/>
+        <Label Content="来源文件或目录" Target="{Binding ElementName=SourcePath}" Style="{StaticResource SettingsFieldLabel}" Margin="0,0,0,4"/>
         <DockPanel Margin="0,0,0,10">
          <ComboBox x:Name="SourceLocation" DockPanel.Dock="Left" Width="156" MinHeight="34" Margin="0,0,8,0" VerticalAlignment="Stretch"
                    SelectionChanged="EndpointChanged" AutomationProperties.Name="来源位置" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
@@ -89,7 +84,7 @@
          <ui:TextBox x:Name="SourcePath" MinHeight="34" ClearButtonEnabled="True" VerticalAlignment="Stretch" TextChanged="OptionsChanged"/>
         </DockPanel>
 
-        <Label Content="目标目录" Target="{Binding ElementName=TargetPath}" Style="{StaticResource CopyPathLabel}"/>
+        <Label Content="目标目录" Target="{Binding ElementName=TargetPath}" Style="{StaticResource SettingsFieldLabel}" Margin="0,0,0,4"/>
         <DockPanel>
          <ComboBox x:Name="TargetLocation" DockPanel.Dock="Left" Width="156" MinHeight="34" Margin="0,0,8,0" VerticalAlignment="Stretch"
                    SelectionChanged="EndpointChanged" AutomationProperties.Name="目标位置" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
@@ -103,7 +98,7 @@
         <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,12,0,10"/>
         <WrapPanel VerticalAlignment="Center">
          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
-          <Label Content="同名文件" Target="{Binding ElementName=Conflict}" VerticalAlignment="Center" Padding="0,0,8,0"/>
+          <Label Content="同名文件" Target="{Binding ElementName=Conflict}" Style="{StaticResource SettingsFieldLabel}" VerticalAlignment="Center" Margin="0,0,8,0"/>
           <ComboBox x:Name="Conflict" Width="100" MinHeight="32" SelectedIndex="0" SelectionChanged="OptionsChanged">
            <ComboBoxItem Content="跳过"/>
            <ComboBoxItem Content="覆盖"/>
@@ -146,18 +141,9 @@
                 <Style TargetType="ui:Badge" BasedOn="{StaticResource {x:Type ui:Badge}}">
                  <Setter Property="Appearance" Value="Secondary"/>
                  <Style.Triggers>
-                  <DataTrigger Binding="{Binding Action}" Value="复制">
-                   <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}"/>
-                   <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
-                  </DataTrigger>
-                  <DataTrigger Binding="{Binding Action}" Value="覆盖">
-                   <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}"/>
-                   <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}"/>
-                  </DataTrigger>
-                  <DataTrigger Binding="{Binding Action}" Value="创建目录">
-                   <Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}"/>
-                   <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
-                  </DataTrigger>
+                  <DataTrigger Binding="{Binding Action}" Value="复制"><Setter Property="Appearance" Value="Success"/></DataTrigger>
+                  <DataTrigger Binding="{Binding Action}" Value="覆盖"><Setter Property="Appearance" Value="Caution"/></DataTrigger>
+                  <DataTrigger Binding="{Binding Action}" Value="创建目录"><Setter Property="Appearance" Value="Info"/></DataTrigger>
                  </Style.Triggers>
                 </Style>
                </ui:Badge.Style>
@@ -169,9 +155,10 @@
           </DataGrid.Columns>
          </ui:DataGrid>
         </Border>
-        <StackPanel x:Name="EmptyPreviewHint" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-         <TextBlock Text="填写来源与目标路径后，点击右上角「预览复制」查看待执行的文件清单。"
-                    Style="{StaticResource SettingsCardSubtitle}" HorizontalAlignment="Center" TextAlignment="Center" Margin="24,24,24,0"/>
+        <StackPanel x:Name="EmptyPreviewHint" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,24,24,0" IsHitTestVisible="False">
+         <ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource WorkspaceEmptyIcon}"/>
+         <TextBlock Text="暂无待复制清单" Style="{StaticResource WorkspaceEmptyTitle}"/>
+         <TextBlock Text="填写来源与目标路径后，点击右上角「预览复制」查看待执行的文件清单。" Style="{StaticResource WorkspaceEmptySubtitle}"/>
         </StackPanel>
        </Grid>
       </DockPanel>

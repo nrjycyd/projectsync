@@ -45,11 +45,9 @@ public partial class WslManagerWindow
         var componentsHeading = new TextBlock
         {
             Text = "开发组件与版本",
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 2, 0, 8)
         };
-        componentsHeading.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+        componentsHeading.SetResourceReference(FrameworkElement.StyleProperty, "SettingsGroupHeader");
         form.Children.Add(componentsHeading);
 
         bool darkTheme = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
@@ -59,7 +57,6 @@ public partial class WslManagerWindow
         {
             OnContent = "同时提供 python 命令（python-is-python3）",
             OffContent = "同时提供 python 命令（python-is-python3）",
-            FontSize = 13,
             Margin = new Thickness(32, 10, 0, 0)
         };
         var python = ComponentCard(form, "Python 3", "通过 APT 安装 Python 运行时", "python3.png", "latest", alias, "latest");

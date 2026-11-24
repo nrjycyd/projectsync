@@ -6,8 +6,18 @@
 
 ## 1. 颜色、字体与表面层级
 
-- **动态主题资源**：严禁硬编码明暗色值。主文本用 `TextFillColorPrimaryBrush`，次要说明用 `TextFillColorSecondaryBrush`，窗口底板用 `SolidBackgroundFillColorBaseBrush`，卡片表面用 `CardBackgroundFillColorDefaultBrush`，卡片描边用 `CardStrokeColorDefaultBrush`，分隔线用 `DividerStrokeColorDefaultBrush`，警示/危险语义用 `SystemFillColorCriticalBrush` / `SystemFillColorCautionBrush` / `SystemFillColorSuccessBrush`。
-- **字体（Windows 11 WinUI 3 三档光学字号）**：严格采用 Windows 11 原生 `Segoe UI Variable` 光学字号体系并平滑回退 `Microsoft YaHei UI`——小字说明/表头/徽章（`12px`）采用 `WorkspaceSmallTypeface`（`Segoe UI Variable Small`），正文/按钮/列表行（`14px`）采用 `WorkspaceTypeface`（`Segoe UI Variable Text`），页级大标题（`20px+`）采用 `WorkspaceDisplayTypeface`（`Segoe UI Variable Display`），全比例 UI 文本保持 WPF 原生 `Ideal` 饱满亚像素渲染；代码、命令、同步路径列表、JSON 编辑器与运行日志采用 `WorkspaceMonoTypeface`（`Consolas, Cascadia Mono, Microsoft YaHei UI`）并启用 `ClearType` + `Display` 排版与固定行高（`BlockLineHeight`），避免中英文混排行高抖动。
+- **动态主题资源与零元素级不透明度**：严禁硬编码明暗色值，严禁对文本元素使用 `UIElement.Opacity < 1`（防止离屏光栅化导致 ClearType 退化；需要介于主色与次色之间的高可读灰阶时，一律使用带 `Opacity` 的 `SolidColorBrush Color="{DynamicResource TextFillColorPrimary}"` 画刷级透明以完整保留 ClearType）。主文本用 `TextFillColorPrimaryBrush`，表格次要列/表头/未选中页签/中性徽章用 `76%–80%` 画刷级主色，次要说明用 `TextFillColorSecondaryBrush`，弱提示/版本号/空状态副文案用 `TextFillColorTertiaryBrush`，窗口底板用 `SolidBackgroundFillColorBaseBrush`，卡片表面用 `CardBackgroundFillColorDefaultBrush`，卡片描边用 `CardStrokeColorDefaultBrush`，分隔线用 `DividerStrokeColorDefaultBrush`，警示/危险语义用 `SystemFillColorCriticalBrush` / `SystemFillColorCautionBrush` / `SystemFillColorSuccessBrush`。
+- **字体与统一字阶（Windows 11 WinUI 3 Type Ramp + 中文适配）**：
+  - 全局在 `App` 静态构造中统一覆盖 `FrameworkElement.LanguageProperty` 为 `zh-CN`，确保中文标点度量与 CJK 回退链一致；所有窗口根级（`MainWindow`、`FileCopyWindow`、`WslManagerWindow`、`FluentDialog`）统一设定 `FontSize="14"`、`FontFamily="{StaticResource WorkspaceTypeface}"` 与 `ClearType + Ideal + Fixed` 渲染基线。
+  - **四套字体栈与统一 `Ideal` 渲染**：小字说明/徽章/紧凑控件采用 `WorkspaceSmallTypeface`（`Segoe UI Variable Small, Segoe UI, Microsoft YaHei UI`）；正文/卡片标题/按钮/列表/全部路径与规则表单框（含多行路径框 `WorkspaceMultilineInput`）统一采用 `WorkspaceTypeface`（`Segoe UI Variable Text, Segoe UI, Microsoft YaHei UI`）；页级主标题采用 `WorkspaceDisplayTypeface`（`Segoe UI Variable Display, Segoe UI, Microsoft YaHei UI`）；仅真正的代码、Shell 维护脚本、JSON 编辑器与运行日志采用 `WorkspaceMonoTypeface`（`Consolas, Cascadia Mono, Microsoft YaHei UI`，与 Windows 版 VS Code 默认纤细等宽一致）。全站比例与等宽文本统一采用 **`ClearType + Ideal`** 矢量亚像素渲染，并配固定行高（`BlockLineHeight`）。
+  - **严控整数 Type Ramp（严格 3 档比例字阶 + 2 档等宽字阶，仅用 `Normal` / `SemiBold` 避免雅黑缺 `Medium` 导致中英粗细割裂）**：
+    - 页级主标题（`SettingsPageTitle`，含设置页与 WSL 管理页）：`20px / 28px` `SemiBold` `WorkspaceDisplayTypeface`（对齐 WPF-UI `Subtitle`）；
+    - 分组标题（`SettingsGroupHeader`）/ 面包屑当前项目 / 弹窗强调标题：`14px / 20px` `SemiBold` `WorkspaceTypeface`；
+    - 核心交互与表单内容（工具栏按钮、表头 `WorkspaceColumnHeader`、结果页签 `HomeResultsTabItem`、表格数据行、设置侧边栏、卡片主标题 `SettingsCardTitle`、表单标签 `SettingsFieldLabel`、单行及多行路径/规则输入框 `WorkspaceMultilineInput`）：统一 `14px` `Normal` `WorkspaceTypeface`（单行/常规行高 `20px`，多行路径框行高 `22px`）；表头常态与悬停保持一致的 `TextFillColorPrimaryBrush`（仅悬停呈现浅灰底块，不做文字变色），结果区未选中页签采用画刷级 `76%` 主色（悬停/选中切 `TextFillColorPrimaryBrush`）；
+    - 页副标题（`SettingsPageSubtitle`，`12px/18px`）/ 卡片副标题（`SettingsCardSubtitle`，`12px/17px`）/ 徽章/底栏链接/紧凑按钮/磁盘数值：`12px Normal` `WorkspaceSmallTypeface`；
+    - 只读日志（`WorkspaceLog` / `WorkspaceRichLog`）：`12px / 19px` `WorkspaceMonoTypeface`；JSON 编辑器与 Shell 维护脚本框（`WorkspaceCodeEditor` / `WorkspaceMonoInput`）：`13px / 20px` `WorkspaceMonoTypeface`。
+  - **等宽数字（Tabular Figures）**：全应用数值徽章、版本号、磁盘容量、进度计数与状态统计统一开启 `Typography.NumeralAlignment="Tabular"`，杜绝数字列错位与刷新抖动。
+  - **C# 动态弹窗与控件**一律通过 `SetResourceReference` 复用 `WorkspaceVisuals.xaml` 统一样式，禁止在 C# 中硬编码字体栈或散落字号。
 - **三层明度阶梯**：
   1. 整窗背景透出 Windows 11 原生 `Mica` 云母材质（主内容容器 `Background="Transparent"`，无支持时自动回退至 `ApplicationBackgroundBrush`），标题栏与内容区浑然一体；
   2. 首页顶部命令栏直接浮于 Mica 底板之上，主要内容区块、数据表与表单卡片使用 `SettingsCard`（`CornerRadius="6"`、`1px CardStrokeColorDefaultBrush`）或库控件 `ui:CardControl` / `ui:CardExpander`，静止卡片不加外阴影（阴影仅用于下拉菜单与弹窗浮层）；
@@ -28,7 +38,9 @@ WPF UI 默认按钮模板按英文 `Segoe UI` 设计（`ButtonPadding="11,5,11,6
 | `WorkspaceMenuIcon` | 下拉菜单与右键菜单项内图标 | 严格使用 Fluent Regular **`*16` 族**；`Width="16"`、`Height="16"`、`FontSize="16"`、水平垂直居中、`TranslateTransform Y="1.25"` |
 | `WorkspaceTextButton` | 标准纯文字操作按钮（高 `34 DIP`） | `MinHeight="34"`、`Padding="12,5.5,12,6.5"`、水平垂直居中，保证中文基线与图标按钮对齐 |
 | `WorkspaceIconButton` | 标准操作按钮（高 `34 DIP`） | `MinHeight="34"`、`Padding="11,5.5,12.5,6.5"`、`HorizontalContentAlignment="Center"`、`VerticalContentAlignment="Center"` |
-| `WorkspaceCompactIconButton` | 紧凑操作按钮（高 `30 DIP`） | `MinHeight="30"`、`FontSize="12.5"`、`Padding="9,3.5,10.5,4.5"` |
+| `WorkspaceCompactActionIcon` | 紧凑图标按钮内图标 | `Width="14"`、`Height="14"`、`FontSize="14"`、`Margin="0,0,-2,0"`、`TranslateTransform Y="1"` |
+| `WorkspaceCompactIconButton` | 紧凑操作按钮（高 `30 DIP`） | `MinHeight="30"`、`WorkspaceSmallTypeface` `12px`、`Padding="9,3.5,10.5,4.5"` |
+| `WorkspaceCompactDropDownButton` | 紧凑下拉按钮（高 `30 DIP`） | `MinHeight="30"`、`WorkspaceSmallTypeface` `12px`、`Padding="6,0"`，与紧凑图标按钮同字号对齐 |
 
 ### 光学指标与验收基线（192 DPI / 200% 缩放实测）
 
@@ -47,17 +59,17 @@ WPF UI 默认按钮模板按英文 `Segoe UI` 设计（`ButtonPadding="11,5,11,6
 - **单主操作原则**：同一视图最多突出 1 个 `Primary` 强调色按钮。有可执行的批处理时，按「重试推送 → 提交并推送 → 应用同步 → 构建」的顺序选出主操作；其余情况突出「新建项目」。
 - **悬浮命令栏（Windows 11 Files CommandBar）**：顶部批处理按钮（「构建」「预览」「同步」「推送」，按需显示「重试」，分别使用 `Box16`、`Window16`、`ArrowSync16`、`ArrowUpload16`、`ArrowClockwise16`）与右侧操作（「新建项目 / 导入 JSON」「工具」及竖线隔开的主题切换图标菜单）收纳于统一悬浮 `SettingsCard` 命令栏（`Padding="10,6"`，`Margin="0,0,0,12"`）；非主操作按钮采用无边框 `Transparent` 轻样式，并显式将无边框按钮的 `ButtonBackgroundDisabled` / `ButtonBorderBrushDisabled` 置为 `Transparent`、沿用 WinUI 3 原生 `ButtonForegroundDisabled`，确保浅色与深色主题禁用态均无灰底框残留且对比度一致。
 - **菜单与弹出层**：「工具」与行尾菜单默认右边缘对齐并保持与触发按钮 **`4 DIP`** 呼吸间距（贴近底边时向上展开同样留 `4 DIP`），全局 `ContextMenu` 最小宽度 `156 DIP`，菜单项图标统一使用 `WorkspaceMenuIcon`（`*16` 族 + `Y="1.25"` 光学居中）；顶部「主题」采用无下拉框的一键循环切换图标按钮（浅色 `☀` → 深色 `☾` → 跟随系统 `◐`，三态各配独立 `16×16` 矢量图标与动态 `ToolTip`）；组合框与菜单沿用 WPF 原生弹出动画。
-- **双卡独立布局、可收起结果抽屉与极简状态栏**：批量运行进度与浏览器预览状态分别使用带图标的 `SettingsCard` 独立展示并保留停止入口（批量运行卡片内使用 `18×18` `ui:ProgressRing` 指示进行中状态）；上方项目列表与下方结果区保持两张独立 `SettingsCard`，中间以 `16px` 呼吸间距 + 居中胶囊 `GridSplitter` 自由调节上下高度；下方结果卡 `38px` 顶栏与上方 `38px` 表头同高同底色（`ControlAltFillColorSecondaryBrush`），左侧采用无框 WinUI 3 `SelectorBar` 页签（`变更清单 / 运行日志`，`13px Normal` + `14px` 选中态主题蓝图标 + 底部 `2.5px` 主题蓝胶囊条），右侧自适应承载上下文工具——「变更清单」展示绿/蓝/红语义计数胶囊（`+新增 / ~修改 / -删除`），「运行日志」直接内嵌 `Copy16` / `Delete16` 图标按钮省去多余二级栏，最右提供一键收起/展开抽屉按钮（收起态折为 `40px` 紧凑条并保持与上卡片 `12px` 呼吸间距，点击页签或开始构建自动展开）；底栏瘦身为 `24px` 记事本风极简透明状态条，左侧展示项目与勾选汇总，右侧仅放无边框轻文字入口「导出诊断 | 检查更新 vX.Y.Z」。
+- **双卡独立布局、可收起结果抽屉与极简状态栏**：批量运行进度与浏览器预览状态分别使用带图标的 `SettingsCard` 独立展示并保留停止入口（批量运行卡片内使用 `18×18` `ui:ProgressRing` 指示进行中状态）；上方项目列表与下方结果区保持两张独立 `SettingsCard`，中间以 `16px` 呼吸间距 + 居中胶囊 `GridSplitter` 自由调节上下高度；下方结果卡 `38px` 顶栏与上方 `38px` 表头同高同底色（`ControlAltFillColorSecondaryBrush`），左侧采用无框 WinUI 3 `SelectorBar` 页签（`变更清单 / 运行日志`，`14px Normal` 画刷级 `76%` 主色常态 / `TextFillColorPrimaryBrush` 悬停与选中态 + `14px` 选中态主题蓝图标 + 底部 `2.5px` 主题蓝胶囊条），右侧自适应承载上下文工具——「变更清单」展示绿/蓝/红语义计数胶囊（`+新增 / ~修改 / -删除`），「运行日志」直接内嵌 `Copy16` / `Delete16` 图标按钮省去多余二级栏，最右提供一键收起/展开抽屉按钮（收起态折为 `40px` 紧凑条并保持与上卡片 `12px` 呼吸间距，点击页签或开始构建自动展开）；底栏瘦身为 `24px` 记事本风极简透明状态条，左侧展示项目与勾选汇总，右侧仅放无边框轻文字入口「导出诊断 | 检查更新 vX.Y.Z」。
 
 ---
 
 ## 4. 列表、表格与复选框规范
 
-- **表头与排版权重**：项目表顶栏与结果卡页签顶栏共用 `38px` 高 `ControlAltFillColorSecondaryBrush` 单层通栏底带与 `13px Normal` `WorkspaceTypeface` 字体（表头 `78%` 不透明度主色、悬停 `100%`）；数据行采用 `42px` 单行精炼布局，项目名称列采用 `18×18` 无外框矢量架构图标（自动识别 VuePress、VitePress、Hexo、Hugo、Astro、Docusaurus、MkDocs、Quartz、Rspress、Nuxt、Next.js、Jekyll、mdBook、Docsify，未识别回退至 `17px` 主题色 `Folder20`）配 `14px Normal` 主色，`Git 本地仓库` 与 `Git 远端仓库` 分列展示（`14px Normal` + `80%` 主色）；「快捷访问」列 6 枚图标全部统一至同网格 `*20` 族（`FontSize="17"`）并以 `1×14` 细分隔线将 4 项浏览入口与 2 项维护入口（重装依赖、升级主题）分组，悬停时不加矩形外框，仅点亮图标为 `AccentTextFillColorPrimaryBrush` 并呈现双层聚焦蓝荧光（背后叠加 `VisualBrush` 图标轮廓蓝荧光 + 极轻中心径向柔光，明暗主题自适应且矢量图标本体保持锐利）；变更清单路径列采用「目录前缀次色 + 文件名主色」分段高亮。
-- **运行日志与 JSON 编辑器**：首页运行日志采用无边框只读 `RichTextBox`（`12px` 等宽字体、`19px` 固定行高，`Padding="16,12"`，直接贴合结果卡表面，普通输出行退让至 `TextFillColorSecondaryBrush`，标题/成功/警告/错误行保留高对比度语义着色，支持划选复制与居中空状态引导）；「快速配置」JSON 编辑区采用无边框一体化代码画布 `WorkspaceCodeEditor`（`12.5px` 等宽字体、`20px` 行高，直接铺满卡片次级底板，聚焦时底部显示 WinUI 3 风格的 `2px` 强调色指示条）。
+- **表头与排版权重**：项目表顶栏与结果卡页签顶栏共用 `38px` 高 `ControlAltFillColorSecondaryBrush` 单层通栏底带，表头与结果页签统一采用 `14px Normal` `WorkspaceTypeface`（与工具栏、数据行、设置侧栏和卡片标题一致），其中表头文字始终保持 `TextFillColorPrimaryBrush`（悬停仅显示浅灰底块、无文字变黑跳变），结果页签未选中态为画刷级 `76%` 主色、悬停/选中切换 `TextFillColorPrimaryBrush`（零元素级 `Opacity`）；数据行采用 `42px` 单行精炼布局，项目名称列采用 `18×18` 无外框矢量架构图标（自动识别 VuePress、VitePress、Hexo、Hugo、Astro、Docusaurus、MkDocs、Quartz、Rspress、Nuxt、Next.js、Jekyll、mdBook、Docsify，未识别回退至 `17px` 主题色 `Folder20`）配 `14px Normal` 主色，`Git 本地仓库` 与 `Git 远端仓库` 分列展示（`14px Normal` + 画刷级 `80%` 主色）；「快捷访问」列 6 枚图标全部统一至同网格 `*20` 族（`FontSize="17"`）并以 `1×14` 细分隔线将 4 项浏览入口与 2 项维护入口（重装依赖、升级主题）分组，悬停时不加矩形外框，仅点亮图标为 `AccentTextFillColorPrimaryBrush` 并呈现双层聚焦蓝荧光（背后叠加 `VisualBrush` 图标轮廓蓝荧光 + 极轻中心径向柔光，明暗主题自适应且矢量图标本体保持锐利）；变更清单路径列采用「目录前缀次色 + 文件名主色」分段高亮。
+- **运行日志与 JSON 编辑器**：首页运行日志采用无边框只读 `RichTextBox`（`12px` 等宽字体、`19px` 固定行高，`Padding="16,12"`，直接贴合结果卡表面，普通输出行退让至 `TextFillColorSecondaryBrush`，标题/成功/警告/错误行保留高对比度语义着色，支持划选复制与居中空状态引导）；「快速配置」JSON 编辑区采用零第三方依赖的自研 `JsonCodeEditor`（`WorkspaceCodeEditor`，`13px / 20px` `Consolas` 优先 `Ideal + ClearType`，全 `Normal(400)` 不加粗，直接铺满卡片次级底板，提供 100% VS Code Light Modern / Dark Modern 官方色板语法着色、3 级循环括号彩标、无竖线同底色行号槽、垂直缩进参考线与当前作用域活动缩进线高亮、当前行柔和底色高亮、Tab 插入 2 空格，聚焦时底部显示 WinUI 3 风格的 `2px` 强调色指示条）；Shell 维护脚本输入框套用 `WorkspaceMonoInput`（`13px / 20px` 等宽 + `ClearType + Ideal`），多行同步路径与排除规则表单框套用 `WorkspaceMultilineInput`（`14px / 22px` 比例字体，与单行路径框完全统一）。
 - **全选与行内复选框**：表头全选复选框使用专用零内边距居中模板 `WorkspaceCheckColumnHeader`（列宽 `64 DIP`，透明底色贴合卡片顶栏通带），表头与行内复选框统一使用 `WorkspaceTableCheckBox`（视觉框体 `18×18` 与架构图标等高、`28×28` 舒适点击热区、`CornerRadius="4"`，未勾选常态采用柔和 `26%` 主色细描边、悬停升至 `46%`，勾选与半选态填充 `AccentFillColorDefaultBrush` 主题蓝配白色矢量勾选/短横）。
-- **状态徽章与对齐**：全应用 `ui:Badge` 在 `App.xaml` 中统一采用 `12px Normal` 与 WinUI 3 柔和语义配色——中性态（`Secondary`）采用 `8% TextFillColorPrimary` 柔和胶囊底色 + `78% TextFillColorPrimary` 清晰文字，语义态（`Success` / `Info` / `Caution` / `Danger`）采用对应 `SystemFillColor*BackgroundBrush` + 语义主色，确保浅色/深色与勾选行底色下均轮廓清晰。快捷操作列居中，磁盘数值右对齐。
-- **行操作与空状态**：首页项目行支持双击与右键「编辑配置」「移除项目」；所有列表与清单为空时统一展示 `28px TextFillColorTertiaryBrush` 居中图标与引导文案，避免大面积空白框。
+- **状态徽章与对齐**：全应用 `ui:Badge` 在 `App.xaml` 中统一采用 `12px Normal`、`WorkspaceSmallTypeface`、`Tabular` 等宽数字与 WinUI 3 柔和语义配色——中性态（`Secondary`）采用 `8% TextFillColorPrimary` 柔和胶囊底色 + 画刷级 `78% TextFillColorPrimary` 清晰文字，语义态（`Success` / `Info` / `Caution` / `Danger`）统一通过 `Appearance` 触发对应 `SystemFillColor*BackgroundBrush` + 语义主色，确保浅色/深色与勾选行底色下均轮廓清晰。快捷操作列居中，磁盘数值右对齐。
+- **行操作与空状态**：首页项目行支持双击与右键「编辑配置」「移除项目」；全应用空状态统一复用 `WorkspaceEmptyIcon`（`24px TextFillColorTertiaryBrush`）、`WorkspaceEmptyTitle`（`14px/20px TextFillColorSecondaryBrush`）与 `WorkspaceEmptySubtitle`（`12px/17px WorkspaceSmallTypeface TextFillColorTertiaryBrush`），避免大面积空白框。
 
 ---
 
