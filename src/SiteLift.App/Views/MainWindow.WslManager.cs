@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Windows;
+using SiteLift.Core;
 
 namespace SiteLift.App.Views;
 
@@ -14,7 +15,7 @@ public partial class MainWindow
         new WslManagerWindow(ProjectsUsingWsl) { Owner = this, Icon = Icon }.ShowDialog();
     }
 
-    private IEnumerable<string> ProjectsUsingWsl(string instance)
+    private IEnumerable<WslProjectReference> ProjectsUsingWsl(string instance)
     {
         foreach (var project in savedProjects)
         {
@@ -24,7 +25,11 @@ public partial class MainWindow
             string? name = (config?["distro"] as JsonValue)?.TryGetValue<string>(out var configured) == true ? configured : null;
             if ((config?["wslRepo"] as JsonValue)?.TryGetValue<string>(out var path) == true &&
                 TryParseWslNetworkPath(UnquotePath(path), out _, out var fromPath)) name = fromPath;
-            if (string.Equals(instance, name, StringComparison.OrdinalIgnoreCase)) yield return project.Name;
+            if (string.Equals(instance, name, StringComparison.OrdinalIgnoreCase))
+            {
+                var framework = SiteFrameworkDetector.Detect(project.Configuration);
+                yield return new WslProjectReference(project.Name, framework);
+            }
         }
     }
 }

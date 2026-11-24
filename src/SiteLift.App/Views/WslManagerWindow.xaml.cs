@@ -18,7 +18,7 @@ namespace SiteLift.App.Views;
 
 public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 {
-    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, ImageSource? DistributionIcon)
+    private sealed record Instance(string Name, bool IsDefault, string State, bool IsRunning, string Version, string Location, DiskUsage Disk, string? DiskFile, DevelopmentTool[] Tools, string ToolStatus, string Distribution, ImageSource? DistributionIcon, WslToolProbeResult? Probe = null)
     {
         public string DistributionHint => $"{Distribution} · {State}";
 
@@ -56,7 +56,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    private readonly Func<string, IEnumerable<string>> projectsUsing;
+    private readonly Func<string, IEnumerable<WslProjectReference>> projectsUsing;
     private readonly Func<string[], Task<(int Code, string Output)>> queryHost;
     private const int QueryTimeout = -1;
     private bool busy;
@@ -64,7 +64,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     private string help = "";
     private string installHelp = "";
 
-    internal WslManagerWindow(Func<string, IEnumerable<string>> projectsUsing,
+    internal WslManagerWindow(Func<string, IEnumerable<WslProjectReference>> projectsUsing,
         Func<string[], Task<(int Code, string Output)>>? queryHost = null)
     {
         this.projectsUsing = projectsUsing;
@@ -260,8 +260,8 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         {
             if (!row.IsRunning) return row;
             var diskTask = row.Version == "WSL 2" ? ReadDiskUsageAsync(row.Name) : Task.FromResult<DiskUsage?>(null);
-            var (tools, status) = await ReadInstalledToolsAsync(row.Name);
-            return row with { Tools = tools, ToolStatus = status, Disk = await diskTask ?? row.Disk };
+            var (probe, tools, status) = await ReadInstalledToolsAsync(row.Name);
+            return row with { Tools = tools, ToolStatus = status, Disk = await diskTask ?? row.Disk, Probe = probe };
         }));
         var selected = (Instances.SelectedItem as Instance)?.Name;
         Instances.ItemsSource = checkedRows;
@@ -398,7 +398,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         await RunAsync(async () =>
         {
             var (dialog, form, footer) = CreateDialog($"注销并删除 {instance.Name}");
-            string[] projects = projectsUsing(instance.Name).Distinct().ToArray();
+            string[] projects = projectsUsing(instance.Name).Select(p => p.Name).Distinct().ToArray();
             string warning = "此操作会永久删除该实例的 Linux 文件、设置和应用。" +
                 (projects.Length == 0 ? "" : "\n关联项目：" + string.Join("、", projects));
             form.Children.Add(CreateDialogBanner($"确认删除实例「{instance.Name}」", warning, critical: true));

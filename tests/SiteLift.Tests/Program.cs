@@ -626,4 +626,86 @@ foreach (string legacyDirName in AppDataStore.LegacyDataDirectoryNames)
     }
 }
 
+// 9. WslDevelopmentEnvironment tests
+{
+    string probeSample = """
+        nvm	1
+        dltool	1
+        git	git version 2.43.0
+        node	v22.14.0
+        pnpm	10.6.3
+        python3	Python 3.12.3
+        pypip	0
+        pyvenv	0
+        pipx	0
+        hugo	hugo v0.145.0-666444f0a52132f9fec9f71cf25b441cc6a4f355+extended linux/amd64 BuildDate=2025-02-26T15:41:25Z
+        go	go version go1.24.1 linux/amd64
+        ruby	ruby 3.2.3 (2024-01-18 revision 52bb2ac0a6) [x86_64-linux-gnu]
+        bundler	0
+        mdbook	mdbook v0.4.48
+        rustc	rustc 1.85.0 (4d91de4e4 2025-02-17)
+        """;
+    var probe = WslDevelopmentEnvironment.ParseProbeOutput(probeSample);
+    Check(probe.GitVersion == "2.43.0", "Probe should parse Git version.");
+    Check(probe.HasNvm && probe.NodeVersion == "22.14.0" && probe.PnpmVersion == "10.6.3", "Probe should parse Node/pnpm/nvm.");
+    Check(probe.PythonVersion == "3.12.3" && !probe.PythonReadyForMkDocs, "Python without pip/venv should not be ready for MkDocs.");
+    Check(probe.HugoVersion == "0.145.0" && probe.HugoIsExtended && probe.HugoReady, "Probe should parse Hugo Extended.");
+    Check(probe.GoVersion == "1.24.1", "Probe should parse Go version.");
+    Check(probe.RubyVersion == "3.2.3" && !probe.RubyReadyForJekyll, "Ruby without bundler should not be ready for Jekyll.");
+    Check(probe.MdBookVersion == "0.4.48" && probe.RustVersion == "1.85.0", "Probe should parse mdBook and Rust.");
+
+    // Preset activation glow states
+    var linked = new[] { SiteFramework.VitePress, SiteFramework.Hugo };
+    Check(WslDevelopmentEnvironment.GetPresetActivation(WslEnvironmentPreset.Node, probe, linked) == PresetActivation.Active, "Node preset should be Active.");
+    Check(WslDevelopmentEnvironment.GetPresetActivation(WslEnvironmentPreset.Hugo, probe, linked) == PresetActivation.Active, "Hugo preset should be Active.");
+    Check(WslDevelopmentEnvironment.GetPresetActivation(WslEnvironmentPreset.MkDocs, probe, linked) == PresetActivation.Partial, "MkDocs preset should be Partial when pip/venv missing.");
+    Check(WslDevelopmentEnvironment.GetPresetActivation(WslEnvironmentPreset.Jekyll, probe, linked) == PresetActivation.Partial, "Jekyll preset should be Partial when bundler missing.");
+    Check(WslDevelopmentEnvironment.GetPresetActivation(WslEnvironmentPreset.MdBook, probe, linked) == PresetActivation.Active, "mdBook preset should be Active.");
+
+    // Dynamic toolchain filtering per preset
+    Check(WslDevelopmentEnvironment.GetVisibleGroups(WslEnvironmentPreset.Hugo, probe, linked)
+        .SequenceEqual(new[] { WslToolGroup.Git, WslToolGroup.Hugo }), "Hugo preset must show only Git and Hugo.");
+    Check(WslDevelopmentEnvironment.GetVisibleGroups(WslEnvironmentPreset.Node, probe, linked)
+        .SequenceEqual(new[] { WslToolGroup.Git, WslToolGroup.Node }), "Node preset must show only Git and Node.");
+    Check(WslDevelopmentEnvironment.GetVisibleGroups(WslEnvironmentPreset.MkDocs, probe, linked)
+        .SequenceEqual(new[] { WslToolGroup.Git, WslToolGroup.Python }), "MkDocs preset must show only Git and Python.");
+    Check(WslDevelopmentEnvironment.GetVisibleGroups(WslEnvironmentPreset.Jekyll, probe, linked)
+        .SequenceEqual(new[] { WslToolGroup.Git, WslToolGroup.Ruby }), "Jekyll preset must show only Git and Ruby.");
+    Check(WslDevelopmentEnvironment.GetVisibleGroups(WslEnvironmentPreset.MdBook, probe, linked)
+        .SequenceEqual(new[] { WslToolGroup.Git, WslToolGroup.MdBook }), "mdBook preset must show only Git and mdBook.");
+    Check(WslDevelopmentEnvironment.GetVisibleGroups(WslEnvironmentPreset.Recommended, probe, linked)
+        .SequenceEqual(new[] { WslToolGroup.Git, WslToolGroup.Node, WslToolGroup.Hugo }), "Recommended preset should match linked frameworks.");
+    Check(WslDevelopmentEnvironment.GetVisibleGroups(WslEnvironmentPreset.Custom, probe, linked).Count == 6, "Custom preset must show all 6 groups.");
+
+    // Preset selection skips already-installed tools and fills missing dependencies
+    var partialProbe = new WslToolProbeResult(GitVersion: "2.43.0", PythonVersion: "3.12.3", HasPythonPip: false, HasPythonVenv: false, HasDownloadTool: true);
+    var mkSel = WslDevelopmentEnvironment.BuildPresetSelection(WslEnvironmentPreset.MkDocs, partialProbe, Array.Empty<SiteFramework>());
+    Check(!mkSel.Git && mkSel.Python && mkSel.PythonPipVenv && mkSel.PythonPipx, "MkDocs preset should skip installed Git and select missing pip/venv/pipx.");
+
+    var nodeOnlySel = new WslDevelopmentSelection(Node: true, Pnpm: true, Corepack: true);
+    Check(!WslDevelopmentEnvironment.RequiresSudo(nodeOnlySel, partialProbe), "Node/pnpm/Corepack with curl present should not require sudo.");
+    Check(WslDevelopmentEnvironment.RequiresSudo(new WslDevelopmentSelection(Hugo: true), partialProbe), "Installing Hugo to /usr/local/bin should require sudo.");
+
+    // Version validation rejects injection
+    Check(!WslDevelopmentEnvironment.IsValidSelection(new WslDevelopmentSelection(Hugo: true, HugoVersion: "v0.145.0; rm -rf /")), "Hugo version must reject shell injection.");
+    Check(!WslDevelopmentEnvironment.IsValidSelection(new WslDevelopmentSelection(Go: true, GoVersion: "$(whoami)")), "Go version must reject shell injection.");
+    Check(!WslDevelopmentEnvironment.IsValidSelection(new WslDevelopmentSelection(MdBook: true, MdBookVersion: "../evil")), "mdBook version must reject invalid tags.");
+
+    // Setup script generation covers all toolchains
+    var fullSel = new WslDevelopmentSelection(
+        Git: true, Node: true, Pnpm: true, Corepack: true,
+        Python: true, PythonPipVenv: true, PythonPipx: true, PythonAlias: true,
+        Hugo: true, HugoVersion: "v0.145.0", Go: true, GoVersion: "1.24.1",
+        Ruby: true, MdBook: true, MdBookVersion: "v0.4.48", Rust: true);
+    var (setupScript, setupArgs) = WslDevelopmentEnvironment.BuildSetupCommand(fullSel);
+    Check(setupArgs.Contains("python3-pip") && setupArgs.Contains("python3-venv") && setupArgs.Contains("pipx"), "Script args should include Python MkDocs packages.");
+    Check(setupArgs.Contains("ruby-full") && setupArgs.Contains("build-essential") && setupArgs.Contains("zlib1g-dev"), "Script args should include Jekyll native deps.");
+    Check(setupScript.Contains("hugo_extended_"), "Script should install Hugo Extended.");
+    Check(setupScript.Contains("/usr/local/bin/go"), "Script should symlink Go into /usr/local/bin.");
+    Check(setupScript.Contains("GEM_HOME"), "Script should configure user-level GEM_HOME for Bundler.");
+    Check(setupScript.Contains("/usr/local/bin/mdbook"), "Script should install mdBook binary into /usr/local/bin.");
+    Check(setupScript.Contains("corepack enable"), "Script should enable Corepack.");
+    Check(setupScript.Contains("sh.rustup.rs"), "Script should install Rust via rustup.");
+}
+
 Console.WriteLine("All SiteLift.Core unit and Git integration checks passed.");
