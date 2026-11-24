@@ -25,8 +25,8 @@ public sealed class JsonCodeEditor : TextBox
         Brush LineNumber,
         Brush ActiveLineNumber,
         Brush ActiveLineBackground,
-        Pen IndentGuidePen,
-        Pen ActiveIndentGuidePen);
+        Brush IndentGuide,
+        Brush ActiveIndentGuide);
 
     private static readonly Palette LightPalette = CreatePalette(
         key: "#0451A5",
@@ -38,9 +38,9 @@ public sealed class JsonCodeEditor : TextBox
         brackets: new[] { "#0431FA", "#319331", "#7B3814" },
         lineNumber: "#6E7681",
         activeLineNumber: "#171184",
-        activeLineBackground: "#0A000000",
-        indentGuide: "#D3D3D3",
-        activeIndentGuide: "#939393");
+        activeLineBackground: "#07000000",
+        indentGuide: "#16000000",
+        activeIndentGuide: "#38000000");
 
     private static readonly Palette DarkPalette = CreatePalette(
         key: "#9CDCFE",
@@ -52,9 +52,9 @@ public sealed class JsonCodeEditor : TextBox
         brackets: new[] { "#FFD700", "#DA70D6", "#179FFF" },
         lineNumber: "#6E7681",
         activeLineNumber: "#CCCCCC",
-        activeLineBackground: "#0EFFFFFF",
-        indentGuide: "#404040",
-        activeIndentGuide: "#707070");
+        activeLineBackground: "#0BFFFFFF",
+        indentGuide: "#18FFFFFF",
+        activeIndentGuide: "#45FFFFFF");
 
     private enum TokenKind { Punctuation, Key, String, Escape, BoolNull, Number, Bracket }
     private readonly record struct TokenSpan(int Start, int Length, TokenKind Kind, int BracketLevel = 0);
@@ -549,17 +549,21 @@ public sealed class JsonCodeEditor : TextBox
             if (info.LeadingSpaces >= 2)
             {
                 int levels = info.LeadingSpaces / 2;
+                double hairline = 1.0 / pixelsPerDip;
+                double gy1 = Math.Round(slotTop * pixelsPerDip) / pixelsPerDip;
+                double gy2 = Math.Round((slotTop + slotHeight) * pixelsPerDip) / pixelsPerDip;
+                double gh = Math.Max(hairline, gy2 - gy1);
                 for (int lvl = 0; lvl < levels; lvl++)
                 {
                     if (!TryGetCharOrigin(info.CharStart + lvl * 2, layer, out Point guideOrigin, out _))
                         break;
-                    double gx = Math.Round(guideOrigin.X) + 0.5;
+                    double gx = Math.Floor(guideOrigin.X * pixelsPerDip) / pixelsPerDip;
                     bool isActiveGuide = activeScope is { } s &&
                         s.Level == lvl &&
                         lineIdx > s.StartLine &&
                         lineIdx < s.EndLine;
-                    Pen pen = isActiveGuide ? palette.ActiveIndentGuidePen : palette.IndentGuidePen;
-                    dc.DrawLine(pen, new Point(gx, slotTop), new Point(gx, slotTop + slotHeight));
+                    Brush guideBrush = isActiveGuide ? palette.ActiveIndentGuide : palette.IndentGuide;
+                    dc.DrawRectangle(guideBrush, null, new Rect(gx, gy1, hairline, gh));
                 }
             }
 
@@ -620,8 +624,8 @@ public sealed class JsonCodeEditor : TextBox
             LineNumber: FrozenBrush(lineNumber),
             ActiveLineNumber: FrozenBrush(activeLineNumber),
             ActiveLineBackground: FrozenBrush(activeLineBackground),
-            IndentGuidePen: FrozenPen(indentGuide, 1.0),
-            ActiveIndentGuidePen: FrozenPen(activeIndentGuide, 1.0));
+            IndentGuide: FrozenBrush(indentGuide),
+            ActiveIndentGuide: FrozenBrush(activeIndentGuide));
     }
 
     private static SolidColorBrush FrozenBrush(string hex)
@@ -629,13 +633,6 @@ public sealed class JsonCodeEditor : TextBox
         var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
         brush.Freeze();
         return brush;
-    }
-
-    private static Pen FrozenPen(string hex, double thickness)
-    {
-        var pen = new Pen(FrozenBrush(hex), thickness);
-        pen.Freeze();
-        return pen;
     }
 }
 
