@@ -83,7 +83,11 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         base.OnClosing(e);
-        if (busy) e.Cancel = true;
+        if (busy)
+        {
+            e.Cancel = true;
+            Status.ShowFeedback("当前操作正在执行，请等待完成后再关闭窗口。", InfoBarSeverity.Informational);
+        }
     }
 
     private static async Task<(int Code, string Output)> InvokeAsync(string[] args, Action<string>? log = null,
@@ -599,9 +603,9 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         footer.Children.Add(message);
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         footer.Children.Add(actions);
-        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Padding = new Thickness(14, 5.5, 14, 6.5), Margin = new Thickness(0, 0, 8, 0) };
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Margin = new Thickness(0, 0, 8, 0) };
         cancel.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
-        var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 104, Padding = new Thickness(14, 5.5, 14, 6.5) };
+        var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 104 };
         confirm.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
         confirm.Appearance = destructive ? Wpf.Ui.Controls.ControlAppearance.Danger : Wpf.Ui.Controls.ControlAppearance.Primary;
         actions.Children.Add(cancel);

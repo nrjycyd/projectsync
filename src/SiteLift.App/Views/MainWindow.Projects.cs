@@ -75,7 +75,6 @@ public partial class MainWindow
         var visual = SiteFrameworkVisuals.Resolve(framework, IsDarkThemeActive());
         project.FrameworkLabel = visual.DisplayName;
         project.FrameworkImage = visual.Image;
-        project.FrameworkChipBackground = visual.ChipBackground;
         project.CustomFrameworkVisibility = visual.IsGeneric ? Visibility.Collapsed : Visibility.Visible;
         project.FallbackFolderVisibility = visual.IsGeneric ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -147,9 +146,6 @@ public partial class MainWindow
 
         [System.Text.Json.Serialization.JsonIgnore]
         public System.Windows.Media.ImageSource? FrameworkImage { get; set; }
-
-        [System.Text.Json.Serialization.JsonIgnore]
-        public System.Windows.Media.Brush? FrameworkChipBackground { get; set; }
 
         [System.Text.Json.Serialization.JsonIgnore]
         public Visibility CustomFrameworkVisibility { get; set; } = Visibility.Collapsed;
@@ -547,8 +543,18 @@ public partial class MainWindow
 
     private void ProjectSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => UpdateHomeActions();
 
+    public static readonly DependencyProperty IsRowSelectionEnabledProperty =
+        DependencyProperty.Register(nameof(IsRowSelectionEnabled), typeof(bool), typeof(MainWindow), new PropertyMetadata(true));
+
+    public bool IsRowSelectionEnabled
+    {
+        get => (bool)GetValue(IsRowSelectionEnabledProperty);
+        private set => SetValue(IsRowSelectionEnabledProperty, value);
+    }
+
     private void ProjectCheckChanged(object sender, RoutedEventArgs e)
     {
+        if (running) return;
         if (sender is System.Windows.Controls.CheckBox { DataContext: ProjectEntry project } checkBox)
             project.Checked = checkBox.IsChecked == true;
         UpdateHomeActions();
@@ -657,7 +663,7 @@ public partial class MainWindow
             return;
         for (var element = e.OriginalSource as System.Windows.Media.Visual; element is not null;
             element = System.Windows.Media.VisualTreeHelper.GetParent(element) as System.Windows.Media.Visual)
-            if (element is System.Windows.Controls.Button)
+            if (element is System.Windows.Controls.Primitives.ButtonBase)
                 return;
         Projects.SelectedItem = project;
         OpenProject(sender, e);
@@ -881,24 +887,12 @@ public partial class MainWindow
         BatchProgressPanel.Visibility = Visibility.Visible;
         HomeStatus.IsOpen = false;
         running = true;
-        HomePage.Tag = true;
+        IsRowSelectionEnabled = false;
         HomeActions.IsEnabled = false;
         UpdateHomeActions();
-        if (operation != Operation.BrowserPreview) ResetHomeLog();
-        HomeResults.SelectedItem = HomeLogTab;
-        SetResultsCollapsed(false);
-        if (operation == Operation.Build)
-        {
-            HomeChanges.Items.Clear();
-            HomeChangesBadge.Visibility = Visibility.Collapsed;
-            HomeChangesAddedBadge.Visibility = Visibility.Collapsed;
-            HomeChangesModifiedBadge.Visibility = Visibility.Collapsed;
-            HomeChangesDeletedBadge.Visibility = Visibility.Collapsed;
-            HomeChangesSummary.Text = "正在生成…";
-            HomeChangesSummary.Visibility = Visibility.Visible;
-        }
         int completed = 0;
         int failed = 0;
+        bool cancelledBeforeStart = false;
         bool autoPreviewFailed = false;
         bool windowsGitMissing = false;
         string? windowsGitMissingMessage = null;
@@ -920,7 +914,7 @@ public partial class MainWindow
                             continue;
                         if (RequestCommitSummary(project, changes) is not { } summary)
                         {
-                            cancellation.Cancel();
+                            cancelledBeforeStart = true;
                             return;
                         }
                         summaries.Add(project.Id, summary);
@@ -930,16 +924,34 @@ public partial class MainWindow
                         failed++;
                         windowsGitMissing = true;
                         windowsGitMissingMessage = error.Message;
+                        HomeResults.SelectedItem = HomeLogTab;
+                        SetResultsCollapsed(false);
                         WriteHomeLog($"{project.Name}：{error.Message}");
                         return;
                     }
                     catch (Exception error)
                     {
                         failed++;
+                        HomeResults.SelectedItem = HomeLogTab;
+                        SetResultsCollapsed(false);
                         WriteHomeLog($"{project.Name}：无法读取待提交文件：{error.Message}");
                         return;
                     }
                 }
+            }
+
+            if (operation != Operation.BrowserPreview) ResetHomeLog();
+            HomeResults.SelectedItem = HomeLogTab;
+            SetResultsCollapsed(false);
+            if (operation == Operation.Build)
+            {
+                HomeChanges.Items.Clear();
+                HomeChangesBadge.Visibility = Visibility.Collapsed;
+                HomeChangesAddedBadge.Visibility = Visibility.Collapsed;
+                HomeChangesModifiedBadge.Visibility = Visibility.Collapsed;
+                HomeChangesDeletedBadge.Visibility = Visibility.Collapsed;
+                HomeChangesSummary.Text = "正在生成…";
+                HomeChangesSummary.Visibility = Visibility.Visible;
             }
 
             int position = 0;
@@ -1050,7 +1062,7 @@ public partial class MainWindow
                     }
                     else if (operation == Operation.Publish &&
                              error is SyncException pubEx &&
-                             pubEx.Code is SyncErrorCode.RepositoryBusy or SyncErrorCode.WindowsGitMissing &&
+                             pubEx.Code is SyncErrorCode.RepositoryBusy or SyncErrorCode.WindowsGitMissing or SyncErrorCode.Push &&
                              previousState is not null)
                     {
                         // Preserve valid synced state when no commit was created yet.
@@ -1069,25 +1081,30 @@ public partial class MainWindow
         finally
         {
             running = false;
+            IsRowSelectionEnabled = true;
             batchCancellation = null;
             BatchProgressPanel.Visibility = Visibility.Collapsed;
-            HomePage.Tag = false;
             HomeActions.IsEnabled = true;
             RefreshProjects();
             ShowSavedChanges();
-            if (operation == Operation.Build && completed == selected.Length && !autoPreviewFailed)
-                HomeResults.SelectedItem = HomeChangesTab;
-                SetResultsCollapsed(false);
-            string result = (cancellation.IsCancellationRequested ? "已停止 · " : "") +
-                $"完成 {completed} 个 · 失败 {failed} 个";
-            if (windowsGitMissing && windowsGitMissingMessage is not null)
-                ShowWindowsGitMissing(HomeStatus, windowsGitMissingMessage);
-            else if (failed > 0)
-                HomeStatus.ShowFeedback(result + "。详情见运行日志。", InfoBarSeverity.Warning);
-            else if (autoPreviewFailed)
-                HomeStatus.ShowFeedback(result + "。部分浏览器预览未打开，详情见运行日志。", InfoBarSeverity.Warning);
-            else
-                HomeStatus.ShowFeedback(result, cancellation.IsCancellationRequested ? InfoBarSeverity.Informational : InfoBarSeverity.Success);
+            if (!cancelledBeforeStart)
+            {
+                if (operation == Operation.Build && completed == selected.Length && !autoPreviewFailed)
+                {
+                    HomeResults.SelectedItem = HomeChangesTab;
+                    SetResultsCollapsed(false);
+                }
+                string result = (cancellation.IsCancellationRequested ? "已停止 · " : "") +
+                    $"完成 {completed} 个 · 失败 {failed} 个";
+                if (windowsGitMissing && windowsGitMissingMessage is not null)
+                    ShowWindowsGitMissing(HomeStatus, windowsGitMissingMessage);
+                else if (failed > 0)
+                    HomeStatus.ShowFeedback(result + "。详情见运行日志。", InfoBarSeverity.Warning);
+                else if (autoPreviewFailed)
+                    HomeStatus.ShowFeedback(result + "。部分浏览器预览未打开，详情见运行日志。", InfoBarSeverity.Warning);
+                else
+                    HomeStatus.ShowFeedback(result, cancellation.IsCancellationRequested ? InfoBarSeverity.Informational : InfoBarSeverity.Success);
+            }
             if (closeAfterBatch)
             {
                 closeAfterBatch = false;

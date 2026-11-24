@@ -182,7 +182,6 @@ public partial class MainWindow
         // 3. Local repository initialization vs maintenance card
         string targetBranch = branch.Text.Trim();
         bool hasBranch = targetBranch.Length > 0;
-        string effectiveAddress = typedUrl.Length > 0 ? typedUrl : detectedUrl ?? "";
 
         if (isGitRepo)
         {
@@ -578,7 +577,7 @@ public partial class MainWindow
         var close = new Wpf.Ui.Controls.Button
         {
             Content = "关闭", IsCancel = true, MinWidth = 84,
-            Padding = new Thickness(14, 5.5, 14, 6.5), HorizontalAlignment = HorizontalAlignment.Right
+            HorizontalAlignment = HorizontalAlignment.Right
         };
         close.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
         var footer = new Border

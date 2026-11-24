@@ -133,7 +133,7 @@ public partial class WslManagerWindow
         bool Valid()
         {
             string login = user.Text.Trim();
-            return (login.Length == 0 || Regex.IsMatch(login, @"\A[A-Za-z_][A-Za-z0-9_.-]*[$]?\z")) &&
+            return (login.Length == 0 || SyncPath.IsValidWslUser(login)) &&
                 (git.Selected || python.Selected || node.Selected || pnpm.Selected || alias.IsChecked == true) &&
                 ValidApt(git) && ValidApt(python) &&
                 (!node.Selected || Regex.IsMatch(node.Version, @"\A(?:latest|lts/\*|v?[0-9]+(?:\.[0-9]+){0,2})\z")) &&

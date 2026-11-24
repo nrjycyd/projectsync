@@ -464,6 +464,7 @@
           </DataGridTemplateColumn.Header>
           <DataGridTemplateColumn.CellTemplate><DataTemplate>
            <CheckBox Style="{StaticResource WorkspaceTableCheckBox}"
+                     IsEnabled="{Binding IsRowSelectionEnabled, RelativeSource={RelativeSource AncestorType=local:MainWindow}}"
                      IsChecked="{Binding Checked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      Click="ProjectCheckChanged" AutomationProperties.Name="{Binding Name}"/>
           </DataTemplate></DataGridTemplateColumn.CellTemplate>
@@ -1185,10 +1186,10 @@
             </StackPanel>
             <StackPanel Grid.Column="2">
              <Label Style="{StaticResource SettingsFieldLabel}" Margin="0,0,0,4" Target="{Binding ElementName=excludeSuffixes}" Content="排除文件名后缀（每行一项）"/>
-             <ui:TextBox x:Name="excludeSuffixes" Style="{StaticResource WorkspaceMultilineInput}" AcceptsReturn="True" Height="116"
+             <ui:TextBox x:Name="excludeSuffixes" Style="{StaticResource WorkspaceMultilineInput}" LostKeyboardFocus="NormalizeSyncPathField" AcceptsReturn="True" Height="116"
                          VerticalScrollBarVisibility="Auto"
-                         PlaceholderText="填写文件名结尾，例如：&#10;Zone.Identifier&#10;.map"
-                         ToolTip="填写文件名结尾，例如 Zone.Identifier 或 .map。"/>
+                         PlaceholderText="填写文件名结尾，例如：&#10;:Zone.Identifier&#10;.map"
+                         ToolTip="填写文件名结尾，例如 :Zone.Identifier 或 .map。"/>
             </StackPanel>
            </Grid>
           </Border>

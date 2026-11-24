@@ -77,13 +77,18 @@ public static class SyncPath
         return value;
     }
 
-    public static string ValidateWslUser(string? input)
+    public static bool IsValidWslUser(string? input)
     {
         string value = (input ?? "").Trim();
-        if (value.Length == 0 || value.StartsWith('-') ||
-            !Regex.IsMatch(value, @"\A[A-Za-z_][A-Za-z0-9_.-]*[$]?\z"))
+        return value.Length > 0 && !value.StartsWith('-') &&
+            Regex.IsMatch(value, @"\A[A-Za-z_][A-Za-z0-9_.-]*[$]?\z");
+    }
+
+    public static string ValidateWslUser(string? input)
+    {
+        if (!IsValidWslUser(input))
             throw new ArgumentException($"WSL 用户名无效：{input}");
-        return value;
+        return input!.Trim();
     }
 
     public static string ValidateWslRoot(string? input)

@@ -51,14 +51,15 @@ public partial class MainWindow
         BatchProgressPanel.Visibility = Visibility.Visible;
         HomeStatus.IsOpen = false;
         running = true;
-        HomePage.Tag = true;
+        IsRowSelectionEnabled = false;
         HomeActions.IsEnabled = false;
         UpdateHomeActions();
         ResetHomeLog();
         HomeResults.SelectedItem = HomeLogTab;
         SetResultsCollapsed(false);
         WriteHomeLog($"[{project.Name}] {operation}");
-        // Maintenance may change the dependency lockfile, so refresh any cached preview.
+        // Maintenance may change the dependency lockfile, so refresh any cached preview and build receipt.
+        InvalidateSuccessfulBuild(project);
         if (projectRuns.TryGetValue(project.Id, out var state) && state.Progress != "已提交，待推送")
         {
             projectRuns.Remove(project.Id);
@@ -97,9 +98,9 @@ public partial class MainWindow
         finally
         {
             running = false;
+            IsRowSelectionEnabled = true;
             batchCancellation = null;
             BatchProgressPanel.Visibility = Visibility.Collapsed;
-            HomePage.Tag = false;
             HomeActions.IsEnabled = true;
             RefreshProjects();
             if (closeAfterBatch)

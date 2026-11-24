@@ -19,8 +19,7 @@ internal static class FluentDialog
         titleBar.SetResourceReference(TitleBar.ButtonsForegroundProperty, "TextFillColorPrimaryBrush");
         DockPanel.SetDock(titleBar, Dock.Top);
         panel.Children.Add(titleBar);
-        var bodyHost = new Grid { Children = { content } };
-        bodyHost.SetResourceReference(Panel.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        var bodyHost = new Grid { Background = Brushes.Transparent, Children = { content } };
         panel.Children.Add(bodyHost);
         var window = new FluentWindow
         {
@@ -128,7 +127,7 @@ internal static class FluentDialog
             var button = new Button
             {
                 Content = label, Appearance = appearance, IsCancel = isCancel,
-                MinWidth = 84, Padding = new Thickness(14, 5.5, 14, 6.5),
+                MinWidth = 84,
                 Margin = new Thickness(8, 0, 0, 0)
             };
             button.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");

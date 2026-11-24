@@ -6,7 +6,7 @@ using SiteLift.Core;
 
 namespace SiteLift.App.Views;
 
-internal sealed record FrameworkIconVisual(ImageSource? Image, Brush? ChipBackground, bool IsGeneric, string DisplayName);
+internal sealed record FrameworkIconVisual(ImageSource? Image, bool IsGeneric, string DisplayName);
 
 internal static class SiteFrameworkVisuals
 {
@@ -16,17 +16,14 @@ internal static class SiteFrameworkVisuals
     {
         string displayName = SiteFrameworkDetector.GetDisplayName(framework);
         if (framework == SiteFramework.Generic)
-            return new FrameworkIconVisual(null, null, IsGeneric: true, displayName);
+            return new FrameworkIconVisual(null, IsGeneric: true, displayName);
 
         var key = (framework, darkTheme);
         if (Cache.TryGetValue(key, out var cached))
             return cached;
 
-        var (image, tintHex) = BuildArtwork(framework, darkTheme);
-        var tint = ColorFromHex(tintHex);
-        var bg = new SolidColorBrush(Color.FromArgb(darkTheme ? (byte)0x2E : (byte)0x20, tint.R, tint.G, tint.B));
-        bg.Freeze();
-        var visual = new FrameworkIconVisual(image, bg, IsGeneric: false, displayName);
+        var (image, _) = BuildArtwork(framework, darkTheme);
+        var visual = new FrameworkIconVisual(image, IsGeneric: false, displayName);
         Cache[key] = visual;
         return visual;
     }

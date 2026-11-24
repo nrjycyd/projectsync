@@ -16,7 +16,7 @@
     <ui:ImageIcon Source="/SiteLift.App;component/Assets/SiteLift.ico"/>
    </ui:TitleBar.Icon>
   </ui:TitleBar>
-  <Grid Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+  <Grid Background="Transparent">
    <DockPanel Margin="24,14,24,16">
     <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Padding="0,10,0,0"
             BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
@@ -56,7 +56,7 @@
           </ui:Button.Icon>
          </ui:Button>
          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-          <ui:SymbolIcon Symbol="FolderOpen24" FontSize="20" Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center"/>
+          <ui:SymbolIcon Symbol="FolderOpen24" Style="{StaticResource SettingsCardHeaderIcon}"/>
           <StackPanel>
            <TextBlock Text="路径与选项" Style="{StaticResource SettingsCardTitle}"/>
            <TextBlock Text="支持本机 Windows 与 WSL 发行版之间互传；复制目录时会在目标下保留来源目录名" Style="{StaticResource SettingsCardSubtitle}" Margin="0,2,0,0"/>
@@ -111,50 +111,50 @@
       </Border>
      </ScrollViewer>
 
-     <Border Grid.Row="1" Style="{StaticResource SettingsCard}" Margin="0">
+     <Border x:Name="PreviewTableFrame" Grid.Row="1" Style="{StaticResource SettingsCard}" Padding="0" Margin="0">
       <DockPanel>
-       <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-        <ui:Button x:Name="PreviewCopy" Style="{StaticResource WorkspaceIconButton}" DockPanel.Dock="Right" Height="34"
-                   Content="预览复制" Appearance="Primary" IsEnabled="False" Click="PreviewClick" Margin="12,0,0,0">
-         <ui:Button.Icon>
-          <ui:SymbolIcon Symbol="Eye16" Style="{StaticResource WorkspaceActionIcon}"/>
-         </ui:Button.Icon>
-        </ui:Button>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-         <ui:SymbolIcon Symbol="DocumentText24" FontSize="20" Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Center"/>
-         <TextBlock Text="复制清单" Style="{StaticResource SettingsCardTitle}" VerticalAlignment="Center"/>
-         <ui:Badge x:Name="PreviewCountBadge" Appearance="Secondary" Content="未预览" VerticalAlignment="Center" Margin="10,0,0,0"/>
-        </StackPanel>
-       </DockPanel>
+       <Border DockPanel.Dock="Top" Style="{StaticResource SettingsCardHeader}" Padding="14,10,14,10">
+        <DockPanel>
+         <ui:Button x:Name="PreviewCopy" Style="{StaticResource WorkspaceIconButton}" DockPanel.Dock="Right"
+                    Content="预览复制" Appearance="Primary" IsEnabled="False" Click="PreviewClick" Margin="12,0,0,0">
+          <ui:Button.Icon>
+           <ui:SymbolIcon Symbol="Eye16" Style="{StaticResource WorkspaceActionIcon}"/>
+          </ui:Button.Icon>
+         </ui:Button>
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource SettingsCardHeaderIcon}"/>
+          <TextBlock Text="复制清单" Style="{StaticResource SettingsCardTitle}" VerticalAlignment="Center"/>
+          <ui:Badge x:Name="PreviewCountBadge" Appearance="Secondary" Content="未预览" VerticalAlignment="Center" Margin="10,0,0,0"/>
+         </StackPanel>
+        </DockPanel>
+       </Border>
        <Grid>
-        <Border Style="{StaticResource WorkspacePanel}">
-         <ui:DataGrid x:Name="Changes" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" SizeChanged="ChangesTableSizeChanged"
-                      IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                      BorderThickness="0" Background="Transparent" RowHeight="34" ColumnHeaderHeight="34" AutomationProperties.Name="复制清单">
-          <DataGrid.Columns>
-           <DataGridTemplateColumn Header="操作" Width="120" SortMemberPath="Action">
-            <DataGridTemplateColumn.CellTemplate>
-             <DataTemplate>
-              <ui:Badge HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0" Content="{Binding Action}">
-               <ui:Badge.Style>
-                <Style TargetType="ui:Badge" BasedOn="{StaticResource {x:Type ui:Badge}}">
-                 <Setter Property="Appearance" Value="Secondary"/>
-                 <Style.Triggers>
-                  <DataTrigger Binding="{Binding Action}" Value="复制"><Setter Property="Appearance" Value="Success"/></DataTrigger>
-                  <DataTrigger Binding="{Binding Action}" Value="覆盖"><Setter Property="Appearance" Value="Caution"/></DataTrigger>
-                  <DataTrigger Binding="{Binding Action}" Value="创建目录"><Setter Property="Appearance" Value="Info"/></DataTrigger>
-                 </Style.Triggers>
-                </Style>
-               </ui:Badge.Style>
-              </ui:Badge>
-             </DataTemplate>
-            </DataGridTemplateColumn.CellTemplate>
-           </DataGridTemplateColumn>
-           <DataGridTextColumn Header="目标相对路径" Width="*" MinWidth="160" Binding="{Binding Path}" ElementStyle="{StaticResource WorkspaceTableText}"/>
-          </DataGrid.Columns>
-         </ui:DataGrid>
-        </Border>
+        <ui:DataGrid x:Name="Changes" ColumnHeaderStyle="{StaticResource WorkspaceColumnHeader}" SizeChanged="ChangesTableSizeChanged"
+                     IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
+                     HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                     BorderThickness="0" Background="Transparent" RowHeight="36" ColumnHeaderHeight="36" AutomationProperties.Name="复制清单">
+         <DataGrid.Columns>
+          <DataGridTemplateColumn Header="操作" Width="120" SortMemberPath="Action">
+           <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+             <ui:Badge HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0" Content="{Binding Action}">
+              <ui:Badge.Style>
+               <Style TargetType="ui:Badge" BasedOn="{StaticResource {x:Type ui:Badge}}">
+                <Setter Property="Appearance" Value="Secondary"/>
+                <Style.Triggers>
+                 <DataTrigger Binding="{Binding Action}" Value="复制"><Setter Property="Appearance" Value="Success"/></DataTrigger>
+                 <DataTrigger Binding="{Binding Action}" Value="覆盖"><Setter Property="Appearance" Value="Caution"/></DataTrigger>
+                 <DataTrigger Binding="{Binding Action}" Value="创建目录"><Setter Property="Appearance" Value="Info"/></DataTrigger>
+                </Style.Triggers>
+               </Style>
+              </ui:Badge.Style>
+             </ui:Badge>
+            </DataTemplate>
+           </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="目标相对路径" Width="*" MinWidth="160" Binding="{Binding Path}" ElementStyle="{StaticResource WorkspaceTableText}"/>
+         </DataGrid.Columns>
+        </ui:DataGrid>
         <StackPanel x:Name="EmptyPreviewHint" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,24,24,0" IsHitTestVisible="False">
          <ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource WorkspaceEmptyIcon}"/>
          <TextBlock Text="暂无待复制清单" Style="{StaticResource WorkspaceEmptyTitle}"/>

@@ -112,6 +112,15 @@ Reject<ArgumentException>(() => SyncPath.ValidateRemoteName("git@github.com:a/b.
     Check(ProjectConfig.ComputeBuildFingerprint(json) == ProjectConfig.ComputeBuildFingerprint(renamed),
         "Renaming project must not invalidate build fingerprint.");
 
+    string withMaintenance = json.Replace("\"cleanUntracked\": true",
+        "\"reinstallCommand\": \"pnpm install\", \"themeUpgradeCommand\": \"pnpm up\", \"cleanUntracked\": true");
+    Check(ProjectConfig.ComputeBuildFingerprint(json) == ProjectConfig.ComputeBuildFingerprint(withMaintenance),
+        "Changing maintenance commands must not invalidate build fingerprint.");
+
+    Check(SyncPath.IsValidWslUser("dev_01"), "Valid WSL user.");
+    Check(!SyncPath.IsValidWslUser("-bad"), "Leading dash WSL user must be rejected.");
+    Check(!SyncPath.IsValidWslUser("bad user"), "Whitespace WSL user must be rejected.");
+
     Reject<JsonException>(() => ProjectConfig.Parse("""{"git":{"branch":"main"}}"""));
     Check(ProjectConfig.TryReadString("{invalid", "branch") == "", "Safe reader should handle malformed JSON.");
 }
