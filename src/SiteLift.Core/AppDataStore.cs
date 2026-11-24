@@ -41,6 +41,7 @@ public sealed class AppDataStore
 
     public string RootDirectory { get; }
     public string DiagnosticsDirectory => Path.Combine(RootDirectory, "logs");
+    public string UpdatesDirectory => Path.Combine(RootDirectory, "updates");
     public string ProjectsFilePath => Path.Combine(RootDirectory, "projects.json");
     public string ChoicesFilePath => Path.Combine(RootDirectory, "detected-options.json");
     public string PreferencesFilePath => Path.Combine(RootDirectory, "settings.json");

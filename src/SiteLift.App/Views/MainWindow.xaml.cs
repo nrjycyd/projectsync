@@ -191,10 +191,12 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 followingSystemTheme = true;
             }
             UpdateThemeMenuVisuals();
+            InitializeUpdatesOnStartup();
         };
         Wpf.Ui.Appearance.ApplicationThemeManager.Changed += OnApplicationThemeChanged;
         Closed += (_, _) =>
         {
+            CancelStartupUpdateCheck();
             Wpf.Ui.Appearance.ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
             if (followingSystemTheme) Wpf.Ui.Appearance.SystemThemeWatcher.UnWatch(this);
         };

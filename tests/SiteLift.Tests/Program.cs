@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -421,6 +422,207 @@ foreach (string legacyDirName in AppDataStore.LegacyDataDirectoryNames)
     finally
     {
         Directory.Delete(fwRoot, recursive: true);
+    }
+}
+
+// 8. AppUpdater tests
+{
+    string releaseJson = """
+    {
+      "tag_name": "v0.6.0",
+      "html_url": "https://github.com/nrjycyd/sitelift/releases/tag/v0.6.0",
+      "assets": [
+        {
+          "name": "SiteLift-v0.6.0-win-x64.zip",
+          "size": 3145728,
+          "browser_download_url": "https://github.com/nrjycyd/sitelift/releases/download/v0.6.0/SiteLift-v0.6.0-win-x64.zip"
+        },
+        {
+          "name": "SHA256SUMS",
+          "size": 96,
+          "browser_download_url": "https://github.com/nrjycyd/sitelift/releases/download/v0.6.0/SHA256SUMS"
+        }
+      ]
+    }
+    """;
+    var parsedRelease = AppUpdater.ParseLatestRelease(releaseJson);
+    Check(parsedRelease is not null && parsedRelease.Version == new Version(0, 6, 0), "ParseLatestRelease should parse version.");
+    Check(parsedRelease!.CanInPlaceUpdate, "Release with zip and SHA256SUMS should support in-place update.");
+    Check(parsedRelease.PackageAsset!.SizeBytes == 3145728, "Package asset size should be parsed.");
+    Check(parsedRelease.ReleaseUrl == "https://github.com/nrjycyd/sitelift/releases/tag/v0.6.0", "Release html_url should be preserved.");
+
+    string untrustedJson = """
+    {
+      "tag_name": "v0.6.0",
+      "html_url": "https://evil.example/releases",
+      "assets": [
+        {
+          "name": "SiteLift-v0.6.0-win-x64.zip",
+          "size": 100,
+          "browser_download_url": "https://evil.example/SiteLift-v0.6.0-win-x64.zip"
+        },
+        {
+          "name": "SHA256SUMS",
+          "size": 96,
+          "browser_download_url": "http://github.com/nrjycyd/sitelift/releases/download/v0.6.0/SHA256SUMS"
+        }
+      ]
+    }
+    """;
+    var untrustedRelease = AppUpdater.ParseLatestRelease(untrustedJson);
+    Check(untrustedRelease is not null && !untrustedRelease.CanInPlaceUpdate, "Untrusted or HTTP download URLs must be rejected.");
+    Check(untrustedRelease!.ReleaseUrl == AppUpdater.ReleasesUrl, "Untrusted html_url must fall back to default ReleasesUrl.");
+
+    Check(AppUpdater.ParseLatestRelease("""{"tag_name":"v1.2.3.4"}""") is null, "Four-part version tag should be rejected.");
+    Check(AppUpdater.ParseLatestRelease("""{"tag_name":"invalid"}""") is null, "Invalid tag should be rejected.");
+
+    string updRoot = Directory.CreateTempSubdirectory("sitelift-upd-").FullName;
+    try
+    {
+        // SHA-256 verification
+        string sampleFile = Path.Combine(updRoot, "sample.zip");
+        File.WriteAllText(sampleFile, "hello sitelift update", Encoding.UTF8);
+        string actualHash = AppUpdater.ComputeFileSha256(sampleFile);
+        string sums = $"{actualHash}  SiteLift-v0.6.0-win-x64.zip\n";
+        Check(AppUpdater.ParseExpectedSha256(sums, "SiteLift-v0.6.0-win-x64.zip") == actualHash, "ParseExpectedSha256 should match exact asset name.");
+        Check(AppUpdater.ParseExpectedSha256(sums, "other.zip") is null, "ParseExpectedSha256 should return null for missing file.");
+        Check(AppUpdater.VerifyFileSha256(sampleFile, actualHash), "VerifyFileSha256 should succeed for matching hash.");
+        Check(!AppUpdater.VerifyFileSha256(sampleFile, new string('0', 64)), "VerifyFileSha256 should fail for wrong hash.");
+
+        // Synthetic package extraction & validation
+        static string CreateTestZip(string zipPath, IEnumerable<(string EntryName, string Content)> entries)
+        {
+            using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
+            foreach (var (name, content) in entries)
+            {
+                var entry = archive.CreateEntry(name);
+                using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false));
+                writer.Write(content);
+            }
+            return zipPath;
+        }
+
+        string validZip = CreateTestZip(Path.Combine(updRoot, "valid.zip"), new[]
+        {
+            ("SiteLift/SiteLift.App.exe", "new-exe"),
+            ("SiteLift/SiteLift.App.dll", "new-dll"),
+            ("SiteLift/SiteLift.Core.dll", "new-core"),
+            ("SiteLift/SiteLift.App.deps.json", "{}"),
+            ("SiteLift/SiteLift.App.runtimeconfig.json", "{}"),
+            ("SiteLift/licenses/WPF-UI-LICENSE.md", "MIT")
+        });
+        string validStage = Directory.CreateDirectory(Path.Combine(updRoot, "stage-valid")).FullName;
+        var staged = AppUpdater.ExtractAndVerifyPackage(
+            validZip, validStage, Path.Combine(validStage, "extracted"),
+            new Version(0, 6, 0), _ => new Version(0, 6, 0, 0));
+        Check(staged.RelativeFiles.Contains("licenses/WPF-UI-LICENSE.md"), "Valid package extraction should list nested files.");
+
+        Reject<UpdateException>(() => AppUpdater.ExtractAndVerifyPackage(
+            validZip, validStage, Path.Combine(updRoot, "extract-mismatch"),
+            new Version(0, 6, 0), _ => new Version(0, 5, 3, 0)));
+
+        string slipZip = CreateTestZip(Path.Combine(updRoot, "slip.zip"), new[]
+        {
+            ("SiteLift/../evil.dll", "pwned")
+        });
+        Reject<UpdateException>(() => AppUpdater.ExtractAndVerifyPackage(
+            slipZip, validStage, Path.Combine(updRoot, "extract-slip"),
+            new Version(0, 6, 0), _ => new Version(0, 6, 0, 0)));
+
+        string badRootZip = CreateTestZip(Path.Combine(updRoot, "badroot.zip"), new[]
+        {
+            ("WrongRoot/SiteLift.App.exe", "exe")
+        });
+        Reject<UpdateException>(() => AppUpdater.ExtractAndVerifyPackage(
+            badRootZip, validStage, Path.Combine(updRoot, "extract-badroot"),
+            new Version(0, 6, 0), _ => new Version(0, 6, 0, 0)));
+
+        string missingReqZip = CreateTestZip(Path.Combine(updRoot, "missing.zip"), new[]
+        {
+            ("SiteLift/SiteLift.App.exe", "exe")
+        });
+        Reject<UpdateException>(() => AppUpdater.ExtractAndVerifyPackage(
+            missingReqZip, validStage, Path.Combine(updRoot, "extract-missing"),
+            new Version(0, 6, 0), _ => new Version(0, 6, 0, 0)));
+
+        // Install directory inspection
+        string portableDir = Directory.CreateDirectory(Path.Combine(updRoot, "更新测试 空格")).FullName;
+        File.WriteAllText(Path.Combine(portableDir, "SiteLift.App.exe"), "old-exe");
+        var portableStatus = AppUpdater.InspectInstallDirectory(portableDir);
+        Check(portableStatus.CanInPlaceUpdate && !portableStatus.RequiresElevation, "Writable portable dir should allow non-elevated update.");
+
+        string devDir = Directory.CreateDirectory(Path.Combine(updRoot, "dev-dir")).FullName;
+        File.WriteAllText(Path.Combine(devDir, "SiteLift.App.exe"), "dev-exe");
+        File.WriteAllText(Path.Combine(devDir, "SiteLift.App.pdb"), "pdb");
+        var devStatus = AppUpdater.InspectInstallDirectory(devDir);
+        Check(!devStatus.CanInPlaceUpdate, "Dev directory with PDB should block in-place update.");
+
+        string emptyDir = Directory.CreateDirectory(Path.Combine(updRoot, "empty-dir")).FullName;
+        Check(!AppUpdater.InspectInstallDirectory(emptyDir).CanInPlaceUpdate, "Directory without exe should block in-place update.");
+
+        // End-to-end updater script: apply & preserve user files
+        string updatesStore = Directory.CreateDirectory(Path.Combine(updRoot, "updates-store")).FullName;
+        string logsStore = Directory.CreateDirectory(Path.Combine(updRoot, "logs-store")).FullName;
+        string targetDir = Directory.CreateDirectory(Path.Combine(updRoot, "安装目录 测试")).FullName;
+        File.WriteAllText(Path.Combine(targetDir, "SiteLift.App.exe"), "old-exe");
+        File.WriteAllText(Path.Combine(targetDir, "SiteLift.App.dll"), "old-dll");
+        File.WriteAllText(Path.Combine(targetDir, "SiteLift.Core.dll"), "old-core");
+        File.WriteAllText(Path.Combine(targetDir, "SiteLift.App.deps.json"), "old-deps");
+        File.WriteAllText(Path.Combine(targetDir, "SiteLift.App.runtimeconfig.json"), "old-rt");
+        File.WriteAllText(Path.Combine(targetDir, "user-custom.txt"), "keep-me");
+
+        string runStage = Directory.CreateDirectory(Path.Combine(updatesStore, "v0.6.0-run1")).FullName;
+        var stagedForRun = AppUpdater.ExtractAndVerifyPackage(
+            validZip, runStage, Path.Combine(runStage, "extracted"),
+            new Version(0, 6, 0), _ => new Version(0, 6, 0, 0));
+
+        var (scriptPath, planPath) = AppUpdater.PrepareApplyScript(
+            stagedForRun, targetDir, updatesStore, logsStore,
+            currentProcessId: 0, new Version(0, 5, 3), elevated: false, relaunch: false);
+
+        var applyResult = await ProcessRunner.RunAsync(AppUpdater.BuildUpdaterStartInfo(scriptPath, planPath, elevated: false));
+        Check(applyResult.ExitCode == 0, $"Apply script should succeed, got exit {applyResult.ExitCode}: {applyResult.CombinedOutput}");
+        Check(File.ReadAllText(Path.Combine(targetDir, "SiteLift.App.exe")) == "new-exe", "Target exe should be updated.");
+        Check(File.ReadAllText(Path.Combine(targetDir, "licenses", "WPF-UI-LICENSE.md")) == "MIT", "New nested file should be copied.");
+        Check(File.ReadAllText(Path.Combine(targetDir, "user-custom.txt")) == "keep-me", "Unrelated user files should be preserved.");
+
+        var successOutcome = AppUpdater.ConsumeUpdateOutcomeAndCleanup(updatesStore);
+        Check(successOutcome is { Succeeded: true, TargetVersion: "0.6.0", PreviousVersion: "0.5.3" }, "Outcome should record successful update.");
+        Check(!Directory.Exists(runStage), "Staging directory should be cleaned up on startup.");
+
+        // End-to-end updater script: rollback when a target file is locked
+        string rollbackTarget = Directory.CreateDirectory(Path.Combine(updRoot, "rollback-target")).FullName;
+        File.WriteAllText(Path.Combine(rollbackTarget, "SiteLift.App.deps.json"), "old-deps");
+        File.WriteAllText(Path.Combine(rollbackTarget, "SiteLift.App.dll"), "old-dll");
+        File.WriteAllText(Path.Combine(rollbackTarget, "SiteLift.App.exe"), "old-exe");
+        File.WriteAllText(Path.Combine(rollbackTarget, "SiteLift.App.runtimeconfig.json"), "old-rt");
+        File.WriteAllText(Path.Combine(rollbackTarget, "SiteLift.Core.dll"), "old-core");
+
+        string rollbackStage = Directory.CreateDirectory(Path.Combine(updatesStore, "v0.6.0-rollback")).FullName;
+        var stagedForRollback = AppUpdater.ExtractAndVerifyPackage(
+            validZip, rollbackStage, Path.Combine(rollbackStage, "extracted"),
+            new Version(0, 6, 0), _ => new Version(0, 6, 0, 0));
+
+        var (rbScript, rbPlan) = AppUpdater.PrepareApplyScript(
+            stagedForRollback, rollbackTarget, updatesStore, logsStore,
+            currentProcessId: 0, new Version(0, 5, 3), elevated: false, relaunch: false);
+
+        using (var lockStream = new FileStream(Path.Combine(rollbackTarget, "SiteLift.Core.dll"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            var rbResult = await ProcessRunner.RunAsync(AppUpdater.BuildUpdaterStartInfo(rbScript, rbPlan, elevated: false));
+            Check(rbResult.ExitCode != 0, "Apply script should fail when a target file is exclusively locked.");
+        }
+
+        Check(File.ReadAllText(Path.Combine(rollbackTarget, "SiteLift.App.exe")) == "old-exe", "Previously overwritten file must be rolled back.");
+        Check(File.ReadAllText(Path.Combine(rollbackTarget, "SiteLift.App.dll")) == "old-dll", "Previously overwritten dll must be rolled back.");
+        Check(!File.Exists(Path.Combine(rollbackTarget, "licenses", "WPF-UI-LICENSE.md")), "Newly created file must be removed on rollback.");
+
+        var failedOutcome = AppUpdater.ConsumeUpdateOutcomeAndCleanup(updatesStore);
+        Check(failedOutcome is { Succeeded: false, TargetVersion: "0.6.0" }, "Failed outcome should be recorded.");
+    }
+    finally
+    {
+        AppUpdater.TryDeleteDirectory(updRoot);
     }
 }
 
