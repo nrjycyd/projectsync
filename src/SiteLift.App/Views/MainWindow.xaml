@@ -416,7 +416,9 @@
      <ui:Button Style="{StaticResource HomeStatusLinkButton}" x:Name="CheckUpdatesButton" Click="CheckUpdates"
                 AutomationProperties.Name="{Binding Text, ElementName=UpdateActionText}">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-       <TextBlock x:Name="UpdateActionText" Text="检查更新" VerticalAlignment="Center"/>
+       <Ellipse x:Name="UpdateAvailableDot" Width="6" Height="6" Margin="0,0,5,0" VerticalAlignment="Center"
+                Fill="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Collapsed"/>
+       <TextBlock x:Name="UpdateActionText" Text="检查更新" VerticalAlignment="Center" Typography.NumeralAlignment="Tabular"/>
        <TextBlock x:Name="AppVersionText" Margin="5,0,0,0" VerticalAlignment="Center"
                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" Typography.NumeralAlignment="Tabular"/>
       </StackPanel>
