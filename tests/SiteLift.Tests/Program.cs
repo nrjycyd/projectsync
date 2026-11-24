@@ -705,6 +705,8 @@ foreach (string legacyDirName in AppDataStore.LegacyDataDirectoryNames)
     Check(setupScript.Contains("GEM_HOME"), "Script should configure user-level GEM_HOME for Bundler.");
     Check(setupScript.Contains("/usr/local/bin/mdbook"), "Script should install mdBook binary into /usr/local/bin.");
     Check(setupScript.Contains("corepack enable"), "Script should enable Corepack.");
+    Check(!WslDevelopmentEnvironment.ProbeScript.Contains('\r'), "ProbeScript must use LF-only line endings for WSL bash.");
+    Check(!setupScript.Contains('\r'), "BuildSetupCommand script must use LF-only line endings for WSL bash.");
     Check(setupScript.Contains("sh.rustup.rs"), "Script should install Rust via rustup.");
 }
 

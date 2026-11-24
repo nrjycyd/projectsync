@@ -97,7 +97,7 @@ public partial class WslManagerWindow
 
         var presetCombo = new ComboBox
         {
-            Width = 236,
+            Width = 248,
             MinHeight = 32,
             MaxDropDownHeight = 320,
             VerticalAlignment = VerticalAlignment.Center,
@@ -112,13 +112,13 @@ public partial class WslManagerWindow
             Padding = new Thickness(14, 11, 14, 11),
             IsTabStop = false,
             Icon = new SymbolIcon { Symbol = SymbolRegular.Apps24 },
-            Header = CreateCardHeader("静态站架构预设", "按架构展示对应工具链；带荧光点表示该环境已在实例就绪"),
+            Header = CreateCardHeader("静态站架构预设", "按架构筛选工具链，绿点表示已就绪"),
             Content = presetCombo
         });
 
         var userBox = new TextBox
         {
-            Width = 236,
+            Width = 248,
             MinHeight = 32,
             PlaceholderText = "默认用户"
         };
@@ -204,7 +204,7 @@ public partial class WslManagerWindow
 
         var nodeSlot = CreateExpanderSlot(
             WslToolGroup.Node, "node", darkTheme,
-            "Node.js（nvm）", "覆盖 VuePress / VitePress / Hexo / Astro / Docusaurus / Nuxt / Next.js 等 10 种架构",
+            "Node.js（nvm）", "支持 VuePress、VitePress、Hexo、Astro 等 JS 架构",
             nodeVersion, nodeBody);
         form.Children.Add(nodeSlot.Root);
 
@@ -228,7 +228,7 @@ public partial class WslManagerWindow
 
         var pythonSlot = CreateExpanderSlot(
             WslToolGroup.Python, "python3", darkTheme,
-            "Python 3（MkDocs）", "通过 APT 安装 Python 运行时与虚拟环境（适配 PEP 668）",
+            "Python 3（MkDocs）", "通过 APT 安装 Python 运行时与虚拟环境",
             pythonVersion, pyBody);
         form.Children.Add(pythonSlot.Root);
 
@@ -244,7 +244,7 @@ public partial class WslManagerWindow
 
         var hugoSlot = CreateExpanderSlot(
             WslToolGroup.Hugo, "hugo", darkTheme,
-            "Hugo Extended", "安装官方 Extended 版至 /usr/local/bin（含 SCSS / WebP），按需附带 Go",
+            "Hugo Extended", "官方 Extended 版，内置 SCSS / WebP，按需附带 Go",
             hugoVersion, hugoBody);
         form.Children.Add(hugoSlot.Root);
 
@@ -264,7 +264,7 @@ public partial class WslManagerWindow
 
         var rubySlot = CreateExpanderSlot(
             WslToolGroup.Ruby, "ruby", darkTheme,
-            "Ruby 与 Bundler（Jekyll）", "安装 ruby-full、编译工具链与 Bundler，自动配置用户级 ~/.gems",
+            "Ruby 与 Bundler（Jekyll）", "安装 Ruby、编译依赖与 Bundler（用户级 ~/.gems）",
             rubyVersion, rubyBody);
         form.Children.Add(rubySlot.Root);
 
@@ -279,7 +279,7 @@ public partial class WslManagerWindow
 
         var mdbookSlot = CreateExpanderSlot(
             WslToolGroup.MdBook, "mdbook", darkTheme,
-            "mdBook（Rust）", "下载官方预编译二进制至 /usr/local/bin，无需编译、秒级就绪",
+            "mdBook（Rust）", "下载官方预编译二进制至 /usr/local/bin，秒级就绪",
             mdbookVersion, mdbookBody);
         form.Children.Add(mdbookSlot.Root);
 
@@ -403,7 +403,7 @@ public partial class WslManagerWindow
                 choices.Add(new PresetChoice
                 {
                     Preset = WslEnvironmentPreset.Recommended,
-                    Label = $"关联项目推荐（{linkedProjects.Length} 个项目）",
+                    Label = "关联项目推荐",
                     Activation = WslDevelopmentEnvironment.GetPresetActivation(WslEnvironmentPreset.Recommended, currentProbe, linkedFrameworks)
                 });
             }
@@ -412,7 +412,7 @@ public partial class WslManagerWindow
                 new PresetChoice
                 {
                     Preset = WslEnvironmentPreset.Node,
-                    Label = "Node.js 站点（10 种框架）",
+                    Label = "Node.js 站点",
                     Activation = WslDevelopmentEnvironment.GetPresetActivation(WslEnvironmentPreset.Node, currentProbe, linkedFrameworks)
                 },
                 new PresetChoice
@@ -448,7 +448,7 @@ public partial class WslManagerWindow
                 new PresetChoice
                 {
                     Preset = WslEnvironmentPreset.Custom,
-                    Label = "自定义（显示全部工具链）",
+                    Label = "自定义（全部）",
                     Activation = PresetActivation.None
                 }
             });
@@ -688,19 +688,37 @@ public partial class WslManagerWindow
             if (login.Length > 0 && !SyncPath.IsValidWslUser(login))
                 return;
 
-            var (probe, _, _) = await ReadInstalledToolsAsync(instance.Name, login.Length > 0 ? login : null, dialogCts.Token);
-            if (closed || gen != probeGeneration || probe is null)
-                return;
-
-            currentProbe = probe;
-            if (applyInitialPreset)
-                ApplyPreset(currentPreset, silent: true);
-            else
+            Interlocked.Increment(ref activeVersionFetches);
+            lazyStatusText.Text = "正在检测实例已安装的开发环境…";
+            lazyStatusRow.Visibility = Visibility.Visible;
+            try
             {
-                RebuildPresetDropdown();
-                UpdateStatusBadges();
-                UpdateCardVisibility();
-                UpdateSubBadgesAndControls();
+                var (probe, _, _) = await ReadInstalledToolsAsync(instance.Name, login.Length > 0 ? login : null, dialogCts.Token);
+                if (closed || gen != probeGeneration)
+                    return;
+
+                if (probe is null)
+                {
+                    linkageHint = "暂无法检测实例已安装环境，仍可手动选择组件安装。";
+                    UpdateSubBadgesAndControls();
+                    return;
+                }
+
+                currentProbe = probe;
+                if (applyInitialPreset)
+                    ApplyPreset(currentPreset, silent: true);
+                else
+                {
+                    RebuildPresetDropdown();
+                    UpdateStatusBadges();
+                    UpdateCardVisibility();
+                    UpdateSubBadgesAndControls();
+                }
+            }
+            finally
+            {
+                if (!closed && Interlocked.Decrement(ref activeVersionFetches) <= 0)
+                    lazyStatusRow.Visibility = Visibility.Collapsed;
             }
         }
 

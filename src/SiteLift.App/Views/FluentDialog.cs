@@ -92,12 +92,9 @@ internal static class FluentDialog
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         var footer = new Border
         {
-            Margin = new Thickness(0, 16, 0, 0),
-            Padding = new Thickness(0, 12, 0, 0),
-            BorderThickness = new Thickness(0, 1, 0, 0),
+            Margin = new Thickness(0, 20, 0, 0),
             Child = actions
         };
-        footer.SetResourceReference(Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
         DockPanel.SetDock(footer, Dock.Bottom);
         panel.Children.Add(footer);
         panel.Children.Add(new ScrollViewer
