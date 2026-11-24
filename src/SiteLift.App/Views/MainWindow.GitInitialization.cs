@@ -577,9 +577,10 @@ public partial class MainWindow
     {
         var close = new Wpf.Ui.Controls.Button
         {
-            Content = "关闭", IsCancel = true, MinHeight = 34, MinWidth = 84,
+            Content = "关闭", IsCancel = true, MinWidth = 84,
             Padding = new Thickness(14, 5.5, 14, 6.5), HorizontalAlignment = HorizontalAlignment.Right
         };
+        close.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
         var footer = new Border
         {
             Margin = new Thickness(0, 12, 0, 0), Padding = new Thickness(0, 10, 0, 0),

@@ -26,6 +26,7 @@
         <Setter Property="FontFamily" Value="{StaticResource WorkspaceSmallTypeface}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
         <Setter Property="Padding" Value="8,2.5,8,3"/>
         <Style.Triggers>
           <Trigger Property="Appearance" Value="Secondary">

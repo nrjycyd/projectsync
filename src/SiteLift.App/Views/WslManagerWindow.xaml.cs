@@ -125,7 +125,7 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 
     private void UpdateHeaderBadges(string version, int instanceCount, bool showCount)
     {
-        VersionText.Text = version;
+        VersionBadge.Content = version;
         VersionBadge.Visibility = version.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         InstanceCountBadge.Content = $"{instanceCount} 个实例";
         InstanceCountBadge.Visibility = showCount ? Visibility.Visible : Visibility.Collapsed;
@@ -427,14 +427,15 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
         AddField(form, "发行版", distribution);
         if (names.Length == 0)
         {
-            var hint = new TextBlock { Text = "可手动填写发行版名称，例如 Ubuntu。", TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
-            hint.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+            var hint = new TextBlock { Text = "可手动填写发行版名称，例如 Ubuntu。", Margin = new Thickness(0, 4, 0, 0) };
+            hint.SetResourceReference(FrameworkElement.StyleProperty, "SettingsCardSubtitle");
             form.Children.Add(hint);
         }
         var name = AddInput(form, "实例名称（可选）", "留空使用默认发行版名称");
         name.IsEnabled = SupportsInstall("--name");
         var place = new DockPanel();
-        var browse = new Wpf.Ui.Controls.Button { Content = "浏览…", MinHeight = 34, Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
+        var browse = new Wpf.Ui.Controls.Button { Content = "浏览…", Margin = new Thickness(8, 0, 0, 0) };
+        browse.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
         DockPanel.SetDock(browse, Dock.Right);
         var location = new Wpf.Ui.Controls.TextBox { MinHeight = 34, Padding = new Thickness(9, 4, 9, 4), PlaceholderText = @"留空使用 WSL 默认路径，例如 E:\wsl\ubuntu" };
         place.Children.Add(browse);
@@ -526,10 +527,10 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 
     private static StackPanel CreateCardHeader(string title, string subtitle)
     {
-        var titleBlock = new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.Medium };
-        titleBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-        var subtitleBlock = new TextBlock { Text = subtitle, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
-        subtitleBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        var titleBlock = new TextBlock { Text = title };
+        titleBlock.SetResourceReference(FrameworkElement.StyleProperty, "SettingsCardTitle");
+        var subtitleBlock = new TextBlock { Text = subtitle, Margin = new Thickness(0, 2, 0, 0) };
+        subtitleBlock.SetResourceReference(FrameworkElement.StyleProperty, "SettingsCardSubtitle");
         var header = new StackPanel();
         header.Children.Add(titleBlock);
         header.Children.Add(subtitleBlock);
@@ -583,20 +584,25 @@ public partial class WslManagerWindow : Wpf.Ui.Controls.FluentWindow
 
     private static void AddField(StackPanel form, string label, FrameworkElement field)
     {
-        form.Children.Add(new Label { Content = label, Target = field, Padding = new Thickness(0, 8, 0, 4) });
+        var fieldLabel = new Label { Content = label, Target = field };
+        fieldLabel.SetResourceReference(FrameworkElement.StyleProperty, "SettingsFieldLabel");
+        form.Children.Add(fieldLabel);
         form.Children.Add(field);
     }
 
     private bool Confirm(Window dialog, StackPanel footer, string action, Func<bool> validate,
         string invalidMessage, bool destructive = false)
     {
-        var message = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 0, 0, 8), Visibility = Visibility.Collapsed };
+        var message = new TextBlock { Margin = new Thickness(0, 0, 0, 8), Visibility = Visibility.Collapsed };
+        message.SetResourceReference(FrameworkElement.StyleProperty, "SettingsCardSubtitle");
         message.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
         footer.Children.Add(message);
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         footer.Children.Add(actions);
-        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, MinHeight = 34, Padding = new Thickness(14, 5.5, 14, 6.5), Margin = new Thickness(0, 0, 8, 0) };
-        var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 104, MinHeight = 34, Padding = new Thickness(14, 5.5, 14, 6.5) };
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Padding = new Thickness(14, 5.5, 14, 6.5), Margin = new Thickness(0, 0, 8, 0) };
+        cancel.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
+        var confirm = new Wpf.Ui.Controls.Button { Content = action, MinWidth = 104, Padding = new Thickness(14, 5.5, 14, 6.5) };
+        confirm.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
         confirm.Appearance = destructive ? Wpf.Ui.Controls.ControlAppearance.Danger : Wpf.Ui.Controls.ControlAppearance.Primary;
         actions.Children.Add(cancel);
         actions.Children.Add(confirm);

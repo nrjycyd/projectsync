@@ -743,53 +743,82 @@ public partial class MainWindow
 
     private string? RequestCommitSummary(ProjectEntry project, string[] changes)
     {
-        var body = new System.Windows.Controls.DockPanel { Margin = new Thickness(20) };
+        var body = new System.Windows.Controls.DockPanel { Margin = new Thickness(20, 16, 20, 18) };
         var dialog = FluentDialog.Create(this, "提交并推送", body, 480);
         string branch = ProjectConfig.TryReadString(project.Configuration, "branch");
-        string target = $"{project.Name} → {branch}\n{project.Repository}\n\n当前工作区有 {changes.Length} 项变更。";
         var scope = new System.Windows.Controls.TextBlock
         {
             Text = "将暂存并提交整个 Windows 工作区的新增、修改和删除。Git 已忽略的未跟踪文件会跳过。",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+            Margin = new Thickness(0, 0, 0, 10)
         };
+        scope.SetResourceReference(FrameworkElement.StyleProperty, "SettingsCardSubtitle");
         System.Windows.Controls.DockPanel.SetDock(scope, System.Windows.Controls.Dock.Top);
         body.Children.Add(scope);
-        var targetsView = new System.Windows.Controls.ScrollViewer
+
+        var targetTitle = new System.Windows.Controls.TextBlock
         {
-            MaxHeight = 245, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-            Content = new System.Windows.Controls.TextBlock
-            {
-                Text = target + "\n" + string.Join("\n", changes),
-                TextWrapping = TextWrapping.Wrap
-            },
+            Text = $"{project.Name} → {branch}（{changes.Length} 项变更）",
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 2)
+        };
+        targetTitle.SetResourceReference(FrameworkElement.StyleProperty, "SettingsGroupHeader");
+        Typography.SetNumeralAlignment(targetTitle, FontNumeralAlignment.Tabular);
+        System.Windows.Controls.DockPanel.SetDock(targetTitle, System.Windows.Controls.Dock.Top);
+        body.Children.Add(targetTitle);
+
+        var repoPath = new System.Windows.Controls.TextBlock
+        {
+            Text = project.Repository, Margin = new Thickness(0, 0, 0, 8)
+        };
+        repoPath.SetResourceReference(FrameworkElement.StyleProperty, "SettingsCardSubtitle");
+        System.Windows.Controls.DockPanel.SetDock(repoPath, System.Windows.Controls.Dock.Top);
+        body.Children.Add(repoPath);
+
+        var changesBox = new Wpf.Ui.Controls.TextBox
+        {
+            Text = string.Join(Environment.NewLine, changes),
+            IsReadOnly = true, AcceptsReturn = true, MaxHeight = 200,
+            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
             Margin = new Thickness(0, 0, 0, 12)
         };
-        System.Windows.Controls.DockPanel.SetDock(targetsView, System.Windows.Controls.Dock.Top);
-        body.Children.Add(targetsView);
+        changesBox.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceLog");
+        System.Windows.Controls.DockPanel.SetDock(changesBox, System.Windows.Controls.Dock.Top);
+        body.Children.Add(changesBox);
 
         var actions = new System.Windows.Controls.StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0)
+            HorizontalAlignment = HorizontalAlignment.Right
         };
-        System.Windows.Controls.DockPanel.SetDock(actions, System.Windows.Controls.Dock.Bottom);
-        body.Children.Add(actions);
-        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Appearance = ControlAppearance.Secondary, Margin = new Thickness(0, 0, 8, 0) };
+        var footer = new System.Windows.Controls.Border
+        {
+            Margin = new Thickness(0, 14, 0, 0),
+            Padding = new Thickness(0, 12, 0, 0),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Child = actions
+        };
+        footer.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
+        System.Windows.Controls.DockPanel.SetDock(footer, System.Windows.Controls.Dock.Bottom);
+        body.Children.Add(footer);
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Appearance = ControlAppearance.Secondary, MinWidth = 84, Margin = new Thickness(0, 0, 8, 0) };
+        cancel.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
         var accept = new Wpf.Ui.Controls.Button
         {
             Content = "提交并推送", IsDefault = true, IsEnabled = false,
-            Appearance = ControlAppearance.Primary
+            Appearance = ControlAppearance.Primary, MinWidth = 104
         };
+        accept.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
         actions.Children.Add(cancel);
         actions.Children.Add(accept);
 
         var row = new System.Windows.Controls.DockPanel();
-        var input = new Wpf.Ui.Controls.TextBox();
+        var input = new Wpf.Ui.Controls.TextBox { MinHeight = 34 };
         var label = new System.Windows.Controls.Label
         {
             Content = "提交摘要", Target = input,
-            VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(0, 0, 10, 0)
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0)
         };
+        label.SetResourceReference(FrameworkElement.StyleProperty, "SettingsFieldLabel");
         row.Children.Add(label);
         row.Children.Add(input);
         body.Children.Add(row);

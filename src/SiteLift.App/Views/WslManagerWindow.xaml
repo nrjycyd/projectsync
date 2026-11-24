@@ -7,6 +7,7 @@
  ExtendsContentIntoTitleBar="True" WindowCornerPreference="Round" WindowBackdropType="Mica"
  WindowStartupLocation="CenterOwner" Background="{DynamicResource ApplicationBackgroundBrush}" FontSize="14"
  FontFamily="{StaticResource WorkspaceTypeface}" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+ TextOptions.TextRenderingMode="ClearType" TextOptions.TextFormattingMode="Ideal" TextOptions.TextHintingMode="Fixed"
  Icon="/SiteLift.App;component/Assets/SiteLift.ico" UseLayoutRounding="True">
 
  <ui:FluentWindow.Resources>
@@ -14,11 +15,8 @@
   <Style x:Key="InstanceColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource WorkspaceColumnHeader}">
    <Setter Property="Padding" Value="{StaticResource InstanceCellInset}"/>
   </Style>
-  <Style x:Key="InstanceTextCell" TargetType="TextBlock">
+  <Style x:Key="InstanceTextCell" TargetType="TextBlock" BasedOn="{StaticResource WorkspaceTableText}">
    <Setter Property="Margin" Value="{StaticResource InstanceCellInset}"/>
-   <Setter Property="VerticalAlignment" Value="Center"/>
-   <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-   <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
   </Style>
  </ui:FluentWindow.Resources>
  <DockPanel Background="Transparent">
@@ -50,10 +48,8 @@
      </StackPanel>
      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
       <ui:SymbolIcon Symbol="Desktop24" FontSize="22" Width="24" Height="24" Margin="0,0,10,0" VerticalAlignment="Center"/>
-      <TextBlock Text="WSL 发行版" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-      <ui:Badge x:Name="VersionBadge" Appearance="Secondary" Visibility="Collapsed" VerticalAlignment="Center" Margin="10,0,0,0">
-       <TextBlock x:Name="VersionText" FontSize="12"/>
-      </ui:Badge>
+      <TextBlock Text="WSL 发行版" Style="{StaticResource SettingsPageTitle}" Margin="0" VerticalAlignment="Center"/>
+      <ui:Badge x:Name="VersionBadge" Appearance="Secondary" Visibility="Collapsed" VerticalAlignment="Center" Margin="10,0,0,0"/>
       <ui:Badge x:Name="InstanceCountBadge" Appearance="Info" Visibility="Collapsed" VerticalAlignment="Center" Margin="6,0,0,0"/>
       <ui:ProgressRing x:Name="WslBusyRing" Width="16" Height="16" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Center" Margin="10,0,0,0"/>
      </StackPanel>
@@ -92,9 +88,7 @@
         <DataGridTemplateColumn Header="实例名称" Width="*" MinWidth="112" MaxWidth="190">
          <DataGridTemplateColumn.CellTemplate><DataTemplate>
           <DockPanel Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center">
-           <ui:Badge DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Content="默认"
-                     Background="{DynamicResource SystemFillColorSuccessBackgroundBrush}"
-                     Foreground="{DynamicResource SystemFillColorSuccessBrush}">
+           <ui:Badge DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Content="默认" Appearance="Success">
             <ui:Badge.Style>
              <Style TargetType="ui:Badge" BasedOn="{StaticResource {x:Type ui:Badge}}">
               <Setter Property="Visibility" Value="Collapsed"/>
@@ -147,7 +141,9 @@
          <DataGridTemplateColumn.CellTemplate><DataTemplate>
           <StackPanel Margin="{StaticResource InstanceCellInset}" Background="Transparent" VerticalAlignment="Center" ToolTip="{Binding Disk.Hint}"
                       AutomationProperties.Name="{Binding Disk.Hint}">
-           <TextBlock Text="{Binding Disk.Label}" FontSize="13" TextAlignment="Right" TextTrimming="CharacterEllipsis"/>
+           <TextBlock Text="{Binding Disk.Label}" FontFamily="{StaticResource WorkspaceSmallTypeface}" FontSize="12"
+                      LineHeight="16" LineStackingStrategy="BlockLineHeight" Typography.NumeralAlignment="Tabular"
+                      TextAlignment="Right" TextTrimming="CharacterEllipsis"/>
            <ProgressBar Value="{Binding Disk.Percent, Mode=OneWay}" Maximum="100" Height="3" Margin="0,4,0,0"
                         AutomationProperties.Name="剩余空间比例">
             <ProgressBar.Style>
@@ -165,7 +161,7 @@
         <DataGridTemplateColumn Header="开发环境" Width="1.05*" MinWidth="96" MaxWidth="160">
          <DataGridTemplateColumn.CellTemplate><DataTemplate>
           <Grid Margin="{StaticResource InstanceCellInset}" VerticalAlignment="Center">
-           <TextBlock Text="{Binding ToolStatus}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"
+           <TextBlock Text="{Binding ToolStatus}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="14"
                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding ToolStatus}"/>
            <ItemsControl ItemsSource="{Binding Tools}">
             <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" Columns="4"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -204,10 +200,10 @@
            </Grid.ColumnDefinitions>
            <ui:Button Style="{StaticResource WorkspaceCompactIconButton}" Height="30" HorizontalAlignment="Stretch" Content="终端" ToolTip="启动终端" AutomationProperties.Name="启动终端" Padding="6,3.5,8,4.5" Click="LaunchClick" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
             <ui:Button.Icon>
-             <ui:SymbolIcon Symbol="WindowConsole20" Style="{StaticResource WorkspaceActionIcon}"/>
+             <ui:SymbolIcon Symbol="WindowConsole20" Style="{StaticResource WorkspaceCompactActionIcon}"/>
             </ui:Button.Icon>
            </ui:Button>
-           <ui:DropDownButton Grid.Column="2" Height="30" HorizontalAlignment="Stretch" Padding="6,0" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
+           <ui:DropDownButton Grid.Column="2" Style="{StaticResource WorkspaceCompactDropDownButton}" Height="30" HorizontalAlignment="Stretch" Content="更多" Appearance="Secondary" PreviewKeyDown="MenuKeyDown">
             <ui:DropDownButton.Flyout>
              <local:RightAlignedContextMenu Style="{StaticResource {x:Type ContextMenu}}"
                                             DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
@@ -238,9 +234,10 @@
        </DataGrid.Columns>
       </ui:DataGrid>
      </Border>
-     <StackPanel x:Name="EmptyInstancesHint" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False">
-      <TextBlock Text="尚未安装 WSL 发行版，点击右上角「安装发行版」开始安装。"
-                 Style="{StaticResource SettingsCardSubtitle}" HorizontalAlignment="Center" TextAlignment="Center" Margin="24,24,24,0"/>
+     <StackPanel x:Name="EmptyInstancesHint" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,24,24,0" Visibility="Collapsed" IsHitTestVisible="False">
+      <ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource WorkspaceEmptyIcon}"/>
+      <TextBlock Text="尚未安装 WSL 发行版" Style="{StaticResource WorkspaceEmptyTitle}"/>
+      <TextBlock Text="点击右上角「安装发行版」开始安装。" Style="{StaticResource WorkspaceEmptySubtitle}"/>
      </StackPanel>
     </Grid>
    </DockPanel>

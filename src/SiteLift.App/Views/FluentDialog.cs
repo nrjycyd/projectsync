@@ -41,6 +41,9 @@ internal static class FluentDialog
         window.SetResourceReference(Window.FontFamilyProperty, "WorkspaceTypeface");
         window.SetResourceReference(Window.BackgroundProperty, "ApplicationBackgroundBrush");
         window.SetResourceReference(Window.ForegroundProperty, "TextFillColorPrimaryBrush");
+        TextOptions.SetTextRenderingMode(window, TextRenderingMode.ClearType);
+        TextOptions.SetTextFormattingMode(window, TextFormattingMode.Ideal);
+        TextOptions.SetTextHintingMode(window, TextHintingMode.Fixed);
         return window;
     }
 
@@ -101,7 +104,11 @@ internal static class FluentDialog
         panel.Children.Add(new ScrollViewer
         {
             MaxHeight = 360, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = new System.Windows.Controls.TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, LineHeight = 22 }
+            Content = new System.Windows.Controls.TextBlock
+            {
+                Text = message, TextWrapping = TextWrapping.Wrap,
+                LineHeight = 20, LineStackingStrategy = LineStackingStrategy.BlockLineHeight
+            }
         });
 
         var dialog = Create(owner, title, panel, 460);
@@ -121,9 +128,10 @@ internal static class FluentDialog
             var button = new Button
             {
                 Content = label, Appearance = appearance, IsCancel = isCancel,
-                MinHeight = 34, MinWidth = 84, Padding = new Thickness(14, 5.5, 14, 6.5),
+                MinWidth = 84, Padding = new Thickness(14, 5.5, 14, 6.5),
                 Margin = new Thickness(8, 0, 0, 0)
             };
+            button.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
             button.Click += (_, _) => { result = choice; dialog.Close(); };
             actions.Children.Add(button);
             return button;

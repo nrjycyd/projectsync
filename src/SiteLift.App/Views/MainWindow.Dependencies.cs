@@ -235,33 +235,50 @@ public partial class MainWindow
 
     private bool ConfirmMaintenanceCommand(string project, string distribution, string user, string directory, string command, string operation, string confirmLabel)
     {
-        var panel = new StackPanel { Margin = new Thickness(20) };
+        var panel = new StackPanel { Margin = new Thickness(20, 16, 20, 18) };
         var dialog = FluentDialog.Create(this, operation, panel, 510);
-        panel.Children.Add(new TextBlock
+        var projectTitle = new TextBlock { Text = project, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 2) };
+        projectTitle.SetResourceReference(FrameworkElement.StyleProperty, "SettingsGroupHeader");
+        panel.Children.Add(projectTitle);
+        var environmentMeta = new TextBlock
         {
-            Text = $"{project}\n{distribution} · {user}\n{directory}",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
-        });
-        panel.Children.Add(new Wpf.Ui.Controls.TextBox
+            Text = $"{distribution} · {user}\n{directory}",
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        environmentMeta.SetResourceReference(FrameworkElement.StyleProperty, "SettingsCardSubtitle");
+        panel.Children.Add(environmentMeta);
+        var commandBox = new Wpf.Ui.Controls.TextBox
         {
             Text = command, IsReadOnly = true, AcceptsReturn = true, MaxHeight = 220,
-            FontFamily = new System.Windows.Media.FontFamily("Consolas, Microsoft YaHei UI"),
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
-        });
-        panel.Children.Add(new TextBlock
+        };
+        commandBox.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceMonoInput");
+        panel.Children.Add(commandBox);
+        var warning = new TextBlock
         {
             Text = "命令将直接修改该 WSL 项目目录，请确认以上操作。",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0)
-        });
+            Margin = new Thickness(0, 10, 0, 0)
+        };
+        warning.SetResourceReference(FrameworkElement.StyleProperty, "SettingsCardSubtitle");
+        panel.Children.Add(warning);
         var actions = new StackPanel
         {
-            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 16, 0, 0)
+            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right
         };
-        panel.Children.Add(actions);
-        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, Margin = new Thickness(0, 0, 8, 0) };
-        var accept = new Wpf.Ui.Controls.Button { Content = confirmLabel, Appearance = Wpf.Ui.Controls.ControlAppearance.Primary };
+        var footer = new Border
+        {
+            Margin = new Thickness(0, 14, 0, 0),
+            Padding = new Thickness(0, 12, 0, 0),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Child = actions
+        };
+        footer.SetResourceReference(Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
+        panel.Children.Add(footer);
+        var cancel = new Wpf.Ui.Controls.Button { Content = "取消", IsCancel = true, MinWidth = 84, Margin = new Thickness(0, 0, 8, 0) };
+        cancel.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
+        var accept = new Wpf.Ui.Controls.Button { Content = confirmLabel, Appearance = Wpf.Ui.Controls.ControlAppearance.Primary, MinWidth = 96 };
+        accept.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceTextButton");
         actions.Children.Add(cancel);
         actions.Children.Add(accept);
         accept.Click += (_, _) => dialog.DialogResult = true;
