@@ -13,6 +13,8 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      unsigned_artifact_id: ${{ steps.upload-unsigned-zip.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -27,7 +29,15 @@ jobs:
         run: |
           $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME }
           ./tools/Publish-Windows.ps1 -OutputDirectory dist -ExpectedTag $tag
-      - uses: actions/upload-artifact@v4
+      - name: Upload unsigned ZIP for SignPath
+        id: upload-unsigned-zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: SiteLift-win-x64-unsigned
+          path: dist/SiteLift-v*-win-x64.zip
+          if-no-files-found: error
+      - name: Upload Windows release artifact
+        uses: actions/upload-artifact@v4
         with:
           name: SiteLift-win-x64
           path: |
@@ -35,14 +45,63 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
 
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
+  sign:
+    if: startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORG_ID != ''
     needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Submit signing request to SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORG_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'sitelift' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIG_SLUG || 'zip-artifact' }}
+          github-artifact-id: ${{ needs.build.outputs.unsigned_artifact_id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - name: Regenerate SHA256SUMS for signed archive
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          asset="SiteLift-$RELEASE_TAG-win-x64.zip"
+          signed_zip=$(find signed -type f -name "$asset" | head -n 1)
+          if [ -z "$signed_zip" ]; then
+            echo "Signed archive $asset not found under signed/:"
+            find signed -maxdepth 3 -ls
+            exit 1
+          fi
+          mkdir -p signed-release
+          cp "$signed_zip" "signed-release/$asset"
+          (cd signed-release && sha256sum "$asset" > SHA256SUMS && sha256sum -c SHA256SUMS)
+      - name: Upload signed Windows release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SiteLift-win-x64-signed
+          path: |
+            signed-release/SiteLift-v*-win-x64.zip
+            signed-release/SHA256SUMS
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') && always() && needs.build.result == 'success' && (needs.sign.result == 'success' || needs.sign.result == 'skipped')
+    needs: [build, sign]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download signed release artifact
+        if: needs.sign.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: SiteLift-win-x64-signed
+      - name: Download unsigned release artifact
+        if: needs.sign.result == 'skipped'
+        uses: actions/download-artifact@v4
         with:
           name: SiteLift-win-x64
       - name: Publish and verify GitHub Release
