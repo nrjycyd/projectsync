@@ -1,6 +1,7 @@
 # SiteLift
 
 [![Release](https://img.shields.io/github/v/release/nrjycyd/sitelift?display_name=tag)](https://github.com/nrjycyd/sitelift/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%2B%20WSL-0078D4)](https://learn.microsoft.com/windows/wsl/)
 [![Frameworks](https://img.shields.io/badge/Static%20Sites-14%2B%20Frameworks-10B981)](#支持-14-种主流静态站点框架)
@@ -100,6 +101,14 @@
 - **配置和日志保存在哪里？**
   - 项目配置保存在 `%LOCALAPPDATA%\SiteLift`，运行日志按天存放在该目录的 `logs` 文件夹中。
   - 遇到问题可点击底栏 **导出诊断**，一键打包最近 7 天的日志与配置摘要（对外分享前请注意脱敏个人路径与敏感信息）。
+
+---
+
+## 开源协议与代码签名
+
+- 本项目基于 [MIT License](LICENSE) 开源发布。
+- Windows 官方发布包的代码签名与隐私披露说明详见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)。
+- Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
 ---
 
