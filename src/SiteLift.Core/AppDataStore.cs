@@ -45,6 +45,7 @@ public sealed class AppDataStore
     public string ProjectsFilePath => Path.Combine(RootDirectory, "projects.json");
     public string ChoicesFilePath => Path.Combine(RootDirectory, "detected-options.json");
     public string PreferencesFilePath => Path.Combine(RootDirectory, "settings.json");
+    public string AiSettingsFilePath => Path.Combine(RootDirectory, "ai-settings.json");
 
     public AppDataStore(string? localAppDataRoot = null)
     {
@@ -228,6 +229,28 @@ public sealed class AppDataStore
     {
         try { WriteTextAtomically(PreferencesFilePath, JsonSerializer.Serialize(preferences)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    public AiSettings LoadAiSettings()
+    {
+        try
+        {
+            if (File.Exists(AiSettingsFilePath) &&
+                JsonSerializer.Deserialize<AiSettings>(File.ReadAllText(AiSettingsFilePath)) is { } loaded)
+            {
+                return loaded.Normalize();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
+        return new AiSettings();
+    }
+
+    public void SaveAiSettings(AiSettings settings)
+    {
+        WriteTextAtomically(AiSettingsFilePath, JsonSerializer.Serialize(settings.Normalize(), new JsonSerializerOptions
+        {
+            WriteIndented = true
+        }));
     }
 
     public void AppendDiagnostic(string message, int retentionDays = 14)
