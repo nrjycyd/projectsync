@@ -11,6 +11,15 @@
    <ui:MenuItem Header="编辑配置" Click="EditProjectFromMenu">
     <ui:MenuItem.Icon><ui:SymbolIcon Symbol="Settings16" Style="{StaticResource WorkspaceMenuIcon}"/></ui:MenuItem.Icon>
    </ui:MenuItem>
+   <ui:MenuItem Header="扫描站点画像" Click="ScanSiteProfileFromMenu">
+    <ui:MenuItem.Icon><ui:SymbolIcon Symbol="DocumentSearch16" Style="{StaticResource WorkspaceMenuIcon}"/></ui:MenuItem.Icon>
+   </ui:MenuItem>
+   <ui:MenuItem Header="打开站点画像" Click="OpenSiteProfileFromMenu">
+    <ui:MenuItem.Icon><ui:SymbolIcon Symbol="Document16" Style="{StaticResource WorkspaceMenuIcon}"/></ui:MenuItem.Icon>
+   </ui:MenuItem>
+   <ui:MenuItem Header="导入并归档文档" Click="ImportMarkdownFromMenu">
+    <ui:MenuItem.Icon><ui:SymbolIcon Symbol="ArrowUpload16" Style="{StaticResource WorkspaceMenuIcon}"/></ui:MenuItem.Icon>
+   </ui:MenuItem>
    <Separator/>
    <ui:MenuItem Header="移除项目" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Click="RemoveProject">
     <ui:MenuItem.Icon>
@@ -352,6 +361,12 @@
            <ui:SymbolIcon Symbol="Desktop16" Style="{StaticResource WorkspaceMenuIcon}"/>
           </ui:MenuItem.Icon>
          </ui:MenuItem>
+         <Separator/>
+         <ui:MenuItem Header="AI 助手设置" Click="OpenAiSettings">
+          <ui:MenuItem.Icon>
+           <ui:SymbolIcon Symbol="Settings16" Style="{StaticResource WorkspaceMenuIcon}"/>
+          </ui:MenuItem.Icon>
+         </ui:MenuItem>
         </local:RightAlignedContextMenu>
        </ui:DropDownButton.Flyout>
       </ui:DropDownButton>
@@ -425,12 +440,13 @@
      </ui:Button>
     </StackPanel>
     <TextBlock x:Name="HomeFooterSummary" Style="{StaticResource SettingsCardSubtitle}" VerticalAlignment="Center" Margin="2,0,16,0"
-               Typography.NumeralAlignment="Tabular" Text="双击项目行可打开配置，勾选后可执行批量操作。"/>
+               Typography.NumeralAlignment="Tabular" Text="双击项目行可打开配置，拖入 Markdown 文档可智能归档，勾选后可执行批量操作。"/>
    </DockPanel>
    <ScrollViewer DockPanel.Dock="Bottom" MaxHeight="96" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <ui:InfoBar x:Name="HomeStatus" IsOpen="False" IsClosable="True" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
    </ScrollViewer>
-   <Grid x:Name="HomeWorkspaceGrid">
+   <Grid x:Name="HomeWorkspaceGrid" AllowDrop="True"
+         PreviewDragOver="HomeWorkspaceDragOver" DragLeave="HomeWorkspaceDragLeave" Drop="HomeWorkspaceDrop">
     <Grid.RowDefinitions>
      <RowDefinition x:Name="HomeProjectsRow" Height="40*" MinHeight="112"/>
      <RowDefinition x:Name="HomeSplitterRow" Height="16"/>
@@ -490,7 +506,7 @@
          </DataGridTemplateColumn>
          <DataGridTextColumn Header="Git 本地仓库" Width="2.8*" MinWidth="120" Binding="{Binding Repository}" ElementStyle="{StaticResource WorkspaceTableSecondaryText}"/>
          <DataGridTextColumn Header="Git 远端仓库" Width="2.65*" MinWidth="120" Binding="{Binding RemoteRepository}" ElementStyle="{StaticResource WorkspaceTableSecondaryText}"/>
-         <DataGridTemplateColumn Header="快捷访问" Width="216" MinWidth="210" CanUserSort="False" HeaderStyle="{StaticResource WorkspaceProjectCenteredColumnHeader}">
+         <DataGridTemplateColumn Header="快捷访问" Width="248" MinWidth="242" CanUserSort="False" HeaderStyle="{StaticResource WorkspaceProjectCenteredColumnHeader}">
           <DataGridTemplateColumn.CellTemplate><DataTemplate>
            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
             <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="Local" Click="OpenRepositoryShortcut"
@@ -518,6 +534,10 @@
             <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="UpgradeTheme" Click="OpenRepositoryShortcut"
                     ToolTip="升级主题" AutomationProperties.Name="升级主题">
              <ui:SymbolIcon Symbol="PaintBrush20" FontSize="17"/>
+            </ui:Button>
+            <ui:Button Style="{StaticResource WorkspaceRowIconButton}" Tag="ScanProfile" Click="OpenRepositoryShortcut"
+                    ToolTip="扫描并生成站点画像 (.sitelift/profile.json)" AutomationProperties.Name="扫描站点画像">
+             <ui:SymbolIcon Symbol="DocumentSearch20" FontSize="17"/>
             </ui:Button>
            </StackPanel>
           </DataTemplate></DataGridTemplateColumn.CellTemplate>
@@ -547,6 +567,18 @@
          </DataGridTemplateColumn>
         </DataGrid.Columns>
        </ui:DataGrid>
+       <Border x:Name="DropHintOverlay" Visibility="Collapsed" IsHitTestVisible="False"
+               VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16,0,16,12" Padding="14,8"
+               CornerRadius="6" BorderThickness="1"
+               Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+               BorderBrush="{DynamicResource AccentFillColorDefaultBrush}">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+         <ui:SymbolIcon Symbol="DocumentSearch20" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"
+                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+         <TextBlock x:Name="DropHintText" Text="松开以智能归档 Markdown 文档" FontSize="13" FontWeight="SemiBold"
+                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center"/>
+        </StackPanel>
+       </Border>
       </Grid>
      </Border>
      <Border x:Name="EmptyProjects" Style="{StaticResource SettingsCard}" Margin="0" Visibility="Collapsed">
@@ -683,6 +715,13 @@
        <ui:Badge x:Name="HomeChangesDeletedBadge" Appearance="Danger" Visibility="Collapsed" VerticalAlignment="Center"/>
       </StackPanel>
       <StackPanel x:Name="HomeLogHeaderTools" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+       <ui:Button x:Name="DiagnoseHomeLogButton" Style="{StaticResource WorkspaceCompactIconButton}"
+                  Content="AI 诊断" Click="DiagnoseHomeLog" Margin="0,0,6,0"
+                  ToolTip="诊断运行日志报错（未配置 AI 时可一键复制脱敏排错上下文）" AutomationProperties.Name="AI 诊断报错">
+        <ui:Button.Icon>
+         <ui:SymbolIcon Symbol="DocumentSearch16" Style="{StaticResource WorkspaceCompactActionIcon}"/>
+        </ui:Button.Icon>
+       </ui:Button>
        <ui:Button Style="{StaticResource HomeHeaderIconButton}" Click="CopyHomeLog" ToolTip="复制日志" AutomationProperties.Name="复制日志">
         <ui:SymbolIcon Symbol="Copy16" FontSize="15"/>
        </ui:Button>

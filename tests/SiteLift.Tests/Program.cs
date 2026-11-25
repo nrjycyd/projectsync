@@ -710,4 +710,447 @@ foreach (string legacyDirName in AppDataStore.LegacyDataDirectoryNames)
     Check(setupScript.Contains("sh.rustup.rs"), "Script should install Rust via rustup.");
 }
 
+// 13. SiteProfileScanner tests (unified schema across frameworks + .sitelift/profile.json + .git/info/exclude)
+{
+    string profileSandbox = Path.Combine(Path.GetTempPath(), $"sitelift-profile-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(profileSandbox);
+    try
+    {
+        static void WriteText(string path, string text)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, text.Replace("\r\n", "\n"), new UTF8Encoding(false));
+        }
+
+        // 13a. Jekyll + Chirpy + .git/info/exclude + lossless userRules preservation
+        string chirpyDir = Path.Combine(profileSandbox, "chirpy-blog");
+        Directory.CreateDirectory(Path.Combine(chirpyDir, ".git"));
+        WriteText(Path.Combine(chirpyDir, "_config.yml"), """
+            theme: jekyll-theme-chirpy
+            timezone: Asia/Shanghai
+            """);
+        WriteText(Path.Combine(chirpyDir, "_tabs", "about.md"), "---\ntitle: About\n---\nAbout page");
+        WriteText(Path.Combine(chirpyDir, "assets", "img", "posts", "demo.png"), "png");
+        WriteText(Path.Combine(chirpyDir, "_posts", "2026-11-25-wsl-guide.md"), """
+            ---
+            title: WSL2 网络排错指南
+            date: 2026-11-25 14:30:00 +0800
+            categories: [技术, Windows]
+            tags: [wsl, dotnet]
+            media_subpath: /assets/img/posts
+            ---
+
+            # WSL2 网络排错指南
+
+            ![网络图](demo.png)
+            """);
+        WriteText(Path.Combine(chirpyDir, "_posts", "2026-11-20-sitelift-notes.md"), """
+            ---
+            title: SiteLift 设计笔记
+            date: 2026-11-20 09:00:00 +0800
+            categories:
+              - 技术
+              - 工具
+            tags:
+              - wpf
+              - dotnet
+            ---
+            正文内容
+            """);
+
+        var chirpyRes1 = SiteProfileScanner.ScanAndSave(chirpyDir, new SiteProfileScanOptions(ProjectName: "MyChirpy"));
+        Check(File.Exists(Path.Combine(chirpyDir, ".sitelift", "profile.json")), "Profile must be written to .sitelift/profile.json.");
+        Check(chirpyRes1.GitDirectoryFound && chirpyRes1.GitExcludeUpdated, "First scan must append .sitelift/ to .git/info/exclude.");
+        Check(!chirpyRes1.PreservedUserRules, "First scan has no prior userRules.");
+        Check(chirpyRes1.Document.Framework == "Jekyll" && chirpyRes1.Document.Theme == "Chirpy", "Should detect Jekyll + Chirpy.");
+        Check(chirpyRes1.Document.AutoScanned.FileNaming == "YYYY-MM-DD-slug.md", "Chirpy file naming should be YYYY-MM-DD-slug.md.");
+        Check(chirpyRes1.Document.AutoScanned.Taxonomy.Categories.Length == 2, "Should extract 2 Chirpy 2-level categories.");
+        Check(chirpyRes1.Document.AutoScanned.Taxonomy.Tags.Contains("dotnet") && chirpyRes1.Document.AutoScanned.Taxonomy.Tags.Contains("wsl"), "Should extract tags.");
+        Check(chirpyRes1.Document.AutoScanned.Directories.All(d => !d.Path.Contains("_tabs", StringComparison.OrdinalIgnoreCase)), "_tabs must be excluded.");
+        Check(Equals(chirpyRes1.Document.AutoScanned.FrameworkHints["isChirpy"], true), "Chirpy hint must be set.");
+        Check(Equals(chirpyRes1.Document.AutoScanned.FrameworkHints["maxCategoryDepth"], 2), "Chirpy maxCategoryDepth should be 2.");
+
+        string excludeContent = File.ReadAllText(Path.Combine(chirpyDir, ".git", "info", "exclude"));
+        Check(excludeContent.Contains(".sitelift/", StringComparison.Ordinal), ".git/info/exclude must contain .sitelift/.");
+
+        // Customize userRules, rescan, and verify lossless preservation + idempotent git exclude + stable fingerprint
+        var editedDoc = JsonNode.Parse(File.ReadAllText(chirpyRes1.ProfilePath))!.AsObject();
+        editedDoc["userRules"]!.AsObject()["routingHints"] = new JsonArray("随笔放 categories: [生活, 随笔]");
+        editedDoc["userRules"]!.AsObject()["customKey"] = "keep-me";
+        File.WriteAllText(chirpyRes1.ProfilePath, editedDoc.ToJsonString(), new UTF8Encoding(false));
+
+        var chirpyRes2 = SiteProfileScanner.ScanAndSave(chirpyDir, new SiteProfileScanOptions(ProjectName: "MyChirpy"));
+        Check(chirpyRes2.PreservedUserRules, "Second scan must preserve existing userRules.");
+        Check(chirpyRes2.GitDirectoryFound && !chirpyRes2.GitExcludeUpdated, "Second scan must not duplicate .sitelift/ in .git/info/exclude.");
+        Check(chirpyRes2.Document.StructureFingerprint == chirpyRes1.Document.StructureFingerprint, "Unchanged repo should keep same fingerprint.");
+        Check(chirpyRes2.Document.UserRules["customKey"]?.GetValue<string>() == "keep-me", "Custom userRules key must survive rescan.");
+
+        // 13b. VitePress + pullPaths warning + manual sidebar + userRules ignoredDirectories
+        string vpDir = Path.Combine(profileSandbox, "vp-docs");
+        WriteText(Path.Combine(vpDir, "package.json"), """{ "devDependencies": { "vitepress": "^1.6.0" } }""");
+        WriteText(Path.Combine(vpDir, "docs", ".vitepress", "config.mts"), """
+            export default {
+              themeConfig: {
+                sidebar: [{ text: 'Guide', items: [] }]
+              }
+            }
+            """);
+        WriteText(Path.Combine(vpDir, "docs", "guide", "index.md"), "# 快速上手\n");
+        WriteText(Path.Combine(vpDir, "docs", "guide", "getting-started.md"), "---\ntitle: 安装与运行\norder: 1\n---\n");
+        WriteText(Path.Combine(vpDir, "docs", "synced-remote", "notice.md"), "# 远端公告\n");
+        WriteText(Path.Combine(vpDir, "docs", "private-drafts", "wip.md"), "# 草稿\n");
+
+        // Pre-seed userRules.ignoredDirectories
+        WriteText(SiteProfileScanner.GetProfilePath(vpDir), """
+            {
+              "userRules": {
+                "ignoredDirectories": ["docs/private-drafts"]
+              }
+            }
+            """);
+
+        var vpRes = SiteProfileScanner.ScanAndSave(vpDir, new SiteProfileScanOptions(
+            PullPaths: new[] { "docs/synced-remote" },
+            ProjectName: "VPDocs"));
+        Check(vpRes.Document.Framework == "VitePress", "Should detect VitePress.");
+        Check(vpRes.Document.AutoScanned.Navigation.Mode == "manual", "Manual sidebar should be detected.");
+        Check(vpRes.Document.AutoScanned.Directories.Any(d => d.Path == "docs/guide" && d.Title == "快速上手"), "Should detect directory title from index.md.");
+        Check(vpRes.Document.AutoScanned.Directories.Any(d => d.Path == "docs/synced-remote" && d.OverwrittenOnBuild), "pullPaths directory must be marked overwrittenOnBuild.");
+        Check(vpRes.Document.AutoScanned.Directories.All(d => d.Path != "docs/private-drafts"), "userRules.ignoredDirectories must be skipped.");
+        Check(!vpRes.GitDirectoryFound && !vpRes.GitExcludeUpdated, "Missing .git should not fail scan.");
+
+        // 13c. VuePress (Hope theme)
+        string vueDir = Path.Combine(profileSandbox, "vuepress-site");
+        WriteText(Path.Combine(vueDir, "package.json"), """{ "devDependencies": { "vuepress": "^2.0.0", "vuepress-theme-hope": "^2.0.0" } }""");
+        WriteText(Path.Combine(vueDir, "docs", ".vuepress", "config.ts"), """export default { theme: hopeTheme({ sidebar: "structure" }) }""");
+        WriteText(Path.Combine(vueDir, "docs", "notes", "README.md"), "---\ntitle: 学习笔记\n---\n");
+        WriteText(Path.Combine(vueDir, "docs", "notes", "ai-workflow.md"), "---\ntitle: AI 工作流\ncategory: [效率]\ntag: [AI]\n---\n");
+
+        var vueRes = SiteProfileScanner.Scan(vueDir);
+        Check(vueRes.Framework == "VuePress" && vueRes.Theme == "vuepress-theme-hope", "Should detect VuePress Hope theme.");
+        Check(vueRes.AutoScanned.Navigation.Mode == "auto", "Hope structure sidebar should be auto.");
+        Check(vueRes.AutoScanned.Directories.Any(d => d.Path == "docs/notes" && d.Title == "学习笔记"), "Should read README.md title.");
+
+        // 13d. Hugo (TOML frontmatter + leaf page bundle + archetype)
+        string hugoDir = Path.Combine(profileSandbox, "hugo-site");
+        WriteText(Path.Combine(hugoDir, "hugo.toml"), """
+            title = "My Hugo"
+            theme = "PaperMod"
+            contentDir = "content"
+            """);
+        WriteText(Path.Combine(hugoDir, "archetypes", "default.md"), "+++\ntitle = \"\"\ndraft = true\n+++\n");
+        WriteText(Path.Combine(hugoDir, "content", "posts", "_index.md"), "+++\ntitle = \"技术博客\"\n+++\n");
+        WriteText(Path.Combine(hugoDir, "content", "posts", "hello-bundle", "index.md"), """
+            +++
+            title = "Hugo Page Bundle 示例"
+            date = "2026-11-25T10:00:00+08:00"
+            categories = ["后端"]
+            tags = ["go", "hugo"]
+            +++
+
+            ![封面](cover.png)
+            """);
+        WriteText(Path.Combine(hugoDir, "content", "posts", "hello-bundle", "cover.png"), "png");
+
+        var hugoRes = SiteProfileScanner.Scan(hugoDir);
+        Check(hugoRes.Framework == "Hugo" && hugoRes.Theme == "PaperMod", "Should detect Hugo + PaperMod.");
+        Check(hugoRes.AutoScanned.Frontmatter.Format == "toml", "Should detect TOML frontmatter.");
+        Check(hugoRes.AutoScanned.Frontmatter.ScaffoldPath == "archetypes/default.md", "Should detect Hugo archetype.");
+        Check(hugoRes.AutoScanned.FileNaming == "page-bundle (slug/index.md)", "Should detect Hugo leaf page bundle.");
+        Check(hugoRes.AutoScanned.Assets.Mode == "page-bundle", "Should detect page-bundle asset mode.");
+        Check(hugoRes.AutoScanned.Directories.Any(d => d.Path == "content/posts" && d.Title == "技术博客" && d.ArticleCount == 1), "Should read _index.md title and count page bundle.");
+
+        // 13e. Hexo (scaffolds/post.md + post_asset_folder + abbrlink)
+        string hexoDir = Path.Combine(profileSandbox, "hexo-site");
+        WriteText(Path.Combine(hexoDir, "_config.yml"), """
+            theme: butterfly
+            post_asset_folder: true
+            """);
+        WriteText(Path.Combine(hexoDir, "scaffolds", "post.md"), "---\ntitle: {{ title }}\ndate: {{ date }}\ntags:\n---\n");
+        WriteText(Path.Combine(hexoDir, "source", "_posts", "first-post.md"), """
+            ---
+            title: Hexo 测试文章
+            abbrlink: 12a34b
+            categories:
+              - 前端
+            tags: [hexo, nodejs]
+            ---
+            """);
+
+        var hexoRes = SiteProfileScanner.Scan(hexoDir);
+        Check(hexoRes.Framework == "Hexo" && hexoRes.Theme == "butterfly", "Should detect Hexo + butterfly.");
+        Check(hexoRes.AutoScanned.Assets.PostAssetFolder && hexoRes.AutoScanned.Assets.Mode == "post-asset-folder", "Should detect Hexo post_asset_folder.");
+        Check(hexoRes.AutoScanned.Frontmatter.ScaffoldPath == "scaffolds/post.md", "Should detect Hexo scaffold.");
+        Check(Equals(hexoRes.AutoScanned.FrameworkHints["abbrlinkDetected"], true), "Should detect Hexo abbrlink.");
+
+        // 13f. mdBook + Astro + Git worktree (.git file gitdir:)
+        string mdBookDir = Path.Combine(profileSandbox, "mdbook-site");
+        WriteText(Path.Combine(mdBookDir, "book.toml"), "[book]\ntitle = \"Guide\"\nsrc = \"src\"\n");
+        WriteText(Path.Combine(mdBookDir, "src", "SUMMARY.md"), "# Summary\n- [Intro](./intro.md)\n");
+        WriteText(Path.Combine(mdBookDir, "src", "intro.md"), "# 简介\n");
+        var mdBookRes = SiteProfileScanner.Scan(mdBookDir);
+        Check(mdBookRes.Framework == "mdBook" && mdBookRes.AutoScanned.Navigation.Mode == "manual", "mdBook must report manual navigation.");
+        Check(mdBookRes.AutoScanned.Navigation.IndexFiles.Contains("src/SUMMARY.md"), "mdBook must list src/SUMMARY.md.");
+        Check(mdBookRes.AutoScanned.Directories.Single(d => d.Path == "src").ArticleCount == 1, "SUMMARY.md must not be counted as an article.");
+
+        string astroDir = Path.Combine(profileSandbox, "astro-site");
+        string worktreeGit = Path.Combine(profileSandbox, "real-git-dir");
+        Directory.CreateDirectory(worktreeGit);
+        WriteText(Path.Combine(astroDir, ".git"), $"gitdir: {worktreeGit}\n");
+        WriteText(Path.Combine(astroDir, "astro.config.mjs"), "export default {};");
+        WriteText(Path.Combine(astroDir, "src", "content.config.ts"), "export const collections = {};");
+        WriteText(Path.Combine(astroDir, "src", "content", "blog", "welcome.mdx"), "---\ntitle: Astro MDX\n---\n");
+        var astroRes = SiteProfileScanner.ScanAndSave(astroDir);
+        Check(astroRes.Document.Framework == "Astro", "Should detect Astro.");
+        Check(astroRes.GitDirectoryFound && astroRes.GitExcludeUpdated, "Worktree gitdir: file should update info/exclude.");
+        Check(File.ReadAllText(Path.Combine(worktreeGit, "info", "exclude")).Contains(".sitelift/", StringComparison.Ordinal), "Resolved gitdir info/exclude must include .sitelift/.");
+    }
+    finally
+    {
+        if (Directory.Exists(profileSandbox)) Directory.Delete(profileSandbox, recursive: true);
+    }
+}
+
+// 14. AI settings (DPAPI) + AiAdvisorClient parser + ContentIngestEngine tests
+{
+    string ingestSandbox = Path.Combine(Path.GetTempPath(), $"sitelift-ingest-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(ingestSandbox);
+    try
+    {
+        static void WriteText(string path, string text)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, text.Replace("\r\n", "\n"), new UTF8Encoding(false));
+        }
+
+        // 14a. DPAPI secret roundtrip & URI normalization & AI JSON parsing
+        string secret = "sk-test-sitelift-secret-12345";
+        string protectedSecret = DpapiSecretProtector.Protect(secret);
+        Check(protectedSecret.StartsWith("dpapi:", StringComparison.Ordinal), "Protected secret must use dpapi: prefix.");
+        Check(!protectedSecret.Contains(secret, StringComparison.Ordinal), "Protected secret must not contain plaintext.");
+        Check(DpapiSecretProtector.Unprotect(protectedSecret) == secret, "DPAPI roundtrip must restore exact secret.");
+
+        Check(AiAdvisorClient.BuildChatCompletionsUri("https://api.deepseek.com/v1").AbsoluteUri ==
+              "https://api.deepseek.com/v1/chat/completions", "Endpoint should append /chat/completions.");
+        Check(AiAdvisorClient.BuildChatCompletionsUri("http://localhost:11434/v1/chat/completions").AbsoluteUri ==
+              "http://localhost:11434/v1/chat/completions", "Endpoint already ending with /chat/completions should stay unchanged.");
+        Reject<ArgumentException>(() => AiAdvisorClient.BuildChatCompletionsUri("ftp://invalid.example.com"));
+
+        var parsedAi = AiAdvisorClient.ParseRoutingJson("""
+            ```json
+            {
+              "recommendedDirectory": "docs/ai",
+              "alternativeDirectories": ["docs/guide"],
+              "reason": "文章核心讨论大模型与工作流",
+              "suggestedFileName": "llm-workflow.md",
+              "title": "LLM 自动化工作流",
+              "categories": ["技术", "AI", "多余第三级"],
+              "tags": ["LLM", "Workflow"],
+              "description": "简介",
+              "navigationAdvice": ""
+            }
+            ```
+            """);
+        Check(parsedAi.RecommendedDirectory == "docs/ai", "Should parse fenced JSON recommendation.");
+        Check(parsedAi.Tags.SequenceEqual(new[] { "LLM", "Workflow" }), "Should parse AI tags.");
+
+        // 14b. AppDataStore AI settings save/load
+        var tempStore = new AppDataStore(Path.Combine(ingestSandbox, "appdata"));
+        tempStore.SaveAiSettings(new AiSettings(true, "https://api.deepseek.com/v1", "deepseek-chat", protectedSecret, 45));
+        var loadedAi = tempStore.LoadAiSettings();
+        Check(loadedAi.IsConfigured && loadedAi.Model == "deepseek-chat" && loadedAi.TimeoutSeconds == 45, "AI settings should roundtrip.");
+        Check(DpapiSecretProtector.Unprotect(loadedAi.ProtectedApiKey) == secret, "Stored AI API key should unprotect cleanly.");
+
+        // 14c. Chirpy ingest: heuristic + AI merge guardrail + local image copy & link rewrite + Obsidian embed rewrite
+        string chirpyRoot = Path.Combine(ingestSandbox, "chirpy-site");
+        Directory.CreateDirectory(Path.Combine(chirpyRoot, ".git"));
+        WriteText(Path.Combine(chirpyRoot, "_config.yml"), "theme: jekyll-theme-chirpy\ntimezone: Asia/Shanghai\n");
+        WriteText(Path.Combine(chirpyRoot, "assets", "img", "posts", "existing.png"), "png");
+        WriteText(Path.Combine(chirpyRoot, "_posts", "2026-11-01-dotnet-tips.md"), """
+            ---
+            title: .NET 8 性能优化
+            date: 2026-11-01 10:00:00 +0800
+            categories: [技术, 后端]
+            tags: [dotnet, perf]
+            media_subpath: /assets/img/posts
+            ---
+            正文
+            """);
+        var chirpyProfile = SiteProfileScanner.ScanAndSave(chirpyRoot).Document;
+
+        string dropDir = Path.Combine(ingestSandbox, "dropped");
+        WriteText(Path.Combine(dropDir, "assets", "diagram.png"), "fake-png-bytes");
+        WriteText(Path.Combine(dropDir, "note.png"), "fake-obsidian-png");
+        string droppedMd = Path.Combine(dropDir, "dotnet-gc-guide.md");
+        WriteText(droppedMd, """
+            # .NET GC 调优实践
+
+            本文深入讲解 dotnet 性能与内存分配。
+
+            ![架构图](./assets/diagram.png)
+            ![[note.png|内存示意]]
+            ![缺失图](./missing.png)
+            """);
+
+        string[] discovered = ContentIngestEngine.DiscoverMarkdownInputs(new[] { dropDir });
+        Check(discovered.SequenceEqual(new[] { droppedMd }), "Folder drop should discover markdown inside.");
+
+        var docInfo = ContentIngestEngine.InspectDroppedDocument(droppedMd);
+        Check(docInfo.DetectedTitle == ".NET GC 调优实践", "Should extract H1 title.");
+        Check(!docInfo.HasFrontmatter, "Raw dropped doc has no frontmatter.");
+        Check(docInfo.LocalAssets.Length == 3, "Should detect markdown, obsidian, and missing local image refs.");
+        Check(docInfo.LocalAssets.Count(a => a.Exists) == 2, "Two local images should exist.");
+
+        var heuristicPlan = ContentIngestEngine.BuildHeuristicPlan(chirpyProfile, chirpyRoot, docInfo);
+        Check(heuristicPlan.TargetDirectory == "_posts", "Chirpy should route to _posts.");
+        Check(heuristicPlan.SuggestedFileName.EndsWith("-dotnet-gc-guide.md", StringComparison.Ordinal), "Chirpy filename should add date prefix.");
+        Check(heuristicPlan.ShouldInjectFrontmatter && heuristicPlan.SuggestedFrontmatter.Contains("title:", StringComparison.Ordinal), "Should suggest YAML frontmatter.");
+        Check(heuristicPlan.AssetTransfers.Length == 2 && heuristicPlan.MissingAssetRefs.Length == 1, "Should plan 2 asset transfers and report 1 missing.");
+
+        // Verify AI guardrail: hallucinated directory must be rejected and fall back to _posts, Chirpy caps categories to 2 & lowercases tags
+        var hallucinatedAi = new AiRoutingSuggestion(
+            RecommendedDirectory: "../../evil-dir",
+            AlternativeDirectories: new[] { "_tabs" },
+            Reason: "测试越界目录拦截",
+            SuggestedFileName: "2026-11-25-dotnet-gc.md",
+            Title: ".NET GC 调优实践",
+            Categories: new[] { "技术", "后端", "第三级应截断" },
+            Tags: new[] { "DotNet", "GC" },
+            Description: "GC 调优",
+            NavigationAdvice: "");
+        var mergedPlan = ContentIngestEngine.MergeAiSuggestion(heuristicPlan, hallucinatedAi, chirpyProfile, chirpyRoot, docInfo);
+        Check(mergedPlan.TargetDirectory == "_posts", "Hallucinated AI directory must be blocked by whitelist.");
+        Check(!string.IsNullOrWhiteSpace(mergedPlan.WarningNote), "Blocked AI directory should produce warning note.");
+        Check(mergedPlan.SuggestedCategories.Length == 2, "Chirpy must cap categories to 2 levels.");
+        Check(mergedPlan.SuggestedTags.SequenceEqual(new[] { "dotnet", "gc" }), "Chirpy tags should be lowercased.");
+
+        var ingestResult = ContentIngestEngine.ApplyIngest(chirpyRoot, docInfo, new ContentIngestRequest(
+            TargetDirectory: mergedPlan.TargetDirectory,
+            TargetFileName: mergedPlan.SuggestedFileName,
+            ApplyFrontmatter: true,
+            FrontmatterText: mergedPlan.SuggestedFrontmatter,
+            CopyLocalAssets: true,
+            AllowOverwrite: false,
+            AssetTransfers: mergedPlan.AssetTransfers));
+        Check(ingestResult.CopiedAssetsCount == 2 && !ingestResult.OverwroteExisting, "Should write post and copy 2 assets.");
+        string writtenPost = File.ReadAllText(ingestResult.TargetFullPath, Encoding.UTF8);
+        Check(writtenPost.StartsWith("---\ntitle: \".NET GC 调优实践\"\n", StringComparison.Ordinal), "Written post should have injected frontmatter.");
+        Check(writtenPost.Contains("media_subpath: /assets/img/posts/2026-11-25-dotnet-gc/", StringComparison.Ordinal), "Chirpy site with media_subpath must inject media_subpath into frontmatter.");
+        Check(writtenPost.Contains("![架构图](diagram.png)", StringComparison.Ordinal), "Chirpy media_subpath mode must rewrite image ref to short filename.");
+        Check(writtenPost.Contains("![内存示意](note.png)", StringComparison.Ordinal), "Obsidian embed must be rewritten to standard markdown image.");
+        Check(File.Exists(Path.Combine(chirpyRoot, "assets", "img", "posts", "2026-11-25-dotnet-gc", "diagram.png")), "Copied asset must exist.");
+
+        // Overwrite protection check
+        Reject<IOException>(() => ContentIngestEngine.ApplyIngest(chirpyRoot, docInfo, new ContentIngestRequest(
+            TargetDirectory: mergedPlan.TargetDirectory,
+            TargetFileName: mergedPlan.SuggestedFileName,
+            ApplyFrontmatter: true,
+            FrontmatterText: mergedPlan.SuggestedFrontmatter,
+            CopyLocalAssets: false,
+            AllowOverwrite: false,
+            AssetTransfers: Array.Empty<PlannedAssetTransfer>())));
+
+        // 14d. Hugo Page Bundle + userRules.routingHints + pullPaths exclusion
+        string hugoRoot = Path.Combine(ingestSandbox, "hugo-site");
+        WriteText(Path.Combine(hugoRoot, "hugo.toml"), "title = \"Demo\"\ncontentDir = \"content\"\n");
+        WriteText(Path.Combine(hugoRoot, "content", "ai", "agent-demo", "index.md"), "+++\ntitle = \"Agent 实践\"\n+++\n");
+        WriteText(Path.Combine(hugoRoot, "content", "remote-sync", "keep.md"), "+++\ntitle = \"远端\"\n+++\n");
+        WriteText(SiteProfileScanner.GetProfilePath(hugoRoot), """
+            {
+              "userRules": {
+                "routingHints": ["大模型和 Prompt 文章统一放入 content/ai"]
+              }
+            }
+            """);
+        var hugoProfile = SiteProfileScanner.ScanAndSave(hugoRoot, new SiteProfileScanOptions(
+            PullPaths: new[] { "content/remote-sync" })).Document;
+
+        string hugoDrop = Path.Combine(ingestSandbox, "prompt-note.md");
+        WriteText(Path.Combine(ingestSandbox, "fig.png"), "png");
+        WriteText(hugoDrop, "# 大模型 Prompt 设计\n\n![图](./fig.png)\n");
+        var hugoDoc = ContentIngestEngine.InspectDroppedDocument(hugoDrop);
+        var hugoPlan = ContentIngestEngine.BuildHeuristicPlan(hugoProfile, hugoRoot, hugoDoc);
+        Check(hugoPlan.TargetDirectory == "content/ai", "userRules.routingHints should route to content/ai.");
+        Check(!hugoPlan.AllowedDirectories.Contains("content/remote-sync"), "pullPaths directory must be excluded from allowed ingest targets.");
+        Check(hugoPlan.SuggestedFileName == "prompt-note/index.md", "Hugo page bundle should suggest slug/index.md.");
+        Check(hugoPlan.SuggestedFrontmatter.StartsWith("+++\n", StringComparison.Ordinal), "Hugo TOML site should generate +++ frontmatter.");
+        Check(hugoPlan.AssetTransfers.Length == 1 && hugoPlan.AssetTransfers[0].RewrittenMarkdownRef == "./fig.png", "Page bundle asset should rewrite to ./fig.png.");
+
+        // 14e. Profile freshness check + AppendUserRoutingHint idempotency
+        var fresh = SiteProfileScanner.CheckStructureFreshness(hugoRoot, hugoProfile, new SiteProfileScanOptions(PullPaths: new[] { "content/remote-sync" }));
+        Check(!fresh.IsStale, "Unchanged repo should report fresh profile.");
+        Directory.CreateDirectory(Path.Combine(hugoRoot, "content", "rust"));
+        var stale = SiteProfileScanner.CheckStructureFreshness(hugoRoot, hugoProfile, new SiteProfileScanOptions(PullPaths: new[] { "content/remote-sync" }));
+        Check(stale.IsStale && !string.IsNullOrWhiteSpace(stale.Reason), "Adding directory must mark profile stale.");
+        Check(SiteProfileScanner.AppendUserRoutingHint(hugoRoot, "Rust 文章放入 content/rust"), "Should append new user routing hint.");
+        Check(!SiteProfileScanner.AppendUserRoutingHint(hugoRoot, "Rust 文章放入 content/rust"), "Duplicate routing hint should be ignored.");
+
+        // 14f. VuePress Plume frontmatter (createTime + permalink)
+        string plumeRoot = Path.Combine(ingestSandbox, "plume-site");
+        WriteText(Path.Combine(plumeRoot, "package.json"), """{ "devDependencies": { "vuepress": "^2.0.0", "vuepress-theme-plume": "^1.0.0" } }""");
+        WriteText(Path.Combine(plumeRoot, "docs", ".vuepress", "config.ts"), "export default {};");
+        WriteText(Path.Combine(plumeRoot, "docs", "notes", "sample.md"), """
+            ---
+            title: 现有文章
+            createTime: 2026/11/20 10:00:00
+            permalink: /article/abc12345/
+            tags: [plume]
+            ---
+            内容
+            """);
+        var plumeProfile = SiteProfileScanner.ScanAndSave(plumeRoot).Document;
+        string plumeDrop = Path.Combine(ingestSandbox, "plume-new.md");
+        WriteText(plumeDrop, "# Plume 新文章\n\n介绍 plume 主题配置。\n");
+        var plumePlan = ContentIngestEngine.BuildHeuristicPlan(plumeProfile, plumeRoot, ContentIngestEngine.InspectDroppedDocument(plumeDrop));
+        Check(plumePlan.SuggestedFrontmatter.Contains("createTime: ", StringComparison.Ordinal), "Plume frontmatter should include createTime.");
+        Check(plumePlan.SuggestedFrontmatter.Contains("permalink: /article/", StringComparison.Ordinal), "Plume frontmatter should include permalink.");
+
+        // 14g. Semi-auto navigation patch (mdBook SUMMARY.md + Docsify _sidebar.md + MkDocs snippet)
+        string mdBookRoot = Path.Combine(ingestSandbox, "mdbook-nav");
+        WriteText(Path.Combine(mdBookRoot, "book.toml"), "[book]\nsrc = \"src\"\n");
+        WriteText(Path.Combine(mdBookRoot, "src", "SUMMARY.md"), "# Summary\n\n- [简介](./intro.md)\n");
+        WriteText(Path.Combine(mdBookRoot, "src", "intro.md"), "# 简介\n");
+        var mdBookProfile = SiteProfileScanner.ScanAndSave(mdBookRoot).Document;
+        string ch2Path = Path.Combine(ingestSandbox, "chapter-2.md");
+        WriteText(ch2Path, "# 第二章\n\n章节内容\n");
+        var ch2Doc = ContentIngestEngine.InspectDroppedDocument(ch2Path);
+        var mdBookPlan = ContentIngestEngine.BuildHeuristicPlan(mdBookProfile, mdBookRoot, ch2Doc);
+        Check(mdBookPlan.NavigationPatch is { CanAutoApply: true, AlreadyPresent: false }, "mdBook should build auto-applicable SUMMARY.md patch.");
+        var mdBookApply = ContentIngestEngine.ApplyIngest(mdBookRoot, ch2Doc, new ContentIngestRequest(
+            TargetDirectory: mdBookPlan.TargetDirectory,
+            TargetFileName: mdBookPlan.SuggestedFileName,
+            ApplyFrontmatter: false,
+            FrontmatterText: "",
+            CopyLocalAssets: false,
+            AllowOverwrite: false,
+            AssetTransfers: Array.Empty<PlannedAssetTransfer>(),
+            ApplyNavigationPatch: true,
+            NavigationPatch: mdBookPlan.NavigationPatch));
+        Check(mdBookApply.NavigationIndexUpdated && mdBookApply.UpdatedNavigationFile == "src/SUMMARY.md", "mdBook ingest should update SUMMARY.md.");
+        Check(File.ReadAllText(Path.Combine(mdBookRoot, "src", "SUMMARY.md")).Contains("- [第二章](./chapter-2.md)", StringComparison.Ordinal), "SUMMARY.md must contain appended entry.");
+        // Re-check idempotency
+        var mdBookPlanAfter = ContentIngestEngine.BuildHeuristicPlan(mdBookProfile, mdBookRoot, ch2Doc);
+        Check(mdBookPlanAfter.NavigationPatch is { AlreadyPresent: true }, "Second check must detect SUMMARY.md entry already exists.");
+
+        // 14h. DiagnosticsRedactor + AI diagnosis/commit parsers + local commit summary
+        string dirtyLog = "Error at C:\\Users\\Allen\\repo and /home/alice/site with https://bob:secret@github.com/a/b.git ghp_1234567890abcdef1234567890 Bearer tok_abcdef1234567890";
+        string redacted = DiagnosticsRedactor.Redact(dirtyLog, "bob", "ssh -i /home/alice/.ssh/mykey");
+        Check(!redacted.Contains("Allen", StringComparison.Ordinal) && !redacted.Contains("alice", StringComparison.Ordinal), "User names in paths must be redacted.");
+        Check(!redacted.Contains("secret", StringComparison.Ordinal) && !redacted.Contains("ghp_1234567890", StringComparison.Ordinal), "Credentials and tokens must be redacted.");
+        Check(!redacted.Contains("tok_abcdef1234567890", StringComparison.Ordinal), "Bearer token must be redacted.");
+
+        var diag = AiAdvisorClient.ParseDiagnosisJson("""
+            {"summary":"缺少 pnpm","rootCause":"WSL PATH 未包含 pnpm","fixSteps":["启用 corepack"],"suggestedCommands":["corepack enable"]}
+            """);
+        Check(diag.Summary == "缺少 pnpm" && diag.SuggestedCommands.SequenceEqual(new[] { "corepack enable" }), "Should parse AI diagnosis JSON.");
+        Check(AiAdvisorClient.ParseCommitMessage("\"新增 .NET GC 调优文章\"\n额外行") == "新增 .NET GC 调优文章", "Commit message parser should trim quotes and extra lines.");
+        string localMsg = ContentIngestEngine.BuildLocalCommitMessage("Blog", new[] { "新增: _posts/2026-11-25-gc.md", "修改: index.html" });
+        Check(localMsg.Contains("新增 1", StringComparison.Ordinal) && localMsg.Contains("修改 1", StringComparison.Ordinal), "Local commit message should summarize counts.");
+    }
+    finally
+    {
+        if (Directory.Exists(ingestSandbox)) Directory.Delete(ingestSandbox, recursive: true);
+    }
+}
+
 Console.WriteLine("All SiteLift.Core unit and Git integration checks passed.");

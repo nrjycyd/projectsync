@@ -571,6 +571,9 @@ public partial class MainWindow
             string destination;
             switch (shortcut)
             {
+                case "ScanProfile":
+                    await ScanSiteProfileAsync(project);
+                    return;
                 case "Local":
                     destination = project.Repository;
                     break;
@@ -825,9 +828,57 @@ public partial class MainWindow
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0)
         };
         label.SetResourceReference(FrameworkElement.StyleProperty, "SettingsFieldLabel");
+
+        var aiSettings = SiteLift.App.App.Store.LoadAiSettings();
+        var genButton = new Wpf.Ui.Controls.Button
+        {
+            Content = aiSettings.IsConfigured ? "AI 生成" : "自动摘要",
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = aiSettings.IsConfigured
+                ? "根据变更清单调用 AI 生成简洁提交摘要"
+                : "根据变更清单自动生成中文提交摘要（配置 AI 接口后可智能概括）"
+        };
+        genButton.SetResourceReference(FrameworkElement.StyleProperty, "WorkspaceCompactIconButton");
+        System.Windows.Controls.DockPanel.SetDock(label, System.Windows.Controls.Dock.Left);
+        System.Windows.Controls.DockPanel.SetDock(genButton, System.Windows.Controls.Dock.Right);
         row.Children.Add(label);
+        row.Children.Add(genButton);
         row.Children.Add(input);
         body.Children.Add(row);
+
+        genButton.Click += async (_, _) =>
+        {
+            if (!aiSettings.IsConfigured)
+            {
+                input.Text = ContentIngestEngine.BuildLocalCommitMessage(project.Name, changes);
+                input.CaretIndex = input.Text.Length;
+                input.Focus();
+                return;
+            }
+
+            genButton.IsEnabled = false;
+            genButton.Content = "生成中...";
+            try
+            {
+                string summary = await AiAdvisorClient.GenerateCommitMessageAsync(
+                    aiSettings, project.Name, project.FrameworkLabel, changes, CancellationToken.None);
+                input.Text = summary;
+                input.CaretIndex = input.Text.Length;
+                input.Focus();
+            }
+            catch
+            {
+                input.Text = ContentIngestEngine.BuildLocalCommitMessage(project.Name, changes);
+                input.CaretIndex = input.Text.Length;
+                input.Focus();
+            }
+            finally
+            {
+                genButton.IsEnabled = true;
+                genButton.Content = "AI 生成";
+            }
+        };
 
         input.TextChanged += (_, _) => accept.IsEnabled = !string.IsNullOrWhiteSpace(input.Text);
         accept.Click += (_, _) => dialog.DialogResult = true;

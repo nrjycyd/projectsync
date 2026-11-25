@@ -560,6 +560,11 @@ public static class SyncEngine
         var syncPathspecs = new List<string>(sitePaths);
         foreach (string ex in excludePaths)
             syncPathspecs.Add($":(exclude,literal){ex}");
+        if (!sitePaths.Any(p => string.Equals(p, SiteProfileScanner.ProfileDirectoryName, StringComparison.OrdinalIgnoreCase) ||
+                                p.StartsWith(SiteProfileScanner.ProfileDirectoryName + "/", StringComparison.OrdinalIgnoreCase)))
+        {
+            syncPathspecs.Add($":(exclude,literal){SiteProfileScanner.ProfileDirectoryName}");
+        }
         foreach (string sfx in suffixes)
             syncPathspecs.Add($":(exclude,glob)**/*{sfx}");
 
@@ -608,7 +613,11 @@ public static class SyncEngine
             config.BuildCommand, nodeBin, autoCrlf, branch, verifiedSnapshot,
             pullPaths, syncPathspecs.ToArray(), log, cancellation);
 
-        var protectArgs = new List<string>();
+        var protectArgs = new List<string>
+        {
+            "-e", $"/{SiteProfileScanner.ProfileDirectoryName}",
+            "-e", $"/{SiteProfileScanner.ProfileDirectoryName}/"
+        };
         foreach (string ex in excludePaths)
         {
             protectArgs.Add("-e");
